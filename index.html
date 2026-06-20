@@ -236,6 +236,20 @@ tr:hover td{background:#F8FAFC}
 .dot-purple{background:#7E57C2}
 .dot-green{background:#3C8A3C}
 .dot-amber{background:#C7960B}
+
+/* === Dashboard visual V3.2 === */
+.dashboard-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;background:linear-gradient(135deg,#fff,#F8FAFC);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:16px}
+.dashboard-heading-title{font-size:17px;font-weight:700;color:var(--dark);margin-bottom:4px}
+.dashboard-heading-sub{font-size:12px;color:var(--muted);line-height:1.45}
+.dashboard-pill{display:inline-flex;align-items:center;gap:6px;background:#EEF2FF;color:var(--dark);border:1px solid #D8DEEA;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;white-space:nowrap}
+.stat-card{position:relative;overflow:hidden;min-height:104px;padding:16px 18px 14px}
+.stat-card:after{content:"";position:absolute;right:-22px;bottom:-30px;width:86px;height:86px;border-radius:50%;background:rgba(46,117,182,.08)}
+.stat-icon{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:10px;background:#EEF4FB;display:flex;align-items:center;justify-content:center;font-size:17px;z-index:1}
+.stat-label,.stat-val,.stat-hint{position:relative;z-index:2}
+.stat-label{padding-right:42px}
+.stat-val{margin-top:2px}
+.stat-hint{max-width:150px;line-height:1.25}
+
 </style>
 </head>
 <body>
@@ -341,7 +355,7 @@ tr:hover td{background:#F8FAFC}
             <option value="deadline">Deadline en periodo</option>
           </select>
         </div>
-        <div class="mode-hint" id="modeHint">Vista consolidada: une campañas que aparecen en varios periodos para evitar repetir creatividades.</div>
+        <div class="mode-hint" id="modeHint">Vista consolidada: une periodos sin mezclar Creatividad ID; cada ID se gestiona como un arte independiente.</div>
       </div>
       <!-- Dashboard default -->
       <div id="view-dashboard">
@@ -356,13 +370,20 @@ tr:hover td{background:#F8FAFC}
           <div class="upload-sub">Formatos aceptados: .xlsx · .xls · .xlsm</div>
         </div>
         <div id="dashStats" style="display:none;margin-top:24px">
+          <div class="dashboard-heading">
+            <div>
+              <div class="dashboard-heading-title">Resumen operativo</div>
+              <div class="dashboard-heading-sub">Lectura rápida del archivo cargado, avance semanal y volumen de materiales por gestionar.</div>
+            </div>
+            <div class="dashboard-pill">⚙ V3.2 · línea por Creatividad ID</div>
+          </div>
           <div id="weekSummary" class="week-summary"></div>
           <div class="stats">
-            <div class="stat-card"><div class="stat-label">CLIENTES</div><div class="stat-val" id="s-cli">0</div></div>
-            <div class="stat-card"><div class="stat-label">ANUNCIANTES / MARCAS</div><div class="stat-val" id="s-anu">0</div></div>
-            <div class="stat-card"><div class="stat-label">CAMPAÑAS</div><div class="stat-val" id="s-camp">0</div></div>
-            <div class="stat-card"><div class="stat-label">CREATIVIDADES</div><div class="stat-val" id="s-creat">0</div></div>
-            <div class="stat-card"><div class="stat-label">DUPLICADOS ELIMINADOS</div><div class="stat-val" id="s-dup">0</div><div class="stat-hint">por llave compuesta de 8 campos</div></div>
+            <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-label">CLIENTES</div><div class="stat-val" id="s-cli">0</div><div class="stat-hint">retailers detectados</div></div>
+            <div class="stat-card"><div class="stat-icon">🏷️</div><div class="stat-label">ANUNCIANTES / MARCAS</div><div class="stat-val" id="s-anu">0</div><div class="stat-hint">marcas activas</div></div>
+            <div class="stat-card"><div class="stat-icon">📣</div><div class="stat-label">CAMPAÑAS</div><div class="stat-val" id="s-camp">0</div><div class="stat-hint">campañas únicas</div></div>
+            <div class="stat-card"><div class="stat-icon">🎨</div><div class="stat-label">CREATIVIDADES</div><div class="stat-val" id="s-creat">0</div><div class="stat-hint">artes por gestionar</div></div>
+            <div class="stat-card"><div class="stat-icon">🧹</div><div class="stat-label">DUPLICADOS ELIMINADOS</div><div class="stat-val" id="s-dup">0</div><div class="stat-hint">sin mezclar Creatividad ID</div></div>
           </div>
           <div class="card">
             <div class="card-header"><div class="card-title">Clientes y marcas en este ciclo</div></div>
@@ -476,6 +497,13 @@ tr:hover td{background:#F8FAFC}
 const MESES_ES = ['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const MESES_CAP = ['','ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 
+// Configuración del retailer/canal usada en asuntos y borradores.
+// Si el flujo se replica para otro retailer, cambia estos dos valores.
+const RETAILER_CONFIG = {
+  nombre: 'Soriana.com',
+  etiquetaCampanias: 'Campañas Soriana.com'
+};
+
 const ECO_ARTS = new Set(['BUNDLE BOOST','CATEGORY BANNER','CATEGORY LANDING','CATEGORY MEDIA_WEB','HOME BANNER','HOME CENTRAL','HOME SLIDER','MIS LISTAS HEADER','PACK PROMOS','SEARCH BANNER']);
 
 const MEDIDAS = {
@@ -546,12 +574,12 @@ function parsePeriodo(val){
   const raw = String(val || '').trim();
   if(!raw) return null;
   const m = raw.match(/^\s*([A-Za-z]?\d+)\s*-\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*a\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*$/i);
-  if(!m) return {code: raw, label: raw, start:null, end:null, key: raw};
+  if(!m) return {code: raw, label: raw, start:null, end:null, key: raw, isRecognized:false};
   const code = m[1].toUpperCase();
   const start = parseDMY(m[2]);
   const end = parseDMY(m[3]);
   const label = `${code} - ${fmtDate(start)} a ${fmtDate(end)}`;
-  return {code, label, start, end, key: `${code}|${fmtDate(start)}|${fmtDate(end)}`};
+  return {code, label, start, end, key: `${code}|${fmtDate(start)}|${fmtDate(end)}`, isRecognized:true};
 }
 
 function calcDeadline(minFij) {
@@ -632,7 +660,7 @@ function setMode(mode){
   document.getElementById('btnModeConsolidated').classList.toggle('active', mode==='consolidated');
   document.getElementById('btnModeWeekly').classList.toggle('active', mode==='weekly');
   document.getElementById('modeHint').textContent = mode === 'consolidated'
-    ? 'Vista consolidada: une campañas que aparecen en varios periodos para evitar repetir creatividades.'
+    ? 'Vista consolidada: une periodos sin mezclar Creatividad ID; cada ID se gestiona como un arte independiente.'
     : 'Vista semanal: conserva cada periodo del archivo para operar por semana sin perder trazabilidad.';
   saveFilterPrefs();
   refreshAll();
@@ -770,7 +798,8 @@ function runDataValidations(rows, get){
 
       if(fij && ret && fij > ret) issues.push({fila, tipo:'FECHAS_INVERTIDAS', detalle:`Fijación (${fmtDate(fij)}) es posterior a Retirada (${fmtDate(ret)})`, campana, cliente});
 
-      if(get(row,'Periodo') && !parsePeriodo(get(row,'Periodo'))) issues.push({fila, tipo:'PERIODO_NO_RECONOCIDO', detalle:`Texto de Periodo no coincide con el formato esperado: "${get(row,'Periodo')}"`, campana, cliente});
+      const periodoParsed = parsePeriodo(get(row,'Periodo'));
+      if(get(row,'Periodo') && periodoParsed && periodoParsed.isRecognized === false) issues.push({fila, tipo:'PERIODO_NO_RECONOCIDO', detalle:`Texto de Periodo no coincide con el formato esperado: "${get(row,'Periodo')}"`, campana, cliente});
 
       if(cid){
         const prev = cidMap.get(cid);
@@ -1008,8 +1037,9 @@ function buildPeriodSelect(){
 }
 
 function checklistGroupKeyFromConsolidated(r){
-  // Mismo criterio de agrupación que usa Control Operativo: Campaña + Artículo + Espacio.
-  return [r.campana, r.articulo, r.nivel].map(v => String(v||'').trim().toUpperCase()).join('|||');
+  // Mismo criterio de agrupación que usa Control Operativo: Cliente + Marca + Campaña + Artículo + Espacio + Creatividad ID.
+  // La Creatividad ID separa líneas: si cambia el ID, cambia el arte y se gestiona aparte.
+  return [r.cliente, r.anunciante, r.campana, r.articulo, r.nivel, r.cid || 'SIN_CREATIVIDAD_ID'].map(v => String(v||'').trim().toUpperCase()).join('|||');
 }
 
 function countEspaciosEnPeriodo(periodKey){
@@ -1357,11 +1387,11 @@ function renderBorrador() {
   const cliente = rows[0].cliente;
   const periodos = [...new Set(rows.flatMap(r => (r.periods || []).map(p=>p.code)))].join(', ');
 
-  const asunto = `${camp} | ${cliente} | Campañas Soriana.com | ${meses}`;
+  const asunto = `${camp} | ${cliente} | ${RETAILER_CONFIG.etiquetaCampanias} | ${meses}`;
   const specsHtml = buildSpecsTable(rows);
   const sem = semaforo(fl, end);
 
-  const cuerpoIntro = `Hola [nombre],\n\nEspero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${camp}, activa del ${fmtDate(start)} al ${fmtDate(end)}, correspondiente a los periodos ${periodos}.\n\nA continuación encontrarán el detalle de las creatividades requeridas:`;
+  const cuerpoIntro = `Hola [nombre],\n\nEspero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${camp} para ${RETAILER_CONFIG.nombre}, activa del ${fmtDate(start)} al ${fmtDate(end)}, correspondiente a los periodos ${periodos}.\n\nA continuación encontrarán el detalle de las creatividades requeridas:`;
   const cuerpoCierre = `📅 Fecha límite de entrega de materiales: ${flStr}\nEsta fecha es indispensable para asegurar la correcta implementación de su campaña. Materiales recibidos fuera de plazo podrán quedar sujetos a reprogramación.\n\n📎 Adjunto encontrarán nuestra Guía de Buenas Prácticas con los requisitos técnicos que deben cumplir todos los materiales antes del envío.\n\nAnte cualquier duda, con gusto les orientamos.\n\nSaludos,`;
 
   contentEl.innerHTML = `
@@ -1424,13 +1454,13 @@ function buildEmailPayload(cli, anu, camp) {
   const meses = getMeses(rows);
   const cliente = rows[0].cliente;
   const periodos = [...new Set(rows.flatMap(r => (r.periods || []).map(p=>p.code)))].join(', ');
-  const asunto = `${camp} | ${cliente} | Campañas Soriana.com | ${meses}`;
+  const asunto = `${camp} | ${cliente} | ${RETAILER_CONFIG.etiquetaCampanias} | ${meses}`;
 
   const html = `
   <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.45;color:#1a1a1a;">
     <p style="margin:0 0 14px 0;">Hola [nombre],</p>
 
-    <p style="margin:0 0 14px 0;">Espero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña <strong>#${esc(camp)}</strong>, activa del <strong>${fmtDate(start)}</strong> al <strong>${fmtDate(end)}</strong>, correspondiente a los periodos <strong>${esc(periodos)}</strong>.</p>
+    <p style="margin:0 0 14px 0;">Espero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña <strong>#${esc(camp)}</strong> para <strong>${esc(RETAILER_CONFIG.nombre)}</strong>, activa del <strong>${fmtDate(start)}</strong> al <strong>${fmtDate(end)}</strong>, correspondiente a los periodos <strong>${esc(periodos)}</strong>.</p>
 
     <p style="margin:0 0 8px 0;">A continuación encontrarán el detalle de las creatividades requeridas:</p>
 
@@ -1446,7 +1476,7 @@ function buildEmailPayload(cli, anu, camp) {
     <p style="margin:0;">Saludos,</p>
   </div>`;
 
-  const plain = `Cliente: ${cliente}\nAnunciante / Marca: ${anu}\nAsunto: ${asunto}\n\nHola [nombre],\n\nEspero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${camp}, activa del ${fmtDate(start)} al ${fmtDate(end)}, correspondiente a los periodos ${periodos}.\n\nA continuación encontrarán el detalle de las creatividades requeridas:\n\n${emailTablePlain(rows)}\n\n📅 Fecha límite de entrega de materiales: ${flStr}\nEsta fecha es indispensable para asegurar la correcta implementación de su campaña. Materiales recibidos fuera de plazo podrán quedar sujetos a reprogramación.\n\n📎 Adjunto encontrarán nuestra Guía de Buenas Prácticas con los requisitos técnicos que deben cumplir todos los materiales antes del envío.\n\nAnte cualquier duda, con gusto les orientamos.\n\nSaludos,`;
+  const plain = `Cliente: ${cliente}\nAnunciante / Marca: ${anu}\nAsunto: ${asunto}\n\nHola [nombre],\n\nEspero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${camp} para ${RETAILER_CONFIG.nombre}, activa del ${fmtDate(start)} al ${fmtDate(end)}, correspondiente a los periodos ${periodos}.\n\nA continuación encontrarán el detalle de las creatividades requeridas:\n\n${emailTablePlain(rows)}\n\n📅 Fecha límite de entrega de materiales: ${flStr}\nEsta fecha es indispensable para asegurar la correcta implementación de su campaña. Materiales recibidos fuera de plazo podrán quedar sujetos a reprogramación.\n\n📎 Adjunto encontrarán nuestra Guía de Buenas Prácticas con los requisitos técnicos que deben cumplir todos los materiales antes del envío.\n\nAnte cualquier duda, con gusto les orientamos.\n\nSaludos,`;
 
   return {html, plain, asunto, rows};
 }
@@ -1575,6 +1605,8 @@ const CHECK_FIELDS = [
   {key:'testigosWeb', label:'Test. Web'},
 ];
 
+const CHECKLIST_SCHEMA_VERSION = 'v3.2-cid-line';
+
 function fbReady(){ return !!(fbApp && fbAuth && fbDb); }
 
 function initFirebase(){
@@ -1622,7 +1654,8 @@ function sanitizeId(s){
 }
 
 function checklistGroupKey(rec){
-  return [rec.campana, rec.articulo, rec.nivel].map(v => String(v||'').trim().toUpperCase()).join('|||');
+  // Línea operativa única por creatividad: si cambia Creatividad ID, es otro arte y debe tener su propio avance.
+  return [rec.cliente, rec.anunciante, rec.campana, rec.articulo, rec.nivel, rec.cid || 'SIN_CREATIVIDAD_ID'].map(v => String(v||'').trim().toUpperCase()).join('|||');
 }
 
 function buildChecklistGroups(records){
@@ -1633,7 +1666,7 @@ function buildChecklistGroups(records){
       map.set(key, {
         id: sanitizeId(key),
         cliente: r.cliente, anunciante: r.anunciante, campana: r.campana,
-        articulo: r.articulo, espacio: r.nivel,
+        articulo: r.articulo, espacio: r.nivel, creatividadId: r.cid || '',
         creatividadIds: new Set(),
         start: r.start, end: r.end,
       });
@@ -1646,7 +1679,7 @@ function buildChecklistGroups(records){
   return [...map.values()].map(g => {
     g.creatividadIds = [...g.creatividadIds].sort();
     g.deadline = calcDeadline(g.start);
-    g.reportHash = `${fmtDate(g.start)}|${fmtDate(g.end)}|${g.creatividadIds.join(',')}`;
+    g.reportHash = `${fmtDate(g.start)}|${fmtDate(g.end)}|${g.creatividadId || ''}|${g.creatividadIds.join(',')}`;
     return g;
   });
 }
@@ -1674,8 +1707,9 @@ function writeChecklistGroups(groups){
       if(!isNew && existing.reportHash === g.reportHash) return; // sin cambios, no tocar
       const ref = fbDb.collection('checklist').doc(g.id);
       const payload = {
+        schemaVersion: CHECKLIST_SCHEMA_VERSION,
         cliente:g.cliente, anunciante:g.anunciante, campana:g.campana,
-        articulo:g.articulo, espacio:g.espacio, creatividadIds:g.creatividadIds,
+        articulo:g.articulo, espacio:g.espacio, creatividadId:g.creatividadId || '', creatividadIds:g.creatividadIds,
         start: g.start ? firebase.firestore.Timestamp.fromDate(g.start) : null,
         end: g.end ? firebase.firestore.Timestamp.fromDate(g.end) : null,
         deadline: g.deadline ? firebase.firestore.Timestamp.fromDate(g.deadline) : null,
@@ -1723,6 +1757,20 @@ function toggleChecklistField(id, field){
   }, {merge:true});
 }
 
+function toggleChecklistAllFields(id){
+  if(!fbReady() || !currentUserEmail) return;
+  const cur = checklistState.get(id);
+  const checks = (cur && cur.checks) || {};
+  const allDone = CHECK_FIELDS.every(f => !!checks[f.key]);
+  const nextChecks = {};
+  CHECK_FIELDS.forEach(f => { nextChecks[f.key] = !allDone; });
+  fbDb.collection('checklist').doc(id).set({
+    checks: nextChecks,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedBy: currentUserEmail,
+  }, {merge:true});
+}
+
 function deleteChecklistGroup(id, label){
   if(!fbReady()) return;
   const ok = confirm(`¿Eliminar este registro del control operativo?\n\n${label}\n\nEsto borra el avance guardado (todos los checks) y no se puede deshacer.`);
@@ -1761,8 +1809,11 @@ function isChecklistUrgent(checks, deadline, end){
 function updateUrgentBadge(){
   const badge = document.getElementById('sbUrgentBadge');
   if(!badge) return;
+  const values = [...checklistState.values()];
+  const hasCurrentSchema = values.some(d => d.schemaVersion === CHECKLIST_SCHEMA_VERSION);
   let count = 0;
-  checklistState.forEach(d => {
+  values.forEach(d => {
+    if(hasCurrentSchema && d.schemaVersion !== CHECKLIST_SCHEMA_VERSION) return;
     if(isChecklistUrgent(d.checks || {}, tsToDate(d.deadline), tsToDate(d.end))) count++;
   });
   if(count > 0){
@@ -1787,9 +1838,11 @@ function renderChecklist(){
     return;
   }
 
-  const groups = [...checklistState.entries()]
-    .map(([id,d]) => ({id, ...d, start: tsToDate(d.start), end: tsToDate(d.end), deadline: tsToDate(d.deadline), lastReportChangeAt: tsToDate(d.lastReportChangeAt)}))
-    .filter(g => g.start)
+  const mappedGroups = [...checklistState.entries()]
+    .map(([id,d]) => ({id, ...d, start: tsToDate(d.start), end: tsToDate(d.end), deadline: tsToDate(d.deadline), lastReportChangeAt: tsToDate(d.lastReportChangeAt)}));
+  const hasCurrentSchema = mappedGroups.some(g => g.schemaVersion === CHECKLIST_SCHEMA_VERSION);
+  const groups = mappedGroups
+    .filter(g => g.start && (!hasCurrentSchema || g.schemaVersion === CHECKLIST_SCHEMA_VERSION))
     .sort((a,b) => a.start - b.start);
 
   const searchEl = document.getElementById('controlSearch');
@@ -1813,7 +1866,7 @@ function renderChecklist(){
     const {done, total} = checksProgress(checks);
     const rowCls = checksRowClass(checks);
     const urgent = isChecklistUrgent(checks, g.deadline, g.end);
-    const labelForDelete = `${g.cliente} · ${g.anunciante} — #${g.campana} (${g.articulo} / ${g.espacio || 'sin espacio'})`.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    const labelForDelete = `${g.cliente} · ${g.anunciante} — #${g.campana} (${g.articulo} / ${g.espacio || 'sin espacio'} / CID ${(g.creatividadIds||[]).join(', ') || '—'})`.replace(/'/g,"\\'").replace(/"/g,'&quot;');
     const checkboxes = CHECK_FIELDS.map(f => `
       <td class="chk-col" title="${esc(f.label)}">
         <input type="checkbox" ${checks[f.key] ? 'checked' : ''} onchange="toggleChecklistField('${esc(g.id)}','${f.key}')">
@@ -1830,6 +1883,9 @@ function renderChecklist(){
       <td>${fmtDate(g.start)}</td>
       <td>${fmtDate(g.end)}</td>
       <td>${fmtDeadline(g.deadline)}${urgent ? '<span class="urgent-badge">⚠ Urgente</span>' : ''}</td>
+      <td class="chk-col" title="Marcar o desmarcar todos los checks de esta línea">
+        <input type="checkbox" class="check-all-box" ${done === total ? 'checked' : ''} data-partial="${done > 0 && done < total ? '1' : '0'}" onchange="toggleChecklistAllFields('${esc(g.id)}')">
+      </td>
       ${checkboxes}
       <td class="checklist-progress">${done}/${total}</td>
       <td class="chk-col">
@@ -1850,12 +1906,14 @@ function renderChecklist(){
         <th>Fijación</th>
         <th>Retirada</th>
         <th>Deadline</th>
+        <th class="chk-col">Todo</th>
         ${CHECK_FIELDS.map(f => `<th class="chk-col">${esc(f.label)}</th>`).join('')}
         <th class="chk-col">Avance</th>
         <th class="chk-col">Acciones</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+  wrap.querySelectorAll('.check-all-box[data-partial="1"]').forEach(cb => { cb.indeterminate = true; });
 }
 
 (function restoreSavedMode(){
@@ -1865,7 +1923,7 @@ function renderChecklist(){
     document.getElementById('btnModeConsolidated').classList.toggle('active', currentMode==='consolidated');
     document.getElementById('btnModeWeekly').classList.toggle('active', currentMode==='weekly');
     document.getElementById('modeHint').textContent = currentMode === 'consolidated'
-      ? 'Vista consolidada: une campañas que aparecen en varios periodos para evitar repetir creatividades.'
+      ? 'Vista consolidada: une periodos sin mezclar Creatividad ID; cada ID se gestiona como un arte independiente.'
       : 'Vista semanal: conserva cada periodo del archivo para operar por semana sin perder trazabilidad.';
   }
 })();
