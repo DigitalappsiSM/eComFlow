@@ -42,12 +42,13 @@ jobs:
         env:
           # Base = /<repo>/ para GitHub Pages.
           VITE_BASE: /${{ github.event.repository.name }}/
-          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          # Config PÚBLICA de Firebase Web (claves de cliente; no son secretas).
+          VITE_FIREBASE_API_KEY: 'AIzaSyC-6U-g6SoiH24qTIf4Fuq6w_4X7Gz3nd0'
+          VITE_FIREBASE_AUTH_DOMAIN: 'ecomflowv3.firebaseapp.com'
+          VITE_FIREBASE_PROJECT_ID: 'ecomflowv3'
+          VITE_FIREBASE_STORAGE_BUCKET: 'ecomflowv3.firebasestorage.app'
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '222719206391'
+          VITE_FIREBASE_APP_ID: '1:222719206391:web:09a0484a08f2df8d4b04f2'
           VITE_USE_FIREBASE_EMULATORS: 'false'
         run: |
           npm run build
