@@ -106,11 +106,15 @@ Ponga `VITE_USE_FIREBASE_EMULATORS=true` en `.env` para que la app se conecte a
 los emuladores. Cree en el emulador el usuario de Auth y su documento
 `users/{uid}` igual que en producción.
 
-Datos de demostración (solo emulador, requiere confirmación):
+Datos de demostración (solo emulador, requiere confirmación y un admin creado
+en el emulador):
 
 ```bash
-SEED_CONFIRM=yes npm run seed:dev
+SEED_CONFIRM=yes ADMIN_EMAIL=admin@demo.mx ADMIN_PASSWORD=secret123 npm run seed:dev
 ```
+
+> **Guía de prueba end-to-end paso a paso** (con archivo CSV de ejemplo y
+> resultados esperados): [`docs/PRUEBA-EMULATOR.md`](docs/PRUEBA-EMULATOR.md).
 
 ## Despliegue de reglas e índices
 
