@@ -176,28 +176,50 @@ normalización técnica solo recorta/colapsa espacios, normaliza Unicode y compa
 sin distinguir mayúsculas: **nunca corrige ortografía ni relaciona nombres
 parecidos**.
 
-## Proceso de importación (preparado; interfaz en Fase 6)
+## Proceso de importación (Fase 6 — implementado)
 
-Flujo previsto (todo en el navegador, el archivo nunca se sube a Storage):
+Flujo completo, todo en el navegador; el archivo nunca se sube a Storage:
 
 ```text
-Seleccionar archivo → leer en memoria → validar estructura → validar filas →
-comparar con Firestore → vista previa → confirmar → escribir por lotes →
-actualizar dashboard
+Seleccionar archivo → leer en memoria (hash SHA-256) → validar estructura →
+validar filas → resolver placement (exacto/alias) → construir identidad →
+detectar duplicados → comparar con Firestore → vista previa con cambios
+proyectados → confirmar → escribir por lotes → actualizar dashboard
 ```
 
-Ya están implementados y probados los **contratos** del importador: validación
-de encabezados y filas con motivo exacto y acción sugerida (`schemas/import.schema.ts`),
-detección de duplicados dentro del archivo, generación de claves/`content_hash`
-(`domain/identity.ts`) y clasificación contra Firestore
-(`domain/import-classification.ts`).
+Implementado y en la vista **«Nueva carga»** (`/nueva-carga`):
+
+- Lectura local con SheetJS (`lib/excel.ts`, `lib/file-reader.ts`); rechazo
+  estructural estricto (una sola hoja, encabezados exactos, sin adivinar).
+- Validación por fila con motivo exacto y acción sugerida
+  (`schemas/import.schema.ts`); resolución de artículo → placement por
+  coincidencia exacta/alias, sin fuzzy (`domain/placement-index.ts`).
+- Detección de duplicados en el archivo, claves/`content_hash`
+  (`domain/identity.ts`) y clasificación contra Firestore
+  (`domain/import-pipeline.ts`): `new_campaign`/`new_space`/`new_line`/
+  `updated_line`/`unchanged`/`creativity_change`.
+- Vista previa con conteos proyectados y **confirmación previa** obligatoria.
+- Escritura por lotes con `writeBatch` + `serverTimestamp`, **progreso visible**,
+  IDs deterministas (idempotencia) y bloqueo por `file_hash`
+  (`repositories/import-processing.repository.ts`). Crea grupos, espacios,
+  líneas, operación inicial (checks en false), snapshots de requisitos,
+  `change_history`, `import_rows`, `detected_changes` y el registro de `imports`.
+- Reporte de errores descargable en CSV, generado localmente (`lib/error-report.ts`).
+- Historial de cargas en `/historial`.
+
+Una nueva Creatividad ID en un espacio existente **no** sobrescribe la anterior:
+crea una nueva línea y registra un cambio detectado `pending_review` (posible
+sustitución) para revisión manual.
 
 ## Limitaciones conocidas
 
-- Entrega del **alcance inicial (§58)**. Importación, operación, cambios
-  detectados, detalle de campaña, configuración y administración de usuarios
-  están **preparados a nivel de contrato** pero su UI se implementa en fases
-  posteriores (marcadas explícitamente en la app).
+- **Fase 6 (importador) implementada** además del alcance inicial (§58).
+  Operación, cambios detectados, detalle de campaña, configuración y
+  administración de usuarios siguen **preparados a nivel de contrato**; su UI se
+  implementa en fases posteriores (marcadas explícitamente en la app).
+- El importador escribe con IDs deterministas y bloqueo por `file_hash`, lo que
+  evita duplicar entidades al reintentar; la **reanudación fina desde el último
+  lote confirmado** queda como limitación conocida (§25).
 - El dashboard agrega en cliente sobre líneas actuales/activas (con `limit`).
   Para volúmenes grandes se prevén **agregados precalculados** (§54) — no se
   introducen de forma prematura.

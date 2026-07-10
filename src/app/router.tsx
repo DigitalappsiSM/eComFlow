@@ -3,6 +3,8 @@ import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { PlacementsPage } from '@/pages/placements/PlacementsPage';
+import { NewImportPage } from '@/pages/imports/NewImportPage';
+import { ImportHistoryPage } from '@/pages/imports/ImportHistoryPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 
 function protectedElement(node: JSX.Element, permission?: Parameters<typeof ProtectedRoute>[0]['permission']) {
@@ -19,13 +21,7 @@ export const router = createBrowserRouter([
       'operations',
     ),
   },
-  {
-    path: '/nueva-carga',
-    element: protectedElement(
-      <PlaceholderPage title="Nueva carga" description="Importación estricta de Excel / CSV" phase="Fase 6" />,
-      'imports',
-    ),
-  },
+  { path: '/nueva-carga', element: protectedElement(<NewImportPage />, 'imports') },
   {
     path: '/cambios',
     element: protectedElement(
@@ -33,13 +29,7 @@ export const router = createBrowserRouter([
       'changes',
     ),
   },
-  {
-    path: '/historial',
-    element: protectedElement(
-      <PlaceholderPage title="Historial de cargas" description="Importaciones y su resultado" phase="Fase 6" />,
-      'history',
-    ),
-  },
+  { path: '/historial', element: protectedElement(<ImportHistoryPage />, 'history') },
   {
     path: '/campanas',
     element: protectedElement(
