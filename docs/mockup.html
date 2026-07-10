@@ -1,0 +1,2895 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eComFlow V3.7 Stable — Optimización y mantenimiento seguro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#070b14;color:#F1F5F9;min-height:100vh}
+:root{
+  --dark:#0A0F1E;
+  --blue:#3B82F6;
+  --blue-2:#60A5FA;
+  --ink:#F1F5F9;
+  --surface:rgba(255,255,255,.045);
+  --surface-strong:rgba(255,255,255,.07);
+  --muted:#64748B;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.11);
+  --alt:rgba(255,255,255,.03);
+  --green:#22C55E;
+  --orange:#F97316;
+  --warn:rgba(234,179,8,.15);
+  --warn-text:#FDE047;
+  --sidebar:292px;
+  --shadow:0 24px 64px rgba(0,0,0,.55);
+  --shadow-soft:0 8px 28px rgba(0,0,0,.38);
+  --glass-blur:blur(24px) saturate(180%);
+  --glow-blue:rgba(59,130,246,.18);
+  --glow-orange:rgba(249,115,22,.22);
+}
+
+/* Layout */
+html{background:#070b14}
+.shell{display:flex;height:100vh;overflow:hidden;position:relative;gap:12px;padding:12px;background:#070b14}
+.shell:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse at 15% 10%,rgba(59,130,246,.14),transparent 42%),radial-gradient(ellipse at 82% 88%,rgba(249,115,22,.20),transparent 45%),radial-gradient(ellipse at 55% 50%,rgba(139,92,246,.06),transparent 55%)}
+.sidebar{width:var(--sidebar);height:calc(100vh - 24px);position:relative;z-index:1;display:flex;flex-direction:column;flex-shrink:0;border-radius:16px;background:rgba(255,255,255,.042);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden}
+.main{flex:1;position:relative;z-index:1;display:flex;flex-direction:column;overflow:hidden;height:calc(100vh - 24px);border-radius:16px;background:rgba(255,255,255,.028);border:1px solid var(--border);box-shadow:var(--shadow);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur)}
+.topbar{background:rgba(255,255,255,.028);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border-bottom:1px solid var(--border);padding:0 26px;height:76px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.content{flex:1;overflow-y:auto;padding:22px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.08) transparent}
+
+/* Sidebar */
+.sb-brand{padding:22px 18px 16px;border-bottom:1px solid var(--border)}
+.sb-logo-card{background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
+.sb-logo{display:block;width:100%;height:auto;max-height:44px;object-fit:contain}
+.sb-ism{display:none}
+.sb-name{font-size:16px;font-weight:700;color:#F1F5F9;letter-spacing:-.02em}
+.sb-name span{background:rgba(249,115,22,.15);color:#FB923C;border:1px solid rgba(249,115,22,.22);padding:2px 8px;border-radius:999px;margin-left:6px;font-weight:700}
+.sb-section{padding:14px 18px 5px;font-size:10px;font-weight:700;color:rgba(255,255,255,.22);letter-spacing:.14em;text-transform:uppercase}
+.sb-item{display:flex;align-items:center;gap:10px;margin:2px 10px;padding:10px 13px;font-size:13px;color:rgba(255,255,255,.42);cursor:pointer;transition:all .18s ease;border-radius:10px;font-weight:500}
+.sb-item:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.80)}
+.sb-item.active{background:rgba(255,255,255,.08);color:#F1F5F9;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)}
+.sb-item svg{width:17px;height:17px;flex-shrink:0;stroke-width:1.7;opacity:.8}
+.sb-item.active svg{opacity:1}
+.sb-file{margin:10px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.03);margin-top:auto}
+.sb-file-label{font-size:10px;color:rgba(255,255,255,.25);margin-bottom:3px;font-weight:700;letter-spacing:.08em}
+.sb-file-name{font-size:12px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+
+/* Topbar */
+.topbar-title-block{}
+.tb-title{font-size:22px;font-weight:700;color:#F1F5F9;letter-spacing:-.025em;line-height:1}
+.tb-sub{font-size:12px;color:rgba(255,255,255,.30);margin-top:5px}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.topbar-icon-btn{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:rgba(255,255,255,.40);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s}
+.topbar-icon-btn:hover{background:rgba(255,255,255,.08);border-color:var(--border-strong);color:rgba(255,255,255,.80)}
+.topbar-icon-btn svg{width:16px;height:16px}
+.topbar-user-pill{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:7px 11px;min-width:160px;box-shadow:var(--shadow-soft)}
+.topbar-user-pill strong{display:block;font-size:12px;color:rgba(255,255,255,.85);font-weight:600}
+.topbar-user-pill span{display:block;font-size:11px;color:#34D399;margin-top:1px}
+.avatar-dot{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;font-weight:700;font-size:12px}
+.btn-upload{display:flex;align-items:center;gap:7px;border-radius:999px;padding:9px 18px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;border:0;font-weight:600;font-size:13px;cursor:pointer;box-shadow:0 6px 20px rgba(59,130,246,.28);transition:all .20s}
+.btn-upload:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(59,130,246,.38)}
+.btn-upload svg{width:15px;height:15px}
+
+/* Upload area */
+.upload-area{border:1px dashed rgba(255,255,255,.12);border-radius:16px;padding:32px 30px;cursor:pointer;transition:all .22s;background:rgba(255,255,255,.028);backdrop-filter:var(--glass-blur);box-shadow:var(--shadow);display:grid;grid-template-columns:64px 1fr;align-items:center;gap:18px}
+.upload-area.is-hidden{display:none}
+.upload-area:hover,.upload-area.drag{border-color:rgba(59,130,246,.40);background:rgba(59,130,246,.06);transform:translateY(-2px)}
+.upload-icon{width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);box-shadow:0 10px 24px rgba(59,130,246,.28);display:flex;align-items:center;justify-content:center;margin:0;flex-shrink:0}
+.upload-icon svg{width:26px;height:26px;color:#fff}
+.upload-title{font-size:19px;font-weight:700;color:#F1F5F9;margin-bottom:0;letter-spacing:-.02em}
+.upload-sub{font-size:13px;color:rgba(255,255,255,.35);margin-top:5px}
+#fileInput{display:none}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+.stat-card{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:18px;backdrop-filter:var(--glass-blur);box-shadow:var(--shadow-soft);position:relative;overflow:hidden;min-height:116px;transition:border-color .20s,background .20s;cursor:default}
+.stat-card:hover{background:rgba(255,255,255,.06);border-color:var(--border-strong)}
+.stat-label{font-size:10px;font-weight:600;color:rgba(255,255,255,.30);margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase;padding-right:36px;position:relative;z-index:2;margin-top:44px}
+.stat-val{font-size:28px;font-weight:800;color:#F1F5F9;letter-spacing:-.04em;position:relative;z-index:2}
+.stat-hint{font-size:11px;color:rgba(255,255,255,.30);margin-top:3px;position:relative;z-index:2;max-width:150px;line-height:1.3}
+.stat-icon{position:absolute;top:14px;left:14px;width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;z-index:1;border:1px solid rgba(255,255,255,.06)}
+
+/* Table */
+.card{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;overflow:hidden;backdrop-filter:var(--glass-blur);box-shadow:var(--shadow-soft)}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.02)}
+.card-title{font-size:14px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:-.01em}
+.search-box{padding:7px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;color:rgba(255,255,255,.75);width:210px;outline:none;background:rgba(255,255,255,.05);transition:all .18s;font-family:inherit}
+.search-box::placeholder{color:rgba(255,255,255,.22)}
+.search-box:focus{border-color:rgba(59,130,246,.40);box-shadow:0 0 0 3px rgba(59,130,246,.10);background:rgba(255,255,255,.07)}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{background:rgba(255,255,255,.025);padding:9px 13px;text-align:left;font-weight:600;font-size:10.5px;color:rgba(255,255,255,.28);border-bottom:1px solid var(--border);white-space:nowrap;letter-spacing:.06em;text-transform:uppercase}
+td{padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.04);color:rgba(255,255,255,.65);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.03)}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.b-eco{background:rgba(34,197,94,.13);color:#4ADE80}
+.b-ok{background:rgba(34,197,94,.13);color:#4ADE80}
+
+/* Specs */
+.specs-controls{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.specs-summary{font-size:12px;color:rgba(255,255,255,.30);margin-bottom:14px}
+.btn-secondary{padding:7px 14px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.04);color:rgba(255,255,255,.55);font-size:13px;font-weight:600;cursor:pointer;transition:all .18s;font-family:inherit}
+.btn-secondary:hover{border-color:rgba(59,130,246,.35);background:rgba(59,130,246,.10);color:rgba(255,255,255,.90)}
+.specs-select{padding:7px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.75);min-width:280px;outline:none;cursor:pointer;height:36px;font-family:inherit}
+.specs-select:focus{border-color:rgba(59,130,246,.40);box-shadow:0 0 0 3px rgba(59,130,246,.10)}
+.specs-table-wrap{overflow-x:auto}
+.specs-table{width:100%;border-collapse:collapse;font-size:12px}
+.specs-table th{padding:9px 12px;text-align:left;font-size:10.5px;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;letter-spacing:.05em;text-transform:uppercase}
+.specs-table th.h-dark{background:rgba(255,255,255,.03);color:rgba(255,255,255,.30)}
+.specs-table th.h-blue{background:rgba(59,130,246,.12);color:#93C5FD}
+.specs-table th.h-green{background:rgba(34,197,94,.10);color:#4ADE80}
+.specs-table td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:rgba(255,255,255,.60)}
+.specs-table tr:last-child td{border-bottom:none}
+.specs-table tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+.specs-table tr:hover td{background:rgba(255,255,255,.03)}
+.deadline-cell{background:rgba(234,179,8,.14);color:#FDE047;font-weight:700;font-size:11px;text-align:center;vertical-align:middle}
+
+/* Borrador */
+.borrador-layout{display:block;max-width:860px}
+.borrador-panel{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;overflow:hidden;backdrop-filter:var(--glass-blur)}
+.bp-header{padding:13px 16px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)}
+.bp-title{font-size:13px;font-weight:700;color:rgba(255,255,255,.80)}
+.bp-body{padding:16px}
+.field-label{font-size:10.5px;font-weight:700;color:rgba(255,255,255,.28);letter-spacing:.07em;margin-bottom:5px;text-transform:uppercase}
+.field-val{font-size:13px;color:rgba(255,255,255,.62);line-height:1.65;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:11px 13px;white-space:pre-wrap;min-height:60px}
+.field-val.body-field{min-height:260px;font-size:12px}
+.deadline-badge{background:rgba(234,179,8,.10);color:#FDE047;border-radius:10px;padding:11px 14px;margin-bottom:14px;border:1px solid rgba(234,179,8,.18)}
+.dl-label{font-size:10px;font-weight:700;letter-spacing:.06em;margin-bottom:3px;opacity:.6}
+.dl-date{font-size:19px;font-weight:700}
+.btn-copy{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;margin-top:12px;transition:all .18s;box-shadow:0 6px 16px rgba(59,130,246,.22);font-family:inherit}
+.btn-copy:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(59,130,246,.32)}
+.btn-copy svg{width:15px;height:15px}
+.placeholder-msg{padding:40px;text-align:center;color:rgba(255,255,255,.25);font-size:13px}
+
+/* Tabs */
+.tabs{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid var(--border)}
+.tab{padding:9px 18px;font-size:13px;font-weight:500;color:rgba(255,255,255,.30);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .18s}
+.tab.active{color:#F1F5F9;border-bottom-color:#3B82F6}
+.tab:hover:not(.active){color:rgba(255,255,255,.60)}
+
+/* Toast */
+.toast{position:fixed;bottom:22px;right:22px;background:rgba(255,255,255,.08);color:#F1F5F9;padding:10px 17px;border-radius:12px;font-size:13px;font-weight:500;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;border:1px solid var(--border-strong);box-shadow:0 16px 40px rgba(0,0,0,.50);backdrop-filter:var(--glass-blur)}
+.toast.show{opacity:1}
+
+/* Empty */
+.empty{padding:60px;text-align:center}
+.empty-icon{width:52px;height:52px;background:rgba(255,255,255,.05);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;border:1px solid var(--border)}
+.empty-icon svg{width:24px;height:24px;color:rgba(255,255,255,.35)}
+.empty-title{font-size:14px;font-weight:700;color:rgba(255,255,255,.70);margin-bottom:6px}
+.empty-sub{font-size:13px;color:rgba(255,255,255,.28)}
+
+/* Loading */
+.loading{display:flex;align-items:center;gap:10px;padding:40px;justify-content:center;color:rgba(255,255,255,.28);font-size:13px}
+.spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.10);border-top-color:#3B82F6;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Filtros operativos */
+.global-filters{display:none;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;gap:12px;align-items:flex-end;flex-wrap:wrap;backdrop-filter:var(--glass-blur);box-shadow:var(--shadow-soft)}
+.gf-group{display:flex;flex-direction:column;gap:5px}
+.gf-label{font-size:10px;font-weight:700;color:rgba(255,255,255,.28);letter-spacing:.08em;text-transform:uppercase}
+.gf-select{padding:7px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.75);min-width:230px;outline:none;height:36px;cursor:pointer;font-family:inherit}
+.gf-select:focus{border-color:rgba(59,130,246,.40);box-shadow:0 0 0 3px rgba(59,130,246,.10)}
+.view-toggle{display:flex;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:3px}
+.toggle-btn{border:0;background:transparent;padding:6px 12px;border-radius:9px;font-size:12px;font-weight:600;color:rgba(255,255,255,.30);cursor:pointer;transition:all .18s;font-family:inherit}
+.toggle-btn.active{background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;box-shadow:0 4px 14px rgba(59,130,246,.25)}
+.mode-hint{font-size:11px;color:rgba(255,255,255,.28);line-height:1.4;max-width:360px}
+.period-chip{display:inline-block;background:rgba(59,130,246,.12);color:#93C5FD;border:1px solid rgba(59,130,246,.18);border-radius:999px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap}
+.sem{display:inline-block;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:700;white-space:nowrap}
+.sem-green{background:rgba(34,197,94,.13);color:#4ADE80}
+.sem-yellow{background:rgba(234,179,8,.13);color:#FDE047}
+.sem-red{background:rgba(239,68,68,.12);color:#F87171}
+.sem-gray{background:rgba(255,255,255,.07);color:rgba(255,255,255,.40)}
+
+
+
+/* === Modo mantenimiento oculto === */
+.maintenance-overlay{position:fixed;inset:0;background:rgba(7,11,20,.80);display:none;align-items:center;justify-content:center;z-index:10000;padding:24px;backdrop-filter:blur(16px)}
+.maintenance-card{background:rgba(255,255,255,.05);border:1px solid var(--border-strong);border-radius:18px;width:100%;max-width:860px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 32px 96px rgba(0,0,0,.60);overflow:hidden;backdrop-filter:var(--glass-blur)}
+.maintenance-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 22px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)}
+.maintenance-title{font-size:17px;font-weight:700;color:#F1F5F9;letter-spacing:-.02em}
+.maintenance-sub{font-size:12px;color:rgba(255,255,255,.30);margin-top:4px;line-height:1.45}
+.maintenance-body{padding:18px 22px;overflow:auto}
+.maintenance-warning{border:1px solid rgba(239,68,68,.20);background:rgba(239,68,68,.07);color:#FCA5A5;border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.45;margin-bottom:14px}
+.maintenance-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;margin-bottom:14px}
+.maintenance-panel{border:1px solid var(--border);background:rgba(255,255,255,.03);border-radius:12px;padding:13px}
+.maintenance-panel h4{font-size:10.5px;color:rgba(255,255,255,.28);text-transform:uppercase;letter-spacing:.08em;margin:0 0 9px;font-weight:700}
+.maintenance-check{display:flex;align-items:center;gap:9px;font-size:13px;color:rgba(255,255,255,.60);padding:7px 0;border-bottom:1px dashed rgba(255,255,255,.06)}
+.maintenance-check:last-child{border-bottom:none}
+.maintenance-check input{width:16px;height:16px;accent-color:#3B82F6}
+.maintenance-counts{font-size:12px;color:rgba(255,255,255,.55);line-height:1.7;max-height:180px;overflow:auto}
+.maintenance-actions{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 14px}
+.btn-danger{padding:8px 16px;border:1px solid rgba(239,68,68,.28);border-radius:999px;background:rgba(239,68,68,.75);color:#fff;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 6px 18px rgba(239,68,68,.20);transition:all .18s;font-family:inherit}
+.btn-danger:hover{background:#DC2626;transform:translateY(-1px);box-shadow:0 10px 24px rgba(239,68,68,.30)}
+.btn-danger[disabled],.btn-secondary[disabled]{opacity:.40;cursor:not-allowed;box-shadow:none;transform:none}
+.maintenance-confirm{display:grid;grid-template-columns:1fr;gap:10px;border-top:1px solid var(--border);padding-top:13px;margin-top:8px}
+.maintenance-input{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;outline:none;background:rgba(255,255,255,.04);color:rgba(255,255,255,.80);font-family:inherit}
+.maintenance-input:focus{border-color:rgba(59,130,246,.40)}
+.maintenance-progress{font-size:12px;color:rgba(255,255,255,.35);line-height:1.5;white-space:pre-wrap;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:11px;min-height:46px;max-height:150px;overflow:auto}
+.maintenance-close{border:none;background:rgba(255,255,255,.05);color:rgba(255,255,255,.40);border-radius:999px;width:32px;height:32px;cursor:pointer;font-size:16px;font-weight:700;transition:all .18s;display:flex;align-items:center;justify-content:center}
+.maintenance-close:hover{background:rgba(239,68,68,.14);color:#F87171}
+@media(max-width:800px){.maintenance-grid{grid-template-columns:1fr}.maintenance-card{max-height:92vh}}
+
+/* === Login overlay === */
+#loginOverlay{position:fixed;inset:0;background:#070b14;display:flex;align-items:center;justify-content:center;z-index:9999}
+#loginOverlay:before{content:"";position:fixed;inset:0;background:radial-gradient(ellipse at 20% 15%,rgba(59,130,246,.16),transparent 45%),radial-gradient(ellipse at 80% 85%,rgba(249,115,22,.18),transparent 45%),radial-gradient(ellipse at 55% 50%,rgba(139,92,246,.07),transparent 55%);pointer-events:none}
+.login-card{background:rgba(255,255,255,.05);border:1px solid var(--border-strong);border-radius:18px;padding:32px 34px;width:380px;box-shadow:0 32px 96px rgba(0,0,0,.55);backdrop-filter:var(--glass-blur);position:relative;z-index:1}
+.login-card h2{margin:0 0 4px;font-size:20px;color:#F1F5F9;font-weight:700;letter-spacing:-.02em}
+.login-card p{margin:0 0 22px;font-size:13px;color:rgba(255,255,255,.32)}
+.login-card input{width:100%;box-sizing:border-box;padding:10px 13px;margin-bottom:10px;border:1px solid var(--border);border-radius:11px;font-size:14px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.85);outline:none;font-family:inherit;transition:all .18s}
+.login-card input:focus{border-color:rgba(59,130,246,.45);box-shadow:0 0 0 3px rgba(59,130,246,.12);background:rgba(255,255,255,.07)}
+.login-card button{width:100%;padding:11px;border:none;border-radius:999px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;font-weight:600;cursor:pointer;font-size:14px;box-shadow:0 8px 22px rgba(59,130,246,.26);transition:all .20s;font-family:inherit}
+.login-card button:hover{transform:translateY(-1px);box-shadow:0 12px 30px rgba(59,130,246,.36)}
+#loginError{color:#F87171;font-size:12.5px;min-height:16px;margin-bottom:8px}
+.user-badge{display:flex;align-items:center;gap:8px;font-size:12.5px;color:rgba(255,255,255,.35);padding:0 14px 14px}
+.user-badge button{background:rgba(255,255,255,.05);border:1px solid var(--border);color:rgba(255,255,255,.55);border-radius:8px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600;transition:all .18s;font-family:inherit}
+.user-badge button:hover{background:rgba(255,255,255,.09);color:rgba(255,255,255,.85)}
+
+/* === Control operativo / Gantt === */
+.control-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.control-legend{display:flex;gap:12px;font-size:12px;color:rgba(255,255,255,.30);align-items:center}
+.legend-dot{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle}
+.checklist-wrap{border:1px solid var(--border);border-radius:14px;overflow:auto;background:rgba(255,255,255,.025);max-height:74vh;box-shadow:var(--shadow-soft)}
+.checklist-table{width:100%;border-collapse:collapse;min-width:1000px}
+.checklist-table thead th{position:sticky;top:0;background:rgba(255,255,255,.04);font-size:10.5px;font-weight:600;color:rgba(255,255,255,.28);padding:9px 8px;border-bottom:1px solid var(--border);text-align:left;z-index:2;letter-spacing:.05em;text-transform:uppercase}
+.checklist-table th.chk-col{text-align:center}
+.checklist-table td{padding:9px 8px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;vertical-align:middle;color:rgba(255,255,255,.60)}
+.checklist-row b{font-size:12.5px;color:rgba(255,255,255,.80);display:block}
+.checklist-row span{font-size:11px;color:rgba(255,255,255,.30)}
+.checklist-table td.chk-col{text-align:center}
+.checklist-table td.chk-col input{width:17px;height:17px;cursor:pointer;accent-color:#3B82F6}
+.row-status{width:5px;padding:0 !important}
+.row-status div{width:5px;height:100%;border-radius:3px}
+.row-none .row-status div{background:#EF4444}
+.row-partial .row-status div{background:#F59E0B}
+.row-complete .row-status div{background:#22C55E}
+.row-none{background:rgba(239,68,68,.04)}
+.row-partial{background:rgba(245,158,11,.035)}
+.row-complete{background:rgba(34,197,94,.035)}
+.checklist-updated{font-size:10px;color:rgba(255,255,255,.25);margin-top:2px}
+.checklist-progress{font-size:11px;font-weight:700}
+.sticky-col{position:sticky;left:0;background:rgba(7,11,20,.92);z-index:2}
+.week-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.week-card{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:18px;backdrop-filter:var(--glass-blur);box-shadow:var(--shadow-soft);transition:border-color .20s}
+.week-card.is-current{border-color:rgba(59,130,246,.30);box-shadow:0 0 0 2px rgba(59,130,246,.07),var(--shadow-soft)}
+.week-card-label{font-size:10.5px;font-weight:700;color:rgba(255,255,255,.28);letter-spacing:.05em;text-transform:uppercase}
+.week-card-range{font-size:11px;color:rgba(255,255,255,.25);margin-bottom:10px}
+.week-card-num{font-size:30px;font-weight:800;color:#F1F5F9;line-height:1.1;letter-spacing:-.04em}
+.week-card-sub{font-size:12px;color:rgba(255,255,255,.30);margin-top:2px}
+.week-delta{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;border-radius:8px;padding:3px 9px;margin-top:8px}
+.week-delta.up{background:rgba(239,68,68,.12);color:#F87171}
+.week-delta.down{background:rgba(34,197,94,.12);color:#4ADE80}
+.week-delta.flat{background:rgba(255,255,255,.07);color:rgba(255,255,255,.38)}
+.week-new-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:8px;padding:4px 10px;margin-top:10px}
+.week-new-badge.has-new{background:rgba(234,179,8,.12);color:#FDE047}
+.week-new-badge.no-new{background:rgba(255,255,255,.06);color:rgba(255,255,255,.35)}
+.row-urgent{box-shadow:inset 4px 0 0 0 rgba(239,68,68,.70)}
+.urgent-badge{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;color:#fff;background:rgba(220,38,38,.75);border-radius:5px;padding:2px 7px;vertical-align:middle;white-space:nowrap}
+.row-delete-btn{border:1px solid rgba(239,68,68,.18);background:rgba(239,68,68,.06);color:#F87171;border-radius:8px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s}
+.row-delete-btn:hover{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.35)}
+.sb-urgent-badge{margin-left:auto;background:rgba(220,38,38,.75);color:#fff;font-size:10.5px;font-weight:700;border-radius:10px;padding:1px 7px;min-width:16px;text-align:center}
+.sb-issues-badge{margin-top:8px;font-size:11px;font-weight:700;border-radius:8px;padding:6px 10px;cursor:pointer;text-align:center}
+.sb-issues-badge.has-issues{background:rgba(239,68,68,.10);color:#F87171}
+.sb-issues-badge.no-issues{background:rgba(34,197,94,.09);color:#4ADE80}
+.issues-overlay{position:fixed;inset:0;background:rgba(7,11,20,.78);display:flex;align-items:center;justify-content:center;z-index:9998;padding:24px;backdrop-filter:blur(14px)}
+.issues-card{background:rgba(255,255,255,.05);border:1px solid var(--border-strong);border-radius:16px;width:100%;max-width:760px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 28px 80px rgba(0,0,0,.55);backdrop-filter:var(--glass-blur)}
+.issues-card-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
+.issues-card-title{font-size:14px;font-weight:700;color:rgba(255,255,255,.82)}
+.issues-close-btn{border:none;background:rgba(255,255,255,.06);border-radius:8px;width:28px;height:28px;font-size:15px;cursor:pointer;color:rgba(255,255,255,.40);display:flex;align-items:center;justify-content:center;font-family:inherit}
+.issues-card-body{padding:14px 18px;overflow:auto}
+.issues-table{width:100%;border-collapse:collapse;font-size:12px}
+.issues-table th{text-align:left;background:rgba(255,255,255,.03);padding:8px 10px;font-size:10.5px;color:rgba(255,255,255,.28);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.issues-table td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:top;color:rgba(255,255,255,.60)}
+.issues-tag{display:inline-block;font-size:10px;font-weight:700;border-radius:5px;padding:2px 7px;white-space:nowrap;background:rgba(234,179,8,.12);color:#FDE047}
+.sortable-th{cursor:pointer;user-select:none;white-space:nowrap}
+.sortable-th .sort-arrow{font-size:9px;opacity:.4;margin-left:3px}
+.sortable-th.sort-active .sort-arrow{opacity:1;color:var(--blue)}
+.btn-upload[disabled]{opacity:.55;cursor:not-allowed}
+.spin-icon{width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.week-progress-bar{margin-top:12px;height:7px;border-radius:4px;background:rgba(30,41,59,.80);overflow:hidden}
+.week-progress-fill{height:100%;background:linear-gradient(90deg,#22C55E,#4ADE80);border-radius:4px}
+.week-progress-pct{font-size:11px;color:var(--muted);margin-top:4px;font-weight:600}
+.week-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(148,163,184,.10)}
+.week-stat{font-size:11.5px;color:#94A3B8;display:flex;align-items:center;gap:6px}
+.week-stat b{margin-left:auto;color:#E2E8F0;font-size:13px;font-weight:700}
+.week-stat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-blue{background:#3B82F6}
+.dot-purple{background:#A78BFA}
+.dot-green{background:#22C55E}
+.dot-amber{background:#F59E0B}
+
+/* === Dashboard visual === */
+.dashboard-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:16px;padding:26px 28px;margin-bottom:16px;min-height:130px;backdrop-filter:var(--glass-blur);box-shadow:var(--shadow);position:relative;overflow:hidden}
+.dashboard-heading:before{content:"";position:absolute;right:-40px;top:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(249,115,22,.14),transparent 65%);pointer-events:none}
+.dashboard-heading-title{font-size:26px;font-weight:800;background:linear-gradient(135deg,#F1F5F9 0%,#93C5FD 50%,#C4B5FD 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px;letter-spacing:-.04em}
+.dashboard-heading-sub{font-size:13px;color:rgba(255,255,255,.32);line-height:1.55;max-width:680px}
+.dashboard-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.55);border:1px solid var(--border);border-radius:999px;padding:7px 13px;font-size:11px;font-weight:600;white-space:nowrap}
+.stat-card:after{content:"";position:absolute;right:-18px;bottom:-22px;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle,rgba(249,115,22,.10),transparent 66%)}
+.stat-val{margin-top:2px}
+
+
+
+/* === Memoria operativa / Histórico / Cambios === */
+.load-scope-help{font-size:10.5px;color:rgba(255,255,255,.28);max-width:280px;line-height:1.4;margin-top:3px}
+.ops-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:0 0 16px}
+.ops-kpi-card{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:16px 15px;position:relative;overflow:hidden;backdrop-filter:var(--glass-blur);box-shadow:var(--shadow-soft);min-height:108px;transition:border-color .20s}
+.ops-kpi-card:hover{border-color:var(--border-strong)}
+.ops-kpi-card:before,.stat-card:before{content:"";position:absolute;inset:auto 12px 12px auto;width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.05)}
+.ops-kpi-card:after{content:"";position:absolute;right:-16px;bottom:-20px;width:58px;height:58px;border-radius:50%;background:radial-gradient(circle,rgba(249,115,22,.10),transparent 66%)}
+.ops-kpi-label{font-size:10px;font-weight:700;color:rgba(255,255,255,.28);letter-spacing:.06em;text-transform:uppercase;position:relative;z-index:1}
+.ops-kpi-val{font-size:25px;font-weight:800;color:#F1F5F9;margin-top:4px;position:relative;z-index:1;letter-spacing:-.04em}
+.ops-kpi-hint{font-size:10.5px;color:rgba(255,255,255,.28);margin-top:2px;position:relative;z-index:1}
+.status-badge{display:inline-block;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:700;white-space:nowrap}
+.st-active{background:rgba(59,130,246,.12);color:#93C5FD}
+.st-new{background:rgba(139,92,246,.12);color:#C4B5FD}
+.st-change{background:rgba(234,179,8,.12);color:#FDE047}
+.st-finished-ok{background:rgba(34,197,94,.11);color:#4ADE80}
+.st-finished-missing{background:rgba(239,68,68,.10);color:#F87171}
+.st-absent{background:rgba(255,255,255,.07);color:rgba(255,255,255,.38)}
+.st-pautado{background:rgba(59,130,246,.12);color:#93C5FD}
+.change-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.change-card{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:16px;backdrop-filter:var(--glass-blur);box-shadow:var(--shadow-soft)}
+.change-card-label{font-size:10px;font-weight:700;color:rgba(255,255,255,.28);letter-spacing:.06em;text-transform:uppercase}
+.change-card-num{font-size:26px;font-weight:800;color:#F1F5F9;margin-top:4px;letter-spacing:-.04em}
+.audit-table td{vertical-align:top}
+.audit-note{font-size:11px;color:rgba(255,255,255,.30);line-height:1.4;max-width:360px}
+.diff-list{font-size:11px;line-height:1.5}
+.diff-list b{color:rgba(255,255,255,.75)}
+.history-toolbar{display:flex;align-items:flex-end;gap:12px;margin-bottom:12px;flex-wrap:wrap;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:13px;backdrop-filter:var(--glass-blur)}
+.history-toolbar .search-box{min-width:320px}
+.history-filter{padding:7px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.70);font-size:12px;height:36px;outline:none;font-family:inherit}
+.history-filter:focus{border-color:rgba(59,130,246,.40)}
+@media(max-width:1200px){.ops-kpi-grid{grid-template-columns:repeat(3,1fr)}.change-summary{grid-template-columns:repeat(2,1fr)}}
+
+
+
+/* === Responsive === */
+@media(max-width:1400px){.ops-kpi-grid{grid-template-columns:repeat(3,1fr)}.stats{grid-template-columns:repeat(3,1fr)}.sidebar{width:260px}:root{--sidebar:260px}}
+@media(max-width:1050px){.shell{padding:0;gap:0}.sidebar{display:none}.main{height:100vh;border-radius:0}.topbar{height:auto;padding:18px;align-items:flex-start;gap:16px;flex-wrap:wrap}.topbar-actions{flex-wrap:wrap}.content{padding:18px}.week-summary,.stats,.ops-kpi-grid,.change-summary{grid-template-columns:1fr}.dashboard-heading{padding:24px;flex-direction:column;align-items:flex-start}}
+
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sb-brand">
+      <div class="sb-logo-card"><img class="sb-logo" src="data:image/png;base64,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" alt="in-Store Media"></div>
+      <div class="sb-ism">IN-STORE MEDIA</div>
+      <div class="sb-name">eComFlow <span style="font-size:10px;font-weight:400;opacity:.6">v3.7 Stable</span></div>
+    </div>
+    <div class="sb-section">MÓDULOS</div>
+    <div class="sb-item active" onclick="setView('dashboard')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="sb-item" onclick="setView('ecommerce')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      Ecommerce
+    </div>
+    <div class="sb-item" onclick="setView('specs')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      Specs clientes
+    </div>
+    <div class="sb-item" onclick="setView('borrador')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M8 4v5"/></svg>
+      Borradores
+    </div>
+    <div class="sb-item" onclick="setView('control')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 17l4-6 4 3 6-9"/><circle cx="3" cy="17" r="1.5"/><circle cx="7" cy="11" r="1.5"/><circle cx="11" cy="14" r="1.5"/><circle cx="17" cy="5" r="1.5"/></svg>
+      Control operativo
+      <span class="sb-urgent-badge" id="sbUrgentBadge" style="display:none">0</span>
+    </div>
+    <div class="sb-item" onclick="setView('changes')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 7h10M4 12h16M4 17h10"/><path d="M17 6l3 3-3 3"/></svg>
+      Cambios detectados
+      <span class="sb-urgent-badge" id="sbChangesBadge" style="display:none">0</span>
+    </div>
+    <div class="sb-item" onclick="setView('history')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9"/><path d="M3 4v6h6"/><path d="M12 7v5l3 2"/></svg>
+      Histórico / Consultas
+    </div>
+    <div class="sb-file">
+      <div class="sb-file-label">ARCHIVO CARGADO</div>
+      <div class="sb-file-name" id="sbFileName">— ninguno —</div>
+      <div class="sb-issues-badge" id="sbIssuesBadge" style="display:none" onclick="openDataIssuesModal()"></div>
+    </div>
+    <div class="user-badge" id="userBadge" style="display:none">
+      <span id="userEmailLabel"></span>
+      <button onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+
+  <div id="loginOverlay">
+    <div class="login-card">
+      <h2>eComFlow — Control operativo</h2>
+      <p>Inicia sesión con tu cuenta de ISM para continuar.</p>
+      <div id="loginError"></div>
+      <input type="email" id="loginEmail" placeholder="correo@ism.com.mx" autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="Contraseña" autocomplete="current-password">
+      <button onclick="doLogin()">Entrar</button>
+    </div>
+  </div>
+
+  <div id="issuesOverlay" class="issues-overlay" style="display:none" onclick="if(event.target===this) closeDataIssuesModal()">
+    <div class="issues-card">
+      <div class="issues-card-header">
+        <div class="issues-card-title" id="issuesCardTitle">Validación del archivo</div>
+        <button class="issues-close-btn" onclick="closeDataIssuesModal()">✕</button>
+      </div>
+      <div class="issues-card-body" id="issuesCardBody"></div>
+    </div>
+  </div>
+
+
+  <div id="maintenanceOverlay" class="maintenance-overlay" onclick="if(event.target===this) closeMaintenanceModal()">
+    <div class="maintenance-card">
+      <div class="maintenance-header">
+        <div>
+          <div class="maintenance-title">Zona de mantenimiento · Reset Firebase</div>
+          <div class="maintenance-sub">Acceso oculto por 7 clics sobre la versión. Herramienta para limpiar datos operativos y arrancar una carga inicial limpia.</div>
+        </div>
+        <button class="maintenance-close" onclick="closeMaintenanceModal()">×</button>
+      </div>
+      <div class="maintenance-body">
+        <div class="maintenance-warning"><b>Acción destructiva.</b> Esto elimina documentos de Firestore en las colecciones seleccionadas. No borra usuarios ni autenticación. Antes de borrar, descarga un backup JSON.</div>
+        <div class="maintenance-grid">
+          <div class="maintenance-panel">
+            <h4>Colecciones eComFlow</h4>
+            <label class="maintenance-check"><input type="checkbox" class="maint-col" value="checklist" checked> checklist · seguimiento, checks e histórico operativo</label>
+            <label class="maintenance-check"><input type="checkbox" class="maint-col" value="changeLog" checked> changeLog · bitácora de cambios si existe</label>
+            <label class="maintenance-check"><input type="checkbox" class="maint-col" value="uploadRuns" checked> uploadRuns · registros de carga si existe</label>
+            <label class="maintenance-check"><input type="checkbox" class="maint-col" value="archivedLines" checked> archivedLines · archivo histórico si existe</label>
+            <label class="maintenance-check"><input type="checkbox" class="maint-col" value="maintenanceLog"> maintenanceLog · bitácora de mantenimiento (no recomendado)</label>
+          </div>
+          <div class="maintenance-panel">
+            <h4>Conteo / Backup</h4>
+            <div class="maintenance-counts" id="maintenanceCounts">Sin calcular. Usa “Calcular registros”.</div>
+          </div>
+        </div>
+        <div class="maintenance-actions">
+          <button class="btn-secondary" id="btnMaintenanceCount" onclick="maintenanceCountCollections()">Calcular registros</button>
+          <button class="btn-secondary" id="btnMaintenanceBackup" onclick="maintenanceDownloadBackup()" disabled>Descargar backup JSON</button>
+        </div>
+        <div class="maintenance-confirm">
+          <label class="maintenance-check" style="border-bottom:none;padding:0"><input type="checkbox" id="maintenanceConfirmCheck" onchange="updateMaintenanceDeleteButton()"> Entiendo que esta acción no se puede deshacer desde eComFlow.</label>
+          <input class="maintenance-input" id="maintenanceConfirmText" placeholder="Escribe BORRAR FIREBASE para habilitar el borrado" oninput="updateMaintenanceDeleteButton()">
+          <button class="btn-danger" id="btnMaintenanceDelete" onclick="maintenanceDeleteSelectedCollections()" disabled>Borrar datos seleccionados</button>
+          <div class="maintenance-progress" id="maintenanceProgress">Listo para calcular registros.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title-block">
+        <div class="tb-title" id="topTitle">Dashboard</div>
+        <div class="tb-sub" id="topSub">Carga un archivo de campañas para comenzar</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="topbar-icon-btn" title="Notificaciones" type="button">
+          <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        </button>
+        <button class="topbar-icon-btn" title="Ayuda" type="button">
+          <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.3 2.3 0 014.4.9c0 1.8-2.2 2-2.2 3.6"/><path d="M12 17h.01"/></svg>
+        </button>
+        <button class="btn-upload" id="btnUpload" onclick="document.getElementById('fileInput').click()">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="btnUploadLabel">Cargar archivo</span>
+        </button>
+        <div class="topbar-user-pill">
+          <div class="avatar-dot">i</div>
+          <div><strong>Operación ISM</strong><span>En línea</span></div>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm" onchange="handleFile(event)">
+    </div>
+
+    <div class="content" id="mainContent">
+      <div class="global-filters" id="globalFilters">
+        <div class="gf-group">
+          <div class="gf-label">VISTA</div>
+          <div class="view-toggle">
+            <button class="toggle-btn active" id="btnModeConsolidated" onclick="setMode('consolidated')">Consolidado</button>
+            <button class="toggle-btn" id="btnModeWeekly" onclick="setMode('weekly')">Semanal</button>
+          </div>
+        </div>
+        <div class="gf-group">
+          <div class="gf-label">CADENA</div>
+          <select class="gf-select" id="chainFilterSelect" onchange="setChainFilter(this.value)">
+            <option value="all">Todas las cadenas</option>
+            <option value="SORIANA">SORIANA</option>
+            <option value="LA COMER">LA COMER</option>
+          </select>
+        </div>
+        <div class="gf-group">
+          <div class="gf-label">PERIODO</div>
+          <select class="gf-select" id="periodSelect" onchange="setPeriodFilter(this.value)">
+            <option value="all">Todos los periodos</option>
+          </select>
+        </div>
+        <div class="gf-group">
+          <div class="gf-label">CRITERIO OPERATIVO</div>
+          <select class="gf-select" id="actionFilter" onchange="setActionFilter(this.value)">
+            <option value="all">Todo lo aplicable</option>
+            <option value="active">Campañas activas</option>
+            <option value="starts">Campañas que inician</option>
+            <option value="ends">Campañas que terminan</option>
+            <option value="deadline">Deadline en periodo</option>
+          </select>
+        </div>
+        <div class="gf-group">
+          <div class="gf-label">TIPO DE CARGA</div>
+          <select class="gf-select" id="loadScopeSelect" onchange="setLoadScope(this.value)">
+            <option value="partial">Carga parcial</option>
+            <option value="period">Carga por periodo/rango</option>
+            <option value="complete">Carga completa</option>
+          </select>
+          <div class="load-scope-help" id="loadScopeHelp">Parcial: solo agrega o actualiza lo que viene en el archivo.</div>
+        </div>
+        <div class="mode-hint" id="modeHint">Vista consolidada: une periodos sin mezclar Cadena ni Creatividad ID; cada ID se gestiona como un arte independiente.</div>
+      </div>
+      <!-- Dashboard default -->
+      <div id="view-dashboard">
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()"
+             ondragover="event.preventDefault();this.classList.add('drag')"
+             ondragleave="this.classList.remove('drag')"
+             ondrop="handleDrop(event)">
+          <div class="upload-icon">
+            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div class="upload-title">Arrastra o selecciona tu archivo de campañas</div>
+          <div class="upload-sub">Formatos aceptados: .xlsx · .xls · .xlsm</div>
+        </div>
+        <div id="dashStats" style="display:none;margin-top:24px">
+          <div class="dashboard-heading">
+            <div>
+              <div class="dashboard-heading-title">Resumen operativo</div>
+              <div class="dashboard-heading-sub">Lectura rápida del archivo cargado, avance semanal y volumen de materiales por gestionar.</div>
+            </div>
+            <div class="dashboard-pill" id="versionSecretBadge" title="Versión eComFlow">⚙ V3.7 Stable · optimización + mantenimiento</div>
+          </div>
+          <div id="weekSummary" class="week-summary"></div>
+          <div id="opsKpiCards" class="ops-kpi-grid" style="display:none"></div>
+          <div class="stats">
+            <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-label">CLIENTES</div><div class="stat-val" id="s-cli">0</div><div class="stat-hint">retailers detectados</div></div>
+            <div class="stat-card"><div class="stat-icon">🏷️</div><div class="stat-label">ANUNCIANTES / MARCAS</div><div class="stat-val" id="s-anu">0</div><div class="stat-hint">marcas activas</div></div>
+            <div class="stat-card"><div class="stat-icon">📣</div><div class="stat-label">CAMPAÑAS</div><div class="stat-val" id="s-camp">0</div><div class="stat-hint">campañas únicas</div></div>
+            <div class="stat-card"><div class="stat-icon">🎨</div><div class="stat-label">CREATIVIDADES</div><div class="stat-val" id="s-creat">0</div><div class="stat-hint">artes por gestionar</div></div>
+            <div class="stat-card"><div class="stat-icon">🧹</div><div class="stat-label">DUPLICADOS ELIMINADOS</div><div class="stat-val" id="s-dup">0</div><div class="stat-hint">sin mezclar Creatividad ID</div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Clientes y marcas en este ciclo</div></div>
+            <div class="tbl-wrap"><table>
+              <thead><tr><th>Periodo(s)</th><th>Cadena</th><th>Cliente</th><th>Anunciante / Marca</th><th>Campaña</th><th>Creatividades</th><th>Fecha inicio</th><th>Fecha fin</th><th>Fecha límite entrega</th><th>Semáforo</th></tr></thead>
+              <tbody id="dashTable"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ecommerce -->
+      <div id="view-ecommerce" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Registros Ecommerce procesados</div>
+            <input class="search-box" placeholder="Buscar cliente, anunciante o marca, artículo..." oninput="filterEco(this.value)" id="ecoSearch">
+          </div>
+          <div class="tbl-wrap"><table>
+            <thead><tr>
+              <th>Periodo(s)</th>
+              <th class="sortable-th" onclick="setEcoSort('cadena')">Cadena <span class="sort-arrow" id="arrow-eco-cadena">⇅</span></th>
+              <th class="sortable-th" onclick="setEcoSort('cliente')">Cliente <span class="sort-arrow" id="arrow-eco-cliente">⇅</span></th>
+              <th class="sortable-th" onclick="setEcoSort('anunciante')">Anunciante / Marca <span class="sort-arrow" id="arrow-eco-anunciante">⇅</span></th>
+              <th class="sortable-th" onclick="setEcoSort('campana')">Campaña <span class="sort-arrow" id="arrow-eco-campana">⇅</span></th>
+              <th class="sortable-th" onclick="setEcoSort('articulo')">Artículo <span class="sort-arrow" id="arrow-eco-articulo">⇅</span></th>
+              <th class="sortable-th" onclick="setEcoSort('nivel')">Nivel <span class="sort-arrow" id="arrow-eco-nivel">⇅</span></th>
+              <th class="sortable-th" onclick="setEcoSort('cid')">Creatividad ID <span class="sort-arrow" id="arrow-eco-cid">⇅</span></th>
+              <th class="sortable-th" onclick="setEcoSort('start')">Fijación <span class="sort-arrow" id="arrow-eco-start">⇅</span></th>
+              <th class="sortable-th" onclick="setEcoSort('end')">Retirada <span class="sort-arrow" id="arrow-eco-end">⇅</span></th>
+              <th class="sortable-th" onclick="setEcoSort('deadline')">Deadline <span class="sort-arrow" id="arrow-eco-deadline">⇅</span></th>
+              <th>Semáforo</th><th>Desktop</th><th>Mobile</th><th>App 1</th><th>App 2</th>
+            </tr></thead>
+            <tbody id="ecoTable"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- Specs -->
+      <div id="view-specs" style="display:none">
+        <div class="specs-controls">
+          <select class="specs-select" id="specsSelect" onchange="renderSpecs()">
+            <option value="">Vista general: todas las campañas filtradas</option>
+          </select>
+          <button class="btn-secondary" onclick="clearSpecsSelection()">Limpiar selección</button>
+        </div>
+        <div class="specs-summary" id="specsSummary">Carga un archivo para consultar las specs.</div>
+        <div class="card">
+          <div class="card-header"><div class="card-title" id="specsTitle">Specs del cliente</div></div>
+          <div class="specs-table-wrap"><table class="specs-table">
+            <thead>
+              <tr>
+                <th class="h-dark">Cadena</th>
+                <th class="h-dark">Cliente</th>
+                <th class="h-dark">Anunciante / Marca</th>
+                <th class="h-dark">Campaña</th>
+                <th class="h-dark">Artículo</th>
+                <th class="h-dark">Nivel</th>
+                <th class="h-dark">Creatividad ID</th>
+                <th class="h-dark">Periodo(s)</th>
+                <th class="h-blue">Fecha límite</th>
+                <th class="h-blue">Fijación</th>
+                <th class="h-blue">Retirada</th>
+                <th class="h-green">Desktop</th>
+                <th class="h-green">Mobile</th>
+                <th class="h-green">App 1</th>
+                <th class="h-green">App 2</th>
+              </tr>
+            </thead>
+            <tbody id="specsTable"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- Borrador -->
+      <div id="view-borrador" style="display:none">
+        <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">
+          <select class="specs-select" id="borradorSelect" onchange="renderBorrador()" style="min-width:300px">
+            <option value="">— Selecciona cliente + anunciante o marca + campaña —</option>
+          </select>
+        </div>
+        <div class="borrador-panel" style="max-width:860px">
+            <div class="bp-header"><div class="bp-title">Borrador de correo</div></div>
+            <div class="bp-body" id="borradorContent">
+              <div class="placeholder-msg">Selecciona cliente, anunciante o marca y campaña para generar el borrador</div>
+            </div>
+          </div>
+      </div>
+
+      <div id="view-control" style="display:none">
+        <div class="control-toolbar">
+          <div class="control-legend">
+            <span><span class="legend-dot" style="background:#C0392B"></span>Sin iniciar</span>
+            <span><span class="legend-dot" style="background:#C7960B"></span>En proceso</span>
+            <span><span class="legend-dot" style="background:#3C8A3C"></span>Completo</span>
+            <span><span class="urgent-badge">⚠ Urgente</span> = checks pendientes con deadline vencido u hoy</span>
+          </div>
+          <input class="search-box" id="controlSearch" placeholder="Buscar cliente, anunciante, campaña, espacio..." oninput="renderChecklist()" style="margin-left:auto;min-width:240px">
+          <div class="mode-hint" style="margin:0;width:100%">El color de cada fila cambia conforme se van marcando los checks. Sincronizado en vivo con tu equipo.</div>
+        </div>
+        <div class="checklist-wrap" id="checklistWrap">
+          <div class="placeholder-msg">Carga un archivo para ver el control operativo.</div>
+        </div>
+      </div>
+
+      <div id="view-changes" style="display:none">
+        <div class="dashboard-heading">
+          <div>
+            <div class="dashboard-heading-title">Cambios detectados</div>
+            <div class="dashboard-heading-sub">Comparativo entre cargas: líneas nuevas, modificaciones reales, cambios de Creatividad ID y ausencias controladas según el tipo de carga.</div>
+          </div>
+          <div class="dashboard-pill">Doble llave: línea lógica + arte</div>
+        </div>
+        <div id="changeSummary" class="change-summary"></div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Bitácora de cambios operativos</div>
+            <input class="search-box" id="changesSearch" placeholder="Buscar cualquier campo..." oninput="renderChanges()">
+          </div>
+          <div class="tbl-wrap" id="changesWrap"><div class="placeholder-msg">Carga un archivo para detectar cambios.</div></div>
+        </div>
+      </div>
+
+      <div id="view-history" style="display:none">
+        <div class="dashboard-heading">
+          <div>
+            <div class="dashboard-heading-title">Histórico / Consultas</div>
+            <div class="dashboard-heading-sub">Consulta finalizadas completas e incompletas sin contaminar el día a día. La búsqueda revisa todos los campos visibles.</div>
+          </div>
+          <div class="dashboard-pill">Finalizadas completas e incompletas</div>
+        </div>
+        <div class="history-toolbar">
+          <div class="gf-group"><div class="gf-label">BUSCADOR GENERAL</div><input class="search-box" id="historySearch" placeholder="Cliente, marca, campaña, ID, faltante, usuario..." oninput="renderHistory()"></div>
+          <div class="gf-group"><div class="gf-label">ESTATUS</div><select class="history-filter" id="historyStatusFilter" onchange="renderHistory()"><option value="all">Todos</option><option value="pautado">Pautado actualmente</option><option value="complete">Finalizadas completas</option><option value="missing">Finalizadas incompletas</option></select></div>
+        </div>
+        <div class="card"><div class="card-header"><div class="card-title">Consulta histórica</div></div><div class="tbl-wrap" id="historyWrap"><div class="placeholder-msg">Todavía no hay líneas finalizadas para consultar.</div></div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MESES_ES = ['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const MESES_CAP = ['','ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+const APP_INFO = {
+  name: 'eComFlow',
+  version: 'V3.7 Stable',
+  build: 'Optimización segura sin nuevas funcionalidades',
+  authorConcept: 'Concepto operativo y lógica de seguimiento ideados por Enrique Rodríguez'
+};
+
+// Configuración por cadena/canal usada en llaves, filtros, specs y borradores.
+// Cadena se lee del Excel desde el campo "Cadena". Valores esperados: SORIANA y LA COMER.
+const DEFAULT_CHAIN = 'SORIANA';
+const CHAIN_CONFIG = {
+  'SORIANA': {
+    label: 'SORIANA',
+    nombre: 'Soriana.com',
+    etiquetaCampanias: 'Campañas Soriana.com'
+  },
+  'LA COMER': {
+    label: 'LA COMER',
+    nombre: 'La Comer',
+    etiquetaCampanias: 'Campañas La Comer'
+  }
+};
+// Compatibilidad con funciones antiguas: Soriana sigue siendo el default.
+const RETAILER_CONFIG = CHAIN_CONFIG[DEFAULT_CHAIN];
+
+function normalizeChain(value){
+  const raw = String(value || '').trim().toUpperCase().replace(/\s+/g,' ');
+  if(!raw) return DEFAULT_CHAIN;
+  if(raw === 'SORIANA') return 'SORIANA';
+  if(raw === 'LA COMER' || raw === 'LACOMER') return 'LA COMER';
+  return raw;
+}
+function chainLabel(value){
+  const key = normalizeChain(value);
+  return CHAIN_CONFIG[key]?.label || key;
+}
+function chainConfig(value){
+  return CHAIN_CONFIG[normalizeChain(value)] || {label:chainLabel(value), nombre:chainLabel(value), etiquetaCampanias:`Campañas ${chainLabel(value)}`};
+}
+
+const ECO_ARTS = new Set(['BUNDLE BOOST','CATEGORY BANNER','CATEGORY LANDING','CATEGORY MEDIA_WEB','HOME BANNER','HOME CENTRAL','HOME SLIDER','MIS LISTAS HEADER','PACK PROMOS','SEARCH BANNER']);
+
+const MEDIDAS = {
+  'BUNDLE BOOST':      {D:'240x410',  M:'430x281', A1:'254x380', A2:''},
+  'CATEGORY BANNER':   {D:'1920x259', M:'640x242', A1:'375x213', A2:'320x93'},
+  'CATEGORY LANDING':  {D:'1920x640', M:'640x612', A1:'375x213', A2:''},
+  'CATEGORY MEDIA_WEB':{D:'1920x260', M:'640x243', A1:'578x186', A2:''},
+  'HOME BANNER':       {D:'1920x344', M:'640x242', A1:'289x93',  A2:''},
+  'HOME CENTRAL':      {D:'1920x260', M:'640x243', A1:'578x187', A2:''},
+  'HOME SLIDER':       {D:'1920x640', M:'640x520', A1:'640x520', A2:''},
+  'MIS LISTAS HEADER': {D:'1920x259', M:'640x242', A1:'578x186', A2:''},
+  'PACK PROMOS':       {D:'1920x259', M:'640x242', A1:'578x186', A2:''},
+  'SEARCH BANNER':     {D:'1920x259', M:'640x242', A1:'320x93',  A2:''},
+};
+// Preparado para que cada cadena pueda tener specs propias en el futuro.
+const MEDIDAS_BY_CHAIN = {
+  'SORIANA': MEDIDAS,
+  'LA COMER': MEDIDAS,
+};
+function getMedidas(cadena, articulo){
+  const cat = MEDIDAS_BY_CHAIN[normalizeChain(cadena)] || MEDIDAS;
+  return cat[String(articulo || '').trim().toUpperCase()] || MEDIDAS[String(articulo || '').trim().toUpperCase()] || {D:'',M:'',A1:'',A2:''};
+}
+
+let weeklyRecords = [];
+let consolidatedRecords = [];
+let processed = []; // Vista activa filtrada, para mantener compatibilidad con buscadores.
+let periodCatalog = [];
+let fileName = '';
+let currentView = 'dashboard';
+let currentMode = 'consolidated';
+let selectedPeriod = 'all';
+let actionFilter = 'all';
+let chainFilter = 'all';
+let loadScope = 'partial';
+let lastLoadSummary = null;
+let rawEcoCount = 0;
+const NEXT_FRIDAY_KEY = '__NEXT_FRIDAY__';
+
+
+function esc(v){
+  return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+
+function normDate(d){
+  if(!d || isNaN(d)) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function parseDMY(s){
+  const m = String(s||'').trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(!m) return null;
+  const day = Number(m[1]);
+  const month = Number(m[2]);
+  let y = Number(m[3]); if(y < 100) y += 2000;
+  const d = new Date(y, month-1, day);
+  // Validación estricta: evita que 31/02 se convierta silenciosamente en marzo.
+  if(d.getFullYear() !== y || d.getMonth() !== month-1 || d.getDate() !== day) return null;
+  return normDate(d);
+}
+
+function parseISODateOnly(s){
+  const m = String(s||'').trim().match(/^(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})$/);
+  if(!m) return null;
+  const y = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  const d = new Date(y, month-1, day);
+  if(d.getFullYear() !== y || d.getMonth() !== month-1 || d.getDate() !== day) return null;
+  return normDate(d);
+}
+
+function toDate(val) {
+  if (val === null || val === undefined || val === '') return null;
+  if (val && typeof val.toDate === 'function') return normDate(val.toDate());
+  if (val instanceof Date) return normDate(val);
+  if (typeof val === 'object' && typeof val.seconds === 'number') return normDate(new Date(val.seconds * 1000));
+  if (typeof val === 'number') {
+    if (window.XLSX && XLSX.SSF && XLSX.SSF.parse_date_code) {
+      const p = XLSX.SSF.parse_date_code(val);
+      if (p) return normDate(new Date(p.y, p.m-1, p.d));
+    }
+    return normDate(new Date(Math.round((val - 25569)*86400*1000)));
+  }
+  const raw = String(val || '').trim();
+  if(!raw) return null;
+  if(/^\d+(\.\d+)?$/.test(raw)){
+    const asNumber = Number(raw);
+    if(asNumber > 20000 && asNumber < 80000) return toDate(asNumber);
+  }
+  const dmy = parseDMY(raw);
+  if(dmy) return dmy;
+  const iso = parseISODateOnly(raw);
+  if(iso) return iso;
+  const d = new Date(raw);
+  return isNaN(d) ? null : normDate(d);
+}
+
+function fmtDate(val) {
+  const d = toDate(val);
+  if (!d) return '';
+  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+}
+
+function parsePeriodo(val){
+  const raw = String(val || '').trim();
+  if(!raw) return null;
+  // Acepta dos formatos:
+  // 1) S26 - 26/06/2026 a 02/07/2026
+  // 2) 26/06/2026 a 02/07/2026
+  const m = raw.match(/^\s*(?:([A-Za-z]?\d+)\s*-\s*)?(\d{1,2}\/\d{1,2}\/\d{2,4})\s*a\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*$/i);
+  if(!m) return {code: raw, label: raw, start:null, end:null, key: raw, isRecognized:false};
+  const code = (m[1] || '').toUpperCase();
+  const start = parseDMY(m[2]);
+  const end = parseDMY(m[3]);
+  const dateLabel = `${fmtDate(start)} a ${fmtDate(end)}`;
+  const label = code ? `${code} - ${dateLabel}` : dateLabel;
+  return {code, label, start, end, key: `${code || 'PERIODO'}|${fmtDate(start)}|${fmtDate(end)}`, isRecognized: !!(start && end)};
+}
+
+function normalizePeriodId(value){
+  if(value === null || value === undefined || value === '') return '';
+  let raw = String(value).trim();
+  if(!raw) return '';
+  raw = raw.replace(/\.0+$/, '');
+  const m = raw.match(/^(?:S)?(\d+)$/i);
+  if(m) return String(Number(m[1]));
+  return raw.toUpperCase().replace(/\s+/g,' ');
+}
+
+function periodCodeFromId(periodId){
+  const id = normalizePeriodId(periodId);
+  if(!id) return '';
+  return /^\d+$/.test(id) ? `S${id}` : id;
+}
+
+function buildPeriodFromFields(periodIdRaw, periodoRaw, fijRaw, retRaw){
+  const periodId = normalizePeriodId(periodIdRaw);
+  const parsed = parsePeriodo(periodoRaw);
+  const fallbackStart = toDate(fijRaw);
+  const fallbackEnd = toDate(retRaw);
+  const start = parsed?.start || fallbackStart;
+  const end = parsed?.end || fallbackEnd;
+  const code = periodId ? periodCodeFromId(periodId) : (parsed?.code || 'SIN PERIODO');
+  let label;
+  if(start && end) label = `${code} - ${fmtDate(start)} a ${fmtDate(end)}`;
+  else if(parsed?.label) label = periodId ? `${code} - ${parsed.label}` : parsed.label;
+  else label = code;
+  const key = periodId ? `PERIOD_ID:${periodId}|${fmtDate(start)}|${fmtDate(end)}` : (parsed?.key || 'SIN_PERIODO');
+  return {periodId, code, label, start, end, key, isRecognized: !!(periodId || parsed?.isRecognized)};
+}
+
+function calcDeadline(minFij) {
+  const start = toDate(minFij);
+  if(!start) return null;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const diff = Math.round((start - hoy) / 86400000);
+  let fl;
+  if (diff >= 11)     fl = new Date(start.getTime() - 10*86400000);
+  else if (diff >= 6) fl = new Date(start.getTime() -  5*86400000);
+  else if (diff >= 3) fl = new Date(start.getTime() -  2*86400000);
+  else if (diff >= 2) fl = new Date(start.getTime() -  1*86400000);
+  else fl = hoy;
+  return normDate(fl);
+}
+
+function fmtDeadline(d) {
+  d = toDate(d);
+  if(!d) return '—';
+  return d.getDate() + ' de ' + MESES_ES[d.getMonth()+1] + ' de ' + d.getFullYear();
+}
+
+function dateInRange(d, start, end){
+  d = toDate(d); start = toDate(start); end = toDate(end);
+  return !!(d && start && end && d >= start && d <= end);
+}
+function overlaps(aStart, aEnd, bStart, bEnd){
+  aStart = toDate(aStart); aEnd = toDate(aEnd); bStart = toDate(bStart); bEnd = toDate(bEnd);
+  return !!(aStart && aEnd && bStart && bEnd && aStart <= bEnd && aEnd >= bStart);
+}
+
+function recordBaseKey(r){
+  return [normalizeChain(r.cadena),r.cliente,r.anunciante,r.campana,r.articulo,r.cid,r.nivel,r.cdesc].map(v=>String(v||'').trim().toUpperCase()).join('|');
+}
+
+function getPeriodoByKey(k){ return periodCatalog.find(p => p.key === k) || null; }
+
+function periodText(r){
+  if(r.periods && r.periods.length) return r.periods.map(p=>p.code).join(', ');
+  if(r.periodCode) return r.periodCode;
+  return '—';
+}
+function periodChipHtml(r){ return `<span class="period-chip">${esc(periodText(r))}</span>`; }
+
+function buildRecordSearchText(r){
+  // V3.7 Stable: índice de búsqueda calculado una sola vez para evitar armar strings en cada tecla.
+  return [
+    r.cadena, chainLabel(r.cadena), r.cliente, r.anunciante, r.campana, r.articulo,
+    r.nivel, r.cid, r.cdesc, r.estado, periodText(r), fmtDate(r.start || r.fij), fmtDate(r.end || r.ret),
+    r.desktop, r.mobile, r.app1, r.app2
+  ].join(' ').toLowerCase();
+}
+function attachRecordSearchText(r){
+  r.searchText = buildRecordSearchText(r);
+  return r;
+}
+
+function semaforo(deadline, end){
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const dl = toDate(deadline);
+  const e = toDate(end);
+  if(e && e < hoy) return {txt:'Finalizada', cls:'sem-gray'};
+  if(!dl) return {txt:'Sin fecha', cls:'sem-gray'};
+  const diff = Math.round((dl - hoy)/86400000);
+  if(diff <= 0) return {txt: diff < 0 ? 'Vencida' : 'Vence hoy', cls:'sem-red'};
+  if(diff <= 2) return {txt:'Prioridad', cls:'sem-yellow'};
+  return {txt:'En margen', cls:'sem-green'};
+}
+function semaforoHtml(r){
+  const s = semaforo(r.deadline, r.end || r.ret);
+  return `<span class="sem ${s.cls}">${s.txt}</span>`;
+}
+
+function setView(v) {
+  ['dashboard','ecommerce','specs','borrador','control','changes','history'].forEach(id => {
+    document.getElementById('view-'+id).style.display = id===v ? '' : 'none';
+    document.querySelectorAll('.sb-item').forEach((el,i) => {
+      const views = ['dashboard','ecommerce','specs','borrador','control','changes','history'];
+      el.classList.toggle('active', views[i]===v);
+    });
+  });
+  const titles = {dashboard:'Dashboard',ecommerce:'Ecommerce',specs:'Specs clientes',borrador:'Borradores',control:'Control operativo',changes:'Cambios detectados',history:'Histórico / Consultas'};
+  document.getElementById('topTitle').textContent = titles[v];
+  currentView = v;
+  if(v === 'control') renderGantt();
+  if(v === 'changes') renderChanges();
+  if(v === 'history') renderHistory();
+  if(v === 'dashboard') renderWeekSummary();
+}
+
+function setMode(mode){
+  currentMode = mode;
+  document.getElementById('btnModeConsolidated').classList.toggle('active', mode==='consolidated');
+  document.getElementById('btnModeWeekly').classList.toggle('active', mode==='weekly');
+  document.getElementById('modeHint').textContent = mode === 'consolidated'
+    ? 'Vista consolidada: une periodos sin mezclar Cadena ni Creatividad ID; cada ID se gestiona como un arte independiente.'
+    : 'Vista semanal: conserva cada periodo del archivo para operar por semana sin perder trazabilidad.';
+  saveFilterPrefs();
+  refreshAll();
+}
+function setPeriodFilter(v){ selectedPeriod = v; saveFilterPrefs(); refreshAll(); }
+function setActionFilter(v){ actionFilter = v; saveFilterPrefs(); refreshAll(); }
+function setChainFilter(v){ chainFilter = v || 'all'; saveFilterPrefs(); refreshAll(); renderWeekSummary(); renderGantt(); renderChanges(); renderHistory(); renderOperationalKpis(); updateUrgentBadge(); updateChangesBadge(); }
+function setLoadScope(v){
+  loadScope = v || 'partial';
+  const help = document.getElementById('loadScopeHelp');
+  if(help){
+    help.textContent = loadScope === 'complete' ? 'Completa: compara contra todo y requiere confirmación.' : (loadScope === 'period' ? 'Periodo/rango: compara ausencias solo dentro del periodo seleccionado.' : 'Parcial: solo agrega o actualiza lo que viene en el archivo.');
+  }
+}
+
+function saveFilterPrefs(){
+  try {
+    localStorage.setItem('comflow_prefs', JSON.stringify({mode:currentMode, actionFilter, periodKey: selectedPeriod, chainFilter}));
+  } catch(e){ /* localStorage no disponible, sin problema */ }
+}
+
+function loadFilterPrefs(){
+  try {
+    const raw = localStorage.getItem('comflow_prefs');
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){ return null; }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+}
+
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+  e.target.value = '';
+}
+
+
+function getUpcomingFriday(){
+  const d = new Date(); d.setHours(0,0,0,0);
+  const day = d.getDay(); // 0 domingo, 5 viernes
+  const daysUntilFriday = (5 - day + 7) % 7;
+  d.setDate(d.getDate() + daysUntilFriday);
+  return normDate(d);
+}
+
+function sameDate(a,b){
+  a = toDate(a); b = toDate(b);
+  return !!(a && b && a.getTime() === b.getTime());
+}
+
+function getSelectedPeriodRange(){
+  if(selectedPeriod === 'all') return null;
+  if(selectedPeriod === NEXT_FRIDAY_KEY){
+    const f = getUpcomingFriday();
+    return {key:NEXT_FRIDAY_KEY, code:'PRÓXIMO VIERNES', label:`Próximo viernes - ${fmtDate(f)}`, start:f, end:f, isNextFriday:true};
+  }
+  return getPeriodoByKey(selectedPeriod);
+}
+
+function recordMatchesSelectedPeriod(r, period, mode){
+  if(!period) return true;
+  if(period.isNextFriday){
+    return sameDate(r.start, period.start);
+  }
+  if(mode === 'weekly') return r.periodKey === selectedPeriod;
+  return (r.periods || []).some(p => p.key === selectedPeriod) || overlaps(r.start, r.end, period.start, period.end);
+}
+
+function getFilteredRecords(mode=currentMode){
+  let base = mode === 'weekly' ? [...weeklyRecords] : [...consolidatedRecords];
+  if(chainFilter && chainFilter !== 'all') base = base.filter(r => normalizeChain(r.cadena) === normalizeChain(chainFilter));
+  const period = getSelectedPeriodRange();
+  if(period){
+    base = base.filter(r => recordMatchesSelectedPeriod(r, period, mode));
+
+    if(actionFilter === 'starts') base = base.filter(r => dateInRange(r.start, period.start, period.end));
+    if(actionFilter === 'ends') base = base.filter(r => dateInRange(r.end, period.start, period.end));
+    if(actionFilter === 'deadline') base = base.filter(r => dateInRange(r.deadline, period.start, period.end));
+    if(actionFilter === 'active') base = base.filter(r => overlaps(r.start, r.end, period.start, period.end));
+  }
+  return base;
+}
+
+function getFilteredConsolidatedRecords(){
+  return getFilteredRecords('consolidated');
+}
+
+function levenshtein(a, b){
+  a = String(a); b = String(b);
+  const m = a.length, n = b.length;
+  if(!m) return n; if(!n) return m;
+  const d = Array.from({length:m+1}, (_,i) => [i, ...Array(n).fill(0)]);
+  for(let j=0;j<=n;j++) d[0][j] = j;
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      const cost = a[i-1] === b[j-1] ? 0 : 1;
+      d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+cost);
+    }
+  }
+  return d[m][n];
+}
+
+/* ============================================================
+   Validaciones silenciosas de consistencia (archivo Ekon).
+   No alteran la UI ni los datos mostrados: solo registran
+   posibles inconsistencias en la consola del navegador, para
+   revisión técnica cuando se necesite (no estorban la operación diaria).
+   Consultar con: comflowDataIssues  (en la consola del navegador)
+   ============================================================ */
+function runDataValidations(rows, get){
+  const issues = [];
+  if(get.hasColumn && !get.hasColumn('Cadena')){
+    issues.push({fila:'Archivo', tipo:'CADENA_DEFAULT', detalle:'El archivo no incluye la columna Cadena; se asignó SORIANA por default a todas las filas procesadas.', campana:'', cliente:'SORIANA'});
+  }
+  if(get.hasColumn && !get.hasColumn('Periodo Id')){
+    issues.push({fila:'Archivo', tipo:'PERIODO_ID_AUSENTE', detalle:'El archivo no incluye la columna Periodo Id; el resumen semanal usará Periodo como respaldo, pero la fuente recomendada es Periodo Id.', campana:'', cliente:''});
+  }
+  const cidMap = new Map(); // Creatividad Id -> {cliente,campana,articulo}
+  const knownArts = [...ECO_ARTS];
+
+  rows.forEach((row, i) => {
+    const fila = i + 2; // +2: encabezado (fila 1) + índice base 0
+    const artRaw = String(get(row,'Artículo')||'').trim();
+    const art = artRaw.toUpperCase();
+    const isEco = ECO_ARTS.has(art);
+
+    if(isEco){
+      const cadena = normalizeChain(get(row,'Cadena'));
+      const cliente = String(get(row,'Cliente')||'').trim();
+      const anunciante = String(get(row,'Anunciante')||'').trim();
+      const campana = String(get(row,'Campaña')||'').trim();
+      const nivel = String(get(row,'Creativitad Título')||get(row,'Creatividad Título')||'').trim();
+      const cid = String(get(row,'Creatividad Id')||'').trim();
+      const fijRaw = get(row,'Fecha Fijación');
+      const retRaw = get(row,'Fecha Retirada');
+      const fij = toDate(fijRaw), ret = toDate(retRaw);
+
+      const faltantes = [];
+      if(!cadena) faltantes.push('Cadena');
+      if(get.hasColumn && get.hasColumn('Cadena') && !CHAIN_CONFIG[cadena]) issues.push({fila, tipo:'CADENA_NO_RECONOCIDA', detalle:`Cadena "${get(row,'Cadena')}" no está configurada; se conservará como cadena separada. Valores esperados: SORIANA / LA COMER.`, campana, cliente});
+      if(!cliente) faltantes.push('Cliente');
+      if(!anunciante) faltantes.push('Anunciante');
+      if(!campana) faltantes.push('Campaña');
+      if(!nivel) faltantes.push('Creatividad Título');
+      if(!fijRaw || !fij) faltantes.push('Fecha Fijación');
+      if(!retRaw || !ret) faltantes.push('Fecha Retirada');
+      if(faltantes.length) issues.push({fila, tipo:'CAMPO_VACÍO', detalle:`Faltan: ${faltantes.join(', ')}`, campana, cliente});
+
+      if(fij && ret && fij > ret) issues.push({fila, tipo:'FECHAS_INVERTIDAS', detalle:`Fijación (${fmtDate(fij)}) es posterior a Retirada (${fmtDate(ret)})`, campana, cliente});
+
+      const periodoId = normalizePeriodId(get(row,'Periodo Id'));
+      const periodoParsed = parsePeriodo(get(row,'Periodo'));
+      if(get.hasColumn && get.hasColumn('Periodo Id') && !periodoId) issues.push({fila, tipo:'PERIODO_ID_VACÍO', detalle:'Fila eCommerce sin Periodo Id; no debe contar en resumen semanal salvo respaldo controlado por Periodo.', campana, cliente});
+      if(get(row,'Periodo') && periodoParsed && periodoParsed.isRecognized === false) issues.push({fila, tipo:'PERIODO_NO_RECONOCIDO', detalle:`Texto de Periodo no coincide con el formato esperado: "${get(row,'Periodo')}"`, campana, cliente});
+
+      if(cid){
+        const prev = cidMap.get(cid);
+        if(prev && (prev.cliente !== cliente || prev.campana !== campana || prev.articulo !== art)){
+          issues.push({fila, tipo:'CREATIVIDAD_ID_DUPLICADO', detalle:`Creatividad Id "${cid}" ya usada en fila ${prev.fila} con datos distintos (${prev.cliente} / #${prev.campana} / ${prev.articulo})`, campana, cliente});
+        } else if(!prev){
+          cidMap.set(cid, {fila, cliente, campana, articulo:art});
+        }
+      }
+    } else if(art) {
+      // No es un artículo Ecommerce reconocido: revisar si es un posible typo de uno conocido.
+      const cercano = knownArts.find(k => levenshtein(art, k) <= 2 && art !== k);
+      if(cercano) issues.push({fila, tipo:'POSIBLE_TYPO_ARTÍCULO', detalle:`"${artRaw}" no está en el catálogo y se parece a "${cercano}" — la fila se excluyó del procesamiento`});
+    }
+  });
+
+  window.comflowDataIssues = issues;
+  if(issues.length){
+    console.groupCollapsed(`%ceComFlow · ${issues.length} posible(s) inconsistencia(s) en el archivo (ver comflowDataIssues)`, 'color:#C7960B;font-weight:bold');
+    console.table(issues);
+    console.groupEnd();
+  } else {
+    console.log('%ceComFlow · validación de archivo sin inconsistencias detectadas.', 'color:#3C8A3C');
+  }
+  renderDataIssuesBadge(issues);
+}
+
+const ISSUE_LABELS = {
+  CAMPO_VACÍO: 'Campo vacío',
+  CADENA_DEFAULT: 'Cadena default',
+  CADENA_NO_RECONOCIDA: 'Cadena no reconocida',
+  FECHAS_INVERTIDAS: 'Fechas invertidas',
+  PERIODO_NO_RECONOCIDO: 'Periodo no reconocido',
+  CREATIVIDAD_ID_DUPLICADO: 'Creatividad ID duplicada',
+  POSIBLE_TYPO_ARTÍCULO: 'Posible typo en Artículo',
+};
+
+function renderDataIssuesBadge(issues){
+  const badge = document.getElementById('sbIssuesBadge');
+  if(!badge) return;
+  badge.style.display = '';
+  if(issues.length){
+    badge.className = 'sb-issues-badge has-issues';
+    badge.textContent = `⚠ ${issues.length} inconsistencia${issues.length===1?'':'s'} (ver detalle)`;
+  } else {
+    badge.className = 'sb-issues-badge no-issues';
+    badge.textContent = '✓ Archivo validado sin inconsistencias';
+  }
+}
+
+function openDataIssuesModal(){
+  const issues = window.comflowDataIssues || [];
+  document.getElementById('issuesCardTitle').textContent = issues.length
+    ? `${issues.length} posible(s) inconsistencia(s) detectadas`
+    : 'Sin inconsistencias detectadas';
+  const body = document.getElementById('issuesCardBody');
+  if(!issues.length){
+    body.innerHTML = '<div class="placeholder-msg" style="padding:20px 0">El último archivo cargado no presentó campos vacíos, fechas invertidas, periodos no reconocidos, IDs duplicados con conflicto, ni posibles typos de Artículo.</div>';
+  } else {
+    body.innerHTML = `<table class="issues-table">
+      <thead><tr><th>Fila</th><th>Tipo</th><th>Detalle</th><th>Campaña</th></tr></thead>
+      <tbody>${issues.map(it => `<tr>
+        <td>${esc(it.fila)}</td>
+        <td><span class="issues-tag">${esc(ISSUE_LABELS[it.tipo]||it.tipo)}</span></td>
+        <td>${esc(it.detalle||'')}</td>
+        <td>${it.cliente?esc(it.cliente)+' · ':''}${it.campana?'#'+esc(it.campana):''}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
+  document.getElementById('issuesOverlay').style.display = 'flex';
+}
+
+function closeDataIssuesModal(){
+  document.getElementById('issuesOverlay').style.display = 'none';
+}
+
+function confirmLoadScopeBeforeProcessing(file){
+  if(loadScope === 'period' && selectedPeriod === 'all'){
+    alert('Para usar Carga por periodo/rango, primero selecciona un periodo específico en el filtro global.');
+    showToast('Carga cancelada: selecciona un periodo/rango');
+    return false;
+  }
+  if(loadScope === 'complete'){
+    const typed = prompt(`Vas a ejecutar una CARGA COMPLETA con el archivo:\n\n${file?.name || ''}\n\nEsta acción puede marcar como “No incluidas en carga actual” las líneas que ya existen en memoria operativa y no vengan en este archivo.\n\nPara confirmar escribe: CONFIRMAR`);
+    if(String(typed || '').trim().toUpperCase() !== 'CONFIRMAR'){
+      showToast('Carga completa cancelada');
+      return false;
+    }
+  }
+  return true;
+}
+
+function processFile(file) {
+  if(!confirmLoadScopeBeforeProcessing(file)) return;
+  fileName = file.name;
+  document.getElementById('sbFileName').textContent = fileName;
+  document.getElementById('topSub').textContent = 'Procesando...';
+  const btn = document.getElementById('btnUpload');
+  if(btn){
+    btn.disabled = true;
+    document.getElementById('btnUploadLabel').innerHTML = '<span class="spin-icon"></span> Procesando…';
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+
+    const colMap = {};
+    if (rows.length > 0) Object.keys(rows[0]).forEach(k => { colMap[k.trim()] = k; });
+    const get = (row, name) => {
+      const k = colMap[name];
+      return k !== undefined ? row[k] : '';
+    };
+    get.hasColumn = (name) => colMap[name] !== undefined;
+
+    rawEcoCount = 0;
+    const seenWeekly = new Set();
+    const weekly = [];
+    const periodsMap = new Map();
+
+    rows.forEach(row => {
+      const art = String(get(row,'Artículo')||'').trim().toUpperCase();
+      if (!ECO_ARTS.has(art)) return;
+      rawEcoCount++;
+
+      const periodo = buildPeriodFromFields(get(row,'Periodo Id'), get(row,'Periodo'), get(row,'Fecha Fijación'), get(row,'Fecha Retirada'));
+      if(!periodsMap.has(periodo.key)) periodsMap.set(periodo.key, periodo);
+
+      const cadena = normalizeChain(get(row,'Cadena'));
+      const m = getMedidas(cadena, art);
+      const fij = toDate(get(row,'Fecha Fijación')) || periodo.start;
+      const ret = toDate(get(row,'Fecha Retirada')) || periodo.end;
+      const rec = {
+        cadena,
+        cliente:   String(get(row,'Cliente')||'').trim(),
+        anunciante:String(get(row,'Anunciante')||'').trim(),
+        campana:   String(get(row,'Campaña')||'').trim(),
+        articulo:  String(get(row,'Artículo')||'').trim(),
+        nivel:     String(get(row,'Creativitad Título')||get(row,'Creatividad Título')||'').trim(),
+        cid:       String(get(row,'Creatividad Id')||'').trim(),
+        cdesc:     String(get(row,'Creatividad Desc.')||'').trim(),
+        estado:    String(get(row,'Creatividad Estado')||'').trim(),
+        fij, ret,
+        start: fij || periodo.start,
+        end: ret || periodo.end,
+        weekStart: periodo.start,
+        weekEnd: periodo.end,
+        periodId: periodo.periodId,
+        periodCode: periodo.code,
+        periodLabel: periodo.label,
+        periodKey: periodo.key,
+        desktop:   m.D, mobile: m.M, app1: m.A1, app2: m.A2,
+      };
+      rec.groupKey = recordBaseKey(rec);
+      rec.deadline = calcDeadline(rec.start || rec.fij);
+      attachRecordSearchText(rec);
+
+      const weeklyKey = rec.groupKey + '|' + rec.periodKey;
+      if(seenWeekly.has(weeklyKey)) return;
+      seenWeekly.add(weeklyKey);
+      weekly.push(rec);
+    });
+
+    runDataValidations(rows, get);
+
+    periodCatalog = [...periodsMap.values()].sort((a,b) => {
+      const ai = Number(a.periodId), bi = Number(b.periodId);
+      if(Number.isFinite(ai) && Number.isFinite(bi) && ai !== bi) return ai - bi;
+      if(a.start && b.start) return a.start - b.start;
+      return String(a.code).localeCompare(String(b.code), 'es', {numeric:true});
+    });
+
+    const conMap = new Map();
+    weekly.forEach(r => {
+      if(!conMap.has(r.groupKey)) {
+        conMap.set(r.groupKey, {
+          ...r,
+          start: r.start || r.fij,
+          end: r.end || r.ret,
+          periods: [],
+          periodKeys: new Set(),
+          sourceRows: 0
+        });
+      }
+      const c = conMap.get(r.groupKey);
+      c.sourceRows++;
+      const rs = r.start || r.fij;
+      const re = r.end || r.ret;
+      if(rs && (!c.start || rs < c.start)) c.start = rs;
+      if(re && (!c.end || re > c.end)) c.end = re;
+      if(r.periodKey && !c.periodKeys.has(r.periodKey)) {
+        c.periodKeys.add(r.periodKey);
+        c.periods.push({key:r.periodKey, periodId:r.periodId, code:r.periodCode, label:r.periodLabel, start:r.weekStart, end:r.weekEnd});
+      }
+    });
+
+    consolidatedRecords = [...conMap.values()].map(c => {
+      c.periods.sort((a,b) => (a.start && b.start) ? a.start-b.start : String(a.code).localeCompare(String(b.code),'es',{numeric:true}));
+      c.periodKeys = [...c.periodKeys];
+      c.deadline = calcDeadline(c.start);
+      attachRecordSearchText(c);
+      return c;
+    }).sort(sortRecords);
+
+    const conByKey = new Map(consolidatedRecords.map(c => [c.groupKey, c]));
+    weeklyRecords = weekly.map(w => {
+      const c = conByKey.get(w.groupKey);
+      return attachRecordSearchText({...w, start:c?.start || w.start, end:c?.end || w.end, deadline:c?.deadline || w.deadline, periods:c?.periods || [{key:w.periodKey,periodId:w.periodId,code:w.periodCode,label:w.periodLabel,start:w.weekStart,end:w.weekEnd}]});
+    }).sort(sortRecords);
+
+    buildPeriodSelect();
+    document.getElementById('globalFilters').style.display = 'flex';
+    const uploadArea = document.getElementById('uploadArea');
+    if (uploadArea) uploadArea.classList.add('is-hidden');
+    document.getElementById('dashStats').style.display = '';
+    refreshAll();
+    syncChecklistFromRecords(consolidatedRecords);
+    renderWeekSummary();
+    showToast('✓ Archivo procesado — ' + consolidatedRecords.length + ' registros consolidados · ' + weeklyRecords.length + ' registros semanales');
+    if(btn){
+      btn.disabled = false;
+      document.getElementById('btnUploadLabel').textContent = 'Cargar archivo';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function sortRecords(a,b){
+  const pa = (a.periods && a.periods[0]?.start) || a.start || a.fij || new Date(9999,0,1);
+  const pb = (b.periods && b.periods[0]?.start) || b.start || b.fij || new Date(9999,0,1);
+  if(pa - pb) return pa - pb;
+  if ((a.cadena||'') < (b.cadena||'')) return -1;
+  if ((a.cadena||'') > (b.cadena||'')) return 1;
+  if (a.anunciante < b.anunciante) return -1;
+  if (a.anunciante > b.anunciante) return 1;
+  return String(a.campana).localeCompare(String(b.campana), 'es', {numeric:true});
+}
+
+function buildPeriodSelect(){
+  const sel = document.getElementById('periodSelect');
+  const nextFriday = getUpcomingFriday();
+  const nextFridayLabel = `Próximo viernes (${fmtDate(nextFriday)})`;
+  const hasNextFridayPeriod = periodCatalog.some(p => sameDate(p.start, nextFriday));
+  sel.innerHTML = '<option value="all">Todos los periodos</option>' +
+    `<option value="${NEXT_FRIDAY_KEY}">${nextFridayLabel}</option>` +
+    periodCatalog.map(p => `<option value="${esc(p.key)}">${esc(p.label)}</option>`).join('');
+
+  const prefs = loadFilterPrefs();
+  let defaultPeriod = hasNextFridayPeriod ? NEXT_FRIDAY_KEY : 'all';
+  let defaultAction = 'all';
+  if(prefs){
+    if(prefs.actionFilter) defaultAction = prefs.actionFilter;
+    if(prefs.chainFilter) chainFilter = prefs.chainFilter;
+    if(prefs.periodKey){
+      const stillValid = prefs.periodKey === 'all' || prefs.periodKey === NEXT_FRIDAY_KEY || periodCatalog.some(p => p.key === prefs.periodKey);
+      if(stillValid) defaultPeriod = prefs.periodKey;
+    }
+  }
+  selectedPeriod = defaultPeriod;
+  actionFilter = defaultAction;
+  sel.value = selectedPeriod;
+  document.getElementById('actionFilter').value = actionFilter;
+  const chainSel = document.getElementById('chainFilterSelect');
+  if(chainSel) chainSel.value = chainFilter || 'all';
+}
+
+function checklistGroupKeyFromConsolidated(r){
+  // Mismo criterio de agrupación que usa Control Operativo: Cliente + Marca + Campaña + Artículo + Espacio + Creatividad ID.
+  // La Creatividad ID separa líneas: si cambia el ID, cambia el arte y se gestiona aparte.
+  return [r.cliente, r.anunciante, r.campana, r.articulo, r.nivel, r.cid || 'SIN_CREATIVIDAD_ID'].map(v => String(v||'').trim().toUpperCase()).join('|||');
+}
+
+function shiftDateByDays(d, days){
+  d = toDate(d);
+  if(!d) return null;
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() + days);
+  return normDate(x);
+}
+function offsetPeriodCode(code, offset){
+  const m = String(code || '').trim().match(/^([A-Za-z]+)(\d+)$/);
+  if(!m) return offset < 0 ? 'ANTERIOR' : 'SIGUIENTE';
+  const n = Number(m[2]) + offset;
+  return `${m[1].toUpperCase()}${n}`;
+}
+function adjacentPeriod(period, offset){
+  if(!period || !period.start || !period.end) return null;
+  const start = shiftDateByDays(period.start, offset * 7);
+  const end = shiftDateByDays(period.end, offset * 7);
+  const code = offsetPeriodCode(period.code, offset);
+  return {
+    key:`__AUTO_${offset}_${fmtDate(start)}_${fmtDate(end)}`,
+    code,
+    label:`${code} - ${fmtDate(start)} a ${fmtDate(end)}`,
+    start,
+    end,
+    synthetic:true
+  };
+}
+function periodMatchesRecord(r, period){
+  if(!period) return false;
+  const periods = r.periods && r.periods.length ? r.periods : (r.periodKey ? [{key:r.periodKey, periodId:r.periodId, code:r.periodCode, start:r.weekStart || r.start, end:r.weekEnd || r.end}] : []);
+  // V3.6.4: para periodos del Excel, la pertenencia es exacta por Periodo Id / periodKey.
+  // No se usa traslape de fechas aquí para evitar conteos inflados.
+  if(period.key && periods.some(p => p.key === period.key)) return true;
+  if(period.periodId && periods.some(p => normalizePeriodId(p.periodId) === normalizePeriodId(period.periodId))) return true;
+  if(period.code && periods.some(p => String(p.code||'').toUpperCase() === String(period.code||'').toUpperCase())) return true;
+  return false;
+}
+function recordMatchesExactPeriodId(r, period){
+  if(!period || !r) return false;
+  // V3.6.4: el resumen semanal NO debe usar r.periods porque viene del consolidado.
+  // Solo cuenta el Periodo Id / periodKey original de la fila semanal ya depurada.
+  const recordPeriodId = normalizePeriodId(r.periodId);
+  const targetPeriodId = normalizePeriodId(period.periodId);
+  if(targetPeriodId) return recordPeriodId === targetPeriodId;
+  if(period.key && r.periodKey) return r.periodKey === period.key;
+  if(period.code && r.periodCode) return String(r.periodCode||'').toUpperCase() === String(period.code||'').toUpperCase();
+  return false;
+}
+
+function periodMatchesDoc(g, period){
+  if(!period) return false;
+  const ptxt = String(g.periodText || '').toUpperCase();
+  if(period.code && ptxt && ptxt.split(/[,;\s]+/).includes(String(period.code).toUpperCase())) return true;
+  return overlaps(g.start, g.end, period.start, period.end);
+}
+function countEspaciosEnPeriodo(periodOrKey){
+  let period = typeof periodOrKey === 'string' ? getPeriodoByKey(periodOrKey) : periodOrKey;
+  if(!period) return {total:0, nuevos:0, listas:0, testigos:0, completas:0, enSeguimiento:0, desdeMemoria:0};
+
+  // V3.6.4 Hotfix:
+  // El resumen semanal se calcula únicamente con registros ya depurados:
+  // 1) Artículo eCommerce válido
+  // 2) Cadena normalizada
+  // 3) Creatividad ID separada
+  // 4) Dedupe semanal aplicado
+  // 5) Periodo Id exacto como fuente de verdad
+  // No se usa Firebase para sumar espacios, ni traslape de fechas para pertenencia semanal.
+  const entries = new Map();
+  const addEntry = (key, item) => {
+    if(!key) return;
+    const current = entries.get(key) || {checks:{}, start:null, end:null};
+    const checks = item.checks || current.checks || {};
+    const start = toDate(item.start) || current.start;
+    const end = toDate(item.end) || current.end;
+    entries.set(key, {checks, start, end});
+  };
+
+  weeklyRecords
+    .filter(r => !chainFilter || chainFilter === 'all' || normalizeChain(r.cadena) === normalizeChain(chainFilter))
+    .filter(r => recordMatchesExactPeriodId(r, period))
+    .forEach(r => {
+      const opKey = checklistOperationalKey(r);
+      const id = sanitizeId(opKey);
+      const legacyId = sanitizeId(legacyChecklistOperationalKey(r));
+      const doc = checklistState.get(id) || checklistState.get(legacyId) || null;
+      // Para "nuevos por fijar" usamos la fecha real de la fila limpia, no el rango consolidado.
+      addEntry(opKey + '|' + r.periodKey, {checks:(doc && doc.checks) || {}, start:r.fij || r.start, end:r.ret || r.end});
+    });
+
+  let nuevos = 0, listas = 0, testigos = 0, completas = 0, enSeguimiento = 0;
+  entries.forEach(item => {
+    const checks = item.checks || {};
+    const {done,total} = checksProgress(checks);
+    const preLaunchDone = checks.correoMarca && checks.artes && checks.validacion && checks.link && checks.kevel;
+    const testigosDone = checks.testigosApp && checks.testigosWeb;
+    if(period.start && period.end && dateInRange(item.start, period.start, period.end)) nuevos++;
+    if(preLaunchDone) listas++;
+    if(testigosDone) testigos++;
+    if(done >= total) completas++; else enSeguimiento++;
+  });
+
+  return {total:entries.size, nuevos, listas, testigos, completas, enSeguimiento, desdeMemoria:0};
+}
+
+function findCurrentPeriodIndex(){
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  let idx = periodCatalog.findIndex(p => p.start && p.end && p.start <= hoy && hoy <= p.end);
+  if(idx !== -1) return idx;
+  idx = periodCatalog.findIndex(p => p.end && p.end >= hoy);
+  if(idx !== -1) return idx;
+  return periodCatalog.length ? periodCatalog.length - 1 : -1;
+}
+
+function weekDeltaHtml(curr, prev){
+  if(prev === null) return '';
+  const diff = curr - prev;
+  if(diff > 0) return `<span class="week-delta up">▲ +${diff} vs. semana anterior</span>`;
+  if(diff < 0) return `<span class="week-delta down">▼ ${diff} vs. semana anterior</span>`;
+  return `<span class="week-delta flat">= sin cambio vs. semana anterior</span>`;
+}
+
+function calendarWeekPeriod(offset=0){
+  const d = new Date(); d.setHours(0,0,0,0);
+  const mondayOffset = (d.getDay() + 6) % 7;
+  const start = new Date(d); start.setDate(d.getDate() - mondayOffset + (offset*7));
+  const end = new Date(start); end.setDate(start.getDate()+6);
+  const code = offset === -1 ? 'SEMANA ANTERIOR' : (offset === 1 ? 'PRÓXIMA SEMANA' : 'SEMANA ACTUAL');
+  return {key:`__CAL_${offset}_${fmtDate(start)}_${fmtDate(end)}`, code, label:`${code} - ${fmtDate(start)} a ${fmtDate(end)}`, start:normDate(start), end:normDate(end), synthetic:true, calendar:true};
+}
+
+function renderWeekSummary(){
+  const wrap = document.getElementById('weekSummary');
+  if(!wrap) return;
+
+  // V3.6.4 Hotfix:
+  // Las tarjetas semanales deben responder a la pregunta: “¿qué trae el Excel cargado?”.
+  // No se usa memoria operativa para crear semanas sintéticas ni para inflar conteos.
+  if(!periodCatalog.length){ wrap.innerHTML = ''; return; }
+
+  const idx = findCurrentPeriodIndex();
+  if(idx === -1){ wrap.innerHTML = ''; return; }
+
+  const actual = periodCatalog[idx];
+  const anterior = idx > 0 ? periodCatalog[idx-1] : null;
+  const siguiente = idx < periodCatalog.length-1 ? periodCatalog[idx+1] : null;
+
+  const dAnt = anterior ? countEspaciosEnPeriodo(anterior) : null;
+  const dAct = countEspaciosEnPeriodo(actual);
+  const dSig = siguiente ? countEspaciosEnPeriodo(siguiente) : null;
+
+  const card = (period, data, opts={}) => {
+    if(!period || !data) return `<div class="week-card"><div class="week-card-label">${esc(opts.label||'')}</div><div class="week-card-range">Sin datos en el archivo cargado</div></div>`;
+    const rango = (period.start && period.end) ? `${fmtDate(period.start)} a ${fmtDate(period.end)}` : '';
+    let extra = '';
+    if(opts.showDelta) extra = weekDeltaHtml(data.total, opts.prevTotal);
+    if(opts.showNew){
+      const cls = data.nuevos > 0 ? 'has-new' : 'no-new';
+      extra = `<span class="week-new-badge ${cls}">🆕 ${data.nuevos} espacio${data.nuevos===1?'':'s'} nuevo${data.nuevos===1?'':'s'} por fijar</span>`;
+    }
+    const pct = data.total ? Math.round((data.completas / data.total) * 100) : 0;
+    return `<div class="week-card${opts.current?' is-current':''}">
+      <div class="week-card-label">${esc(opts.label)} · ${esc(period.code)}</div>
+      <div class="week-card-range">${esc(rango)} <span class="week-new-badge no-new">Fuente: archivo cargado</span></div>
+      <div class="week-card-num">${data.total}</div>
+      <div class="week-card-sub">espacios pautando</div>
+      ${extra}
+      <div class="week-progress-bar"><div class="week-progress-fill" style="width:${pct}%"></div></div>
+      <div class="week-progress-pct">${pct}% al 100%</div>
+      <div class="week-stats-grid">
+        <div class="week-stat"><span class="week-stat-dot dot-blue"></span>Listas para salir<b>${data.listas}</b></div>
+        <div class="week-stat"><span class="week-stat-dot dot-purple"></span>Testigos listos<b>${data.testigos}</b></div>
+        <div class="week-stat"><span class="week-stat-dot dot-green"></span>Campañas al 100%<b>${data.completas}</b></div>
+        <div class="week-stat"><span class="week-stat-dot dot-amber"></span>En seguimiento<b>${data.enSeguimiento}</b></div>
+      </div>
+    </div>`;
+  };
+
+  wrap.innerHTML =
+    card(anterior, dAnt, {label:'Semana anterior'}) +
+    card(actual, dAct, {label:'Semana actual', current:true, showDelta:true, prevTotal: dAnt ? dAnt.total : null}) +
+    card(siguiente, dSig, {label:'Próxima semana', showNew:true});
+}
+
+function refreshAll(){
+  processed = getFilteredRecords(currentMode);
+  renderStatsAndDashboard(processed);
+  renderOperationalKpis();
+  renderEcoTable(processed);
+  populateCampaignSelects();
+  renderSpecs();
+  renderBorrador();
+}
+
+function renderStatsAndDashboard(data){
+  const cadenas = new Set(data.map(r=>normalizeChain(r.cadena)));
+  const clientes = new Set(data.map(r=>normalizeChain(r.cadena)+'|'+r.cliente));
+  const anus = new Set(data.map(r=>r.anunciante));
+  const camps = new Set(data.map(r=>normalizeChain(r.cadena)+'|'+r.cliente+'|'+r.anunciante+'|'+r.campana));
+  document.getElementById('s-cli').textContent = clientes.size;
+  document.getElementById('s-anu').textContent = anus.size;
+  document.getElementById('s-camp').textContent = camps.size;
+  document.getElementById('s-creat').textContent = data.length;
+  document.getElementById('s-dup').textContent = currentMode === 'weekly' ? Math.max(0, rawEcoCount - weeklyRecords.length) : Math.max(0, rawEcoCount - consolidatedRecords.length);
+
+  const mesesSet = new Set();
+  data.forEach(r => { const d = r.start || r.fij; if (d) mesesSet.add(d.getMonth()+1); });
+  const headerMeses = [...mesesSet].sort((a,b)=>a-b).map(m=>MESES_CAP[m]).join(' Y ') || 'SIN PERIODO';
+  const modeText = currentMode === 'weekly' ? 'vista semanal' : 'vista consolidada';
+  document.getElementById('topSub').textContent = `${headerMeses} · ${data.length} registros · ${modeText}`;
+
+  const grupos = new Map();
+  data.forEach(r => {
+    const k = (currentMode==='weekly' ? r.periodKey+'|' : '') + normalizeChain(r.cadena)+'|'+r.cliente+'|'+r.anunciante+'|'+r.campana;
+    if (!grupos.has(k)) grupos.set(k, {periods:new Map(), cadena:normalizeChain(r.cadena), anunciante:r.anunciante, campana:r.campana, cliente:r.cliente, count:0, start:null, end:null, deadline:null});
+    const g = grupos.get(k);
+    g.count++;
+    (r.periods || [{key:r.periodKey, periodId:r.periodId, code:r.periodCode, label:r.periodLabel, start:r.weekStart||r.start, end:r.weekEnd||r.end}]).forEach(p => { if(p.key && !g.periods.has(p.key)) g.periods.set(p.key,p); });
+    if (r.start && (!g.start || r.start < g.start)) g.start = r.start;
+    if (r.end && (!g.end || r.end > g.end)) g.end = r.end;
+    if (r.deadline && (!g.deadline || r.deadline < g.deadline)) g.deadline = r.deadline;
+  });
+
+  const dashTbody = document.getElementById('dashTable');
+  dashTbody.innerHTML = '';
+  [...grupos.values()].sort((a,b)=>(a.start||0)-(b.start||0)).forEach(g => {
+    const periods = [...g.periods.values()].sort((a,b)=>(a.start||0)-(b.start||0)).map(p=>p.code).join(', ') || '—';
+    const sem = semaforo(g.deadline, g.end);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="period-chip">${esc(periods)}</span></td><td><span class="period-chip">${esc(chainLabel(g.cadena))}</span></td><td>${esc(g.cliente)}</td><td>${esc(g.anunciante)}</td><td>#${esc(g.campana)}</td><td>${g.count}</td><td>${fmtDate(g.start)}</td><td>${fmtDate(g.end)}</td><td><span style="background:var(--warn);color:var(--warn-text);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600">${fmtDeadline(g.deadline)}</span></td><td><span class="sem ${sem.cls}">${sem.txt}</span></td>`;
+    dashTbody.appendChild(tr);
+  });
+}
+
+let lastEcoData = [];
+let ecoSort = {key:null, dir:1};
+const ECO_SORTABLE_KEYS = ['cadena','cliente','anunciante','campana','articulo','nivel','cid','start','end','deadline'];
+
+function sortByKey(data, key, dir){
+  const sorted = [...data];
+  sorted.sort((a,b) => {
+    let va = a[key], vb = b[key];
+    if(va instanceof Date || vb instanceof Date){
+      va = va ? va.getTime() : -Infinity;
+      vb = vb ? vb.getTime() : -Infinity;
+    } else if(key === 'campana'){
+      // Orden numérico cuando aplica (campañas suelen ser números)
+      const na = parseFloat(va), nb = parseFloat(vb);
+      if(!isNaN(na) && !isNaN(nb)){ va = na; vb = nb; }
+      else { va = String(va||'').toLowerCase(); vb = String(vb||'').toLowerCase(); }
+    } else {
+      va = String(va||'').toLowerCase(); vb = String(vb||'').toLowerCase();
+    }
+    if(va < vb) return -1*dir;
+    if(va > vb) return 1*dir;
+    return 0;
+  });
+  return sorted;
+}
+
+function setEcoSort(key){
+  if(ecoSort.key === key) ecoSort.dir *= -1;
+  else { ecoSort.key = key; ecoSort.dir = 1; }
+  renderEcoTable(lastEcoData);
+}
+
+function updateSortArrows(prefix, keys, state){
+  keys.forEach(k => {
+    const el = document.getElementById(`arrow-${prefix}-${k}`);
+    if(!el) return;
+    const th = el.closest('th');
+    if(state.key === k){
+      el.textContent = state.dir === 1 ? '▲' : '▼';
+      if(th) th.classList.add('sort-active');
+    } else {
+      el.textContent = '⇅';
+      if(th) th.classList.remove('sort-active');
+    }
+  });
+}
+
+function renderEcoTable(data) {
+  lastEcoData = data;
+  if(ecoSort.key) data = sortByKey(data, ecoSort.key, ecoSort.dir);
+  updateSortArrows('eco', ECO_SORTABLE_KEYS, ecoSort);
+  const tbody = document.getElementById('ecoTable');
+  if(!data.length){ tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:var(--muted);padding:28px">No hay registros con el filtro seleccionado.</td></tr>'; return; }
+  tbody.innerHTML = data.map(r => `<tr>
+    <td>${periodChipHtml(r)}</td><td><span class="period-chip">${esc(chainLabel(r.cadena))}</span></td><td>${esc(r.cliente)}</td><td>${esc(r.anunciante)}</td><td>#${esc(r.campana)}</td><td>${esc(r.articulo)}</td><td>${esc(r.nivel)}</td><td>${esc(r.cid||'—')}</td>
+    <td>${fmtDate(r.start || r.fij)}</td><td>${fmtDate(r.end || r.ret)}</td><td>${fmtDeadline(r.deadline)}</td><td>${semaforoHtml(r)}</td>
+    <td>${esc(r.desktop)}</td><td>${esc(r.mobile)}</td><td>${esc(r.app1)}</td><td>${esc(r.app2||'—')}</td>
+  </tr>`).join('');
+}
+
+function filterEco(q) {
+  const f = String(q || '').trim().toLowerCase();
+  const base = getFilteredRecords(currentMode);
+  const filtered = f ? base.filter(r => (r.searchText || buildRecordSearchText(r)).includes(f)) : base;
+  renderEcoTable(filtered);
+}
+
+function populateCampaignSelects(){
+  const rows = getFilteredConsolidatedRecords();
+  const grupos = new Map();
+  rows.forEach(r => {
+    const k = normalizeChain(r.cadena)+'|||'+r.cliente+'|||'+r.anunciante+'|||'+r.campana;
+    if(!grupos.has(k)) grupos.set(k, {cadena:normalizeChain(r.cadena), cliente:r.cliente, anunciante:r.anunciante,campana:r.campana,start:r.start});
+  });
+  const opts = [...grupos.values()].sort((a,b)=>(a.start||0)-(b.start||0)).map(g => `<option value="${esc(g.cadena)}|||${esc(g.cliente)}|||${esc(g.anunciante)}|||${esc(g.campana)}">${esc(chainLabel(g.cadena))} | ${esc(g.cliente)} | ${esc(g.anunciante)} | #${esc(g.campana)}</option>`).join('');
+  const specsEl = document.getElementById('specsSelect');
+  const specsCurr = specsEl.value;
+  specsEl.innerHTML = '<option value="">Vista general: todas las campañas filtradas</option>' + opts;
+  if([...specsEl.options].some(o=>o.value===specsCurr)) specsEl.value = specsCurr;
+
+  const borradorEl = document.getElementById('borradorSelect');
+  const borradorCurr = borradorEl.value;
+  borradorEl.innerHTML = '<option value="">— Selecciona cliente + anunciante o marca + campaña —</option>' + opts;
+  if([...borradorEl.options].some(o=>o.value===borradorCurr)) borradorEl.value = borradorCurr;
+}
+
+function clearSpecsSelection(){
+  const el = document.getElementById('specsSelect');
+  if(el){ el.value = ''; renderSpecs(); }
+}
+
+function renderSpecs() {
+  const val = document.getElementById('specsSelect').value;
+  const baseRows = getFilteredConsolidatedRecords();
+  let rows = baseRows;
+  let title = 'Specs clientes — vista general';
+  let summary = '';
+  let selected = false;
+
+  if (val) {
+    const [cad, cli, anu, camp] = val.split('|||');
+    rows = baseRows.filter(r => normalizeChain(r.cadena) === normalizeChain(cad) && r.cliente === cli && r.anunciante === anu && r.campana === camp);
+    title = `Specs — ${chainLabel(cad)} | ${cli} | ${anu} | #${camp}`;
+    selected = true;
+    summary = `Mostrando specs para ${chainLabel(cad)} | ${cli} | ${anu} | #${camp}.`;
+  } else {
+    const clients = new Set(rows.map(r => r.cliente)).size;
+    const brands = new Set(rows.map(r => r.anunciante)).size;
+    const campaigns = new Set(rows.map(r => normalizeChain(r.cadena)+'|'+r.cliente+'|'+r.anunciante+'|'+r.campana)).size;
+    summary = `Vista general: ${clients} cliente(s), ${brands} anunciante(s) / marca(s), ${campaigns} campaña(s) y ${rows.length} creatividad(es), de acuerdo con los filtros globales activos.`;
+  }
+
+  document.getElementById('specsTitle').textContent = title;
+  document.getElementById('specsSummary').textContent = summary;
+
+  const tbody = document.getElementById('specsTable');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:28px">No hay specs que coincidan con los filtros seleccionados.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map((r,i) => {
+    const flStr = fmtDeadline(r.deadline || calcDeadline(r.start));
+    const deadlineHtml = selected && i > 0 ? '' : `FECHA LÍMITE<br>${esc(flStr)}`;
+    return `<tr>
+      <td><span class="period-chip">${esc(chainLabel(r.cadena))}</span></td>
+      <td>${esc(r.cliente)}</td>
+      <td>${esc(r.anunciante)}</td>
+      <td>#${esc(r.campana)}</td>
+      <td>${esc(r.articulo)}</td>
+      <td>${esc(r.nivel)}</td>
+      <td>${esc(r.cid||'—')}</td>
+      <td>${periodChipHtml(r)}</td>
+      <td class="deadline-cell">${deadlineHtml}</td>
+      <td>${fmtDate(r.start)}</td>
+      <td>${fmtDate(r.end)}</td>
+      <td>${esc(r.desktop)}</td>
+      <td>${esc(r.mobile)}</td>
+      <td>${esc(r.app1)}</td>
+      <td>${esc(r.app2||'—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+function getMeses(rows) {
+  const s = new Set();
+  rows.forEach(r => { if (r.start) s.add(r.start.getMonth()+1); if(r.end) s.add(r.end.getMonth()+1); });
+  return [...s].sort((a,b)=>a-b).map(m=>MESES_ES[m]).join(' y ');
+}
+
+function buildSpecsTable(rows) {
+  return `<table class="specs-table" style="font-size:11px;width:100%;margin:8px 0 16px;text-align:center">
+    <thead><tr>
+      <th class="h-dark">Cadena</th>
+      <th class="h-dark">Cliente</th>
+      <th class="h-dark">Anunciante / Marca</th>
+      <th class="h-dark">Periodo(s)</th>
+      <th class="h-dark">Artículo</th>
+      <th class="h-dark">Nivel</th>
+      <th class="h-blue">Fijación</th>
+      <th class="h-blue">Retirada</th>
+      <th class="h-green">Desktop</th>
+      <th class="h-green">Mobile</th>
+      <th class="h-green">App 1</th>
+      <th class="h-green">App 2</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r=>`<tr>
+        <td style="text-align:center">${esc(chainLabel(r.cadena))}</td><td style="text-align:center">${esc(r.cliente)}</td><td style="text-align:center">${esc(r.anunciante)}</td><td style="text-align:center">${periodChipHtml(r)}</td><td style="text-align:center">${esc(r.articulo)}</td><td style="text-align:center">${esc(r.nivel)}</td>
+        <td style="text-align:center">${fmtDate(r.start)}</td><td style="text-align:center">${fmtDate(r.end)}</td>
+        <td style="text-align:center">${esc(r.desktop)}</td><td style="text-align:center">${esc(r.mobile)}</td><td style="text-align:center">${esc(r.app1)}</td><td style="text-align:center">${esc(r.app2||'—')}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function renderBorrador() {
+  const val = document.getElementById('borradorSelect').value;
+  const contentEl = document.getElementById('borradorContent');
+  if (!val) {
+    contentEl.innerHTML = '<div class="placeholder-msg">Selecciona cliente, anunciante o marca y campaña para generar el borrador</div>';
+    return;
+  }
+  const [cad, cli, anu, camp] = val.split('|||');
+  const rows = getFilteredConsolidatedRecords().filter(r => normalizeChain(r.cadena) === normalizeChain(cad) && r.cliente === cli && r.anunciante === anu && r.campana === camp);
+  if (!rows.length) return;
+
+  const start = rows.reduce((m,r) => r.start && (!m||r.start<m)?r.start:m, null);
+  const end = rows.reduce((m,r) => r.end && (!m||r.end>m)?r.end:m, null);
+  const fl = calcDeadline(start);
+  const flStr = fmtDeadline(fl);
+  const meses = getMeses(rows);
+  const cadena = normalizeChain(rows[0].cadena);
+  const cadenaCfg = chainConfig(cadena);
+  const cliente = rows[0].cliente;
+  const periodos = [...new Set(rows.flatMap(r => (r.periods || []).map(p=>p.code)))].join(', ');
+
+  const asunto = `${camp} | ${cliente} | ${cadenaCfg.etiquetaCampanias} | ${meses}`;
+  const specsHtml = buildSpecsTable(rows);
+  const sem = semaforo(fl, end);
+
+  const cuerpoIntro = `Hola [nombre],\n\nEspero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${camp} para ${cadenaCfg.nombre}, activa del ${fmtDate(start)} al ${fmtDate(end)}, correspondiente a los periodos ${periodos}.\n\nA continuación encontrarán el detalle de las creatividades requeridas:`;
+  const cuerpoCierre = `📅 Fecha límite de entrega de materiales: ${flStr}\nEsta fecha es indispensable para asegurar la correcta implementación de su campaña. Materiales recibidos fuera de plazo podrán quedar sujetos a reprogramación.\n\n📎 Adjunto encontrarán nuestra Guía de Buenas Prácticas con los requisitos técnicos que deben cumplir todos los materiales antes del envío.\n\nAnte cualquier duda, con gusto les orientamos.\n\nSaludos,`;
+
+  contentEl.innerHTML = `
+    <div class="deadline-badge" style="margin-bottom:16px">
+      <div class="dl-label">FECHA LÍMITE DE ENTREGA · <span class="sem ${sem.cls}" style="margin-left:6px">${sem.txt}</span></div>
+      <div class="dl-date">${esc(flStr)}</div>
+    </div>
+    <div class="field-label">CADENA</div>
+    <div class="field-val" style="margin-bottom:12px">${esc(chainLabel(cadena))}</div>
+    <div class="field-label">CLIENTE</div>
+    <div class="field-val" style="margin-bottom:12px">${esc(cliente)}</div>
+    <div class="field-label">ANUNCIANTE / MARCA</div>
+    <div class="field-val" style="margin-bottom:16px">${esc(anu)}</div>
+    <div class="field-label">ASUNTO</div>
+    <div class="field-val" style="margin-bottom:16px">${esc(asunto)}</div>
+    <div class="field-label">CUERPO</div>
+    <div style="background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:14px">
+      <div style="white-space:pre-wrap;font-size:12px;line-height:1.7;color:#1a1a2e;margin-bottom:12px">${esc(cuerpoIntro)}</div>
+      ${specsHtml}
+      <div style="white-space:pre-wrap;font-size:12px;line-height:1.7;color:#1a1a2e">${esc(cuerpoCierre)}</div>
+    </div>
+    <button class="btn-copy" id="btnCopyBorrador" onclick="copyBorradorCompleto('${cadena.replace(/'/g,"\\'")}','${cliente.replace(/'/g,"\\'")}','${anu.replace(/'/g,"\\'")}','${camp.replace(/'/g,"\\'")}')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      Copiar borrador para Outlook
+    </button>`;
+}
+
+
+function emailTableHtml(rows) {
+  // Tabla 100% inline para Outlook. Evita clases/CSS externos porque Outlook los ignora o los destruye.
+  const tableStyle = 'border-collapse:collapse;width:100%;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a1a;margin:12px 0 18px 0;mso-table-lspace:0pt;mso-table-rspace:0pt;';
+  const thBase = 'border:1px solid #FFFFFF;padding:7px 8px;text-align:center;font-weight:bold;color:#FFFFFF;white-space:nowrap;vertical-align:middle;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:14px;';
+  const tdBase = 'border:1px solid #D9E2EF;padding:7px 8px;text-align:center;vertical-align:middle;color:#1a1a1a;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:14px;';
+  const headers = [
+    ['Cadena','#1F3864'],['Cliente','#1F3864'],['Anunciante / Marca','#1F3864'],['Periodo(s)','#1F3864'],['Artículo','#1F3864'],['Nivel','#1F3864'],
+    ['Fijación','#2E75B6'],['Retirada','#2E75B6'],['Desktop','#375623'],['Mobile','#375623'],['App 1','#375623'],['App 2','#375623']
+  ];
+  const head = headers.map(h => `<th bgcolor="${h[1]}" align="center" valign="middle" style="${thBase}background-color:${h[1]};color:#FFFFFF;"><font color="#FFFFFF"><b>${esc(h[0])}</b></font></th>`).join('');
+  const body = rows.map((r,idx) => {
+    const bg = idx % 2 ? '#F8FAFC' : '#FFFFFF';
+    const cells = [
+      chainLabel(r.cadena), r.cliente, r.anunciante, periodText(r), r.articulo, r.nivel,
+      fmtDate(r.start), fmtDate(r.end), r.desktop, r.mobile, r.app1, r.app2 || '—'
+    ];
+    return `<tr bgcolor="${bg}" style="background-color:${bg};">${cells.map(c => `<td bgcolor="${bg}" align="center" valign="middle" style="${tdBase}background-color:${bg};">${esc(c)}</td>`).join('')}</tr>`;
+  }).join('');
+  return `<table role="presentation" style="${tableStyle}" cellpadding="0" cellspacing="0" border="1"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function emailTablePlain(rows) {
+  const header = ['Cadena','Cliente','Anunciante / Marca','Periodos','Artículo','Nivel','Fijación','Retirada','Desktop','Mobile','App 1','App 2'].join('\t');
+  const filas = rows.map(r => [chainLabel(r.cadena),r.cliente,r.anunciante,periodText(r),r.articulo,r.nivel,fmtDate(r.start),fmtDate(r.end),r.desktop,r.mobile,r.app1,r.app2||'—'].join('\t')).join('\n');
+  return `${header}\n${filas}`;
+}
+
+function buildEmailPayload(cad, cli, anu, camp) {
+  const rows = getFilteredConsolidatedRecords().filter(r => normalizeChain(r.cadena) === normalizeChain(cad) && r.cliente === cli && r.anunciante === anu && r.campana === camp);
+  if(!rows.length) return null;
+  const start = rows.reduce((m,r) => r.start && (!m||r.start<m)?r.start:m, null);
+  const end = rows.reduce((m,r) => r.end && (!m||r.end>m)?r.end:m, null);
+  const flStr = fmtDeadline(calcDeadline(start));
+  const meses = getMeses(rows);
+  const cadena = normalizeChain(rows[0].cadena);
+  const cadenaCfg = chainConfig(cadena);
+  const cliente = rows[0].cliente;
+  const periodos = [...new Set(rows.flatMap(r => (r.periods || []).map(p=>p.code)))].join(', ');
+  const asunto = `${camp} | ${cliente} | ${cadenaCfg.etiquetaCampanias} | ${meses}`;
+
+  const html = `
+  <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.45;color:#1a1a1a;">
+    <p style="margin:0 0 14px 0;">Hola [nombre],</p>
+
+    <p style="margin:0 0 14px 0;">Espero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña <strong>#${esc(camp)}</strong> para <strong>${esc(cadenaCfg.nombre)}</strong>, activa del <strong>${fmtDate(start)}</strong> al <strong>${fmtDate(end)}</strong>, correspondiente a los periodos <strong>${esc(periodos)}</strong>.</p>
+
+    <p style="margin:0 0 8px 0;">A continuación encontrarán el detalle de las creatividades requeridas:</p>
+
+    ${emailTableHtml(rows)}
+
+    <p style="margin:0 0 8px 0;"><strong>📅 Fecha límite de entrega de materiales:</strong> ${esc(flStr)}</p>
+    <p style="margin:0 0 16px 0;">Esta fecha es indispensable para asegurar la correcta implementación de su campaña. Materiales recibidos fuera de plazo podrán quedar sujetos a reprogramación.</p>
+
+    <p style="margin:0 0 16px 0;"><strong>📎 Adjunto encontrarán nuestra Guía de Buenas Prácticas</strong> con los requisitos técnicos que deben cumplir todos los materiales antes del envío.</p>
+
+    <p style="margin:0 0 16px 0;">Ante cualquier duda, con gusto les orientamos.</p>
+
+    <p style="margin:0;">Saludos,</p>
+  </div>`;
+
+  const plain = `Cadena: ${chainLabel(cadena)}\nCliente: ${cliente}\nAnunciante / Marca: ${anu}\nAsunto: ${asunto}\n\nHola [nombre],\n\nEspero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${camp} para ${cadenaCfg.nombre}, activa del ${fmtDate(start)} al ${fmtDate(end)}, correspondiente a los periodos ${periodos}.\n\nA continuación encontrarán el detalle de las creatividades requeridas:\n\n${emailTablePlain(rows)}\n\n📅 Fecha límite de entrega de materiales: ${flStr}\nEsta fecha es indispensable para asegurar la correcta implementación de su campaña. Materiales recibidos fuera de plazo podrán quedar sujetos a reprogramación.\n\n📎 Adjunto encontrarán nuestra Guía de Buenas Prácticas con los requisitos técnicos que deben cumplir todos los materiales antes del envío.\n\nAnte cualquier duda, con gusto les orientamos.\n\nSaludos,`;
+
+  return {html, plain, asunto, rows};
+}
+
+async function copyRichToClipboard(html, plain) {
+  // 1) Intento moderno: copia HTML + texto al portapapeles.
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], {type:'text/html'}),
+          'text/plain': new Blob([plain], {type:'text/plain'})
+        })
+      ]);
+      return true;
+    }
+  } catch(e) {
+    // En archivo local o ciertos navegadores, ClipboardItem puede fallar. Pasamos a fallback HTML.
+  }
+
+  // 2) Fallback fuerte para Outlook: selecciona un DIV con HTML real y ejecuta copy.
+  try {
+    const div = document.createElement('div');
+    div.setAttribute('contenteditable', 'true');
+    div.style.position = 'fixed';
+    div.style.left = '-9999px';
+    div.style.top = '0';
+    div.style.width = '1200px';
+    div.style.background = '#ffffff';
+    div.innerHTML = html;
+    document.body.appendChild(div);
+
+    const range = document.createRange();
+    range.selectNodeContents(div);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const ok = document.execCommand('copy');
+    sel.removeAllRanges();
+    document.body.removeChild(div);
+    if (ok) return true;
+  } catch(e) {
+    // Último recurso: texto plano.
+  }
+
+  // 3) Fallback final: texto plano.
+  try {
+    await navigator.clipboard.writeText(plain);
+    return false;
+  } catch(e) {
+    const ta = document.createElement('textarea');
+    ta.value = plain;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    return false;
+  }
+}
+
+async function copyBorradorCompleto(cad, cli, anu, camp) {
+  const payload = buildEmailPayload(cad, cli, anu, camp);
+  if(!payload) return;
+  const rich = await copyRichToClipboard(payload.html, payload.plain);
+  const btn = document.getElementById('btnCopyBorrador');
+  if(btn){btn.innerHTML='<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> ¡Copiado para Outlook!';setTimeout(()=>{btn.innerHTML='<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copiar borrador para Outlook'},2200);}
+  showToast(rich ? '✓ Borrador copiado con tabla para Outlook' : '✓ Borrador copiado como texto');
+}
+
+async function copySpecs(cad, cli, anu, camp) {
+  const payload = buildEmailPayload(cad, cli, anu, camp);
+  if(!payload) return;
+  const start = payload.rows.reduce((m,r) => r.start && (!m||r.start<m)?r.start:m, null);
+  const flStr = fmtDeadline(calcDeadline(start));
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1a1a1a;"><p style="margin:0 0 8px 0;"><strong>SPECS — ${esc(chainLabel(cad))} | ${esc(cli)} | ${esc(anu)} | #${esc(camp)}</strong></p><p style="margin:0 0 12px 0;"><strong>Fecha límite:</strong> ${esc(flStr)}</p>${emailTableHtml(payload.rows)}</div>`;
+  const plain = `SPECS — ${chainLabel(cad)} | ${cli} | ${anu} | #${camp}\nFecha límite: ${flStr}\n\n${emailTablePlain(payload.rows)}`;
+  const rich = await copyRichToClipboard(html, plain);
+  showToast(rich ? '✓ Specs copiadas con tabla para Outlook' : '✓ Specs copiadas como texto');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+/* ============================================================
+   CONTROL OPERATIVO — Firebase (Auth + Firestore) + Gantt
+   ============================================================
+   1) Crea tu proyecto en https://console.firebase.google.com
+   2) Build > Firestore Database > Crear (modo producción)
+   3) Build > Authentication > Sign-in method > habilita "Correo electrónico/contraseña"
+   4) Authentication > Users > agrega manualmente a cada compañero (correo + contraseña)
+   5) ⚙️ Configuración del proyecto > Tus apps > Web (</>) > copia el objeto firebaseConfig
+      y pégalo abajo, reemplazando el bloque de ejemplo.
+   6) En Firestore > Reglas, pega las reglas que te compartí aparte (solo usuarios
+      autenticados pueden leer/escribir la colección "checklist").
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyAmHkDyeqdcws6bXnTiM3jE4dOsfNb4dzA",
+  authDomain: "ism-ecomflow.firebaseapp.com",
+  projectId: "ism-ecomflow",
+  storageBucket: "ism-ecomflow.firebasestorage.app",
+  messagingSenderId: "1048720173775",
+  appId: "1:1048720173775:web:31028d60aefcba21ba25ba"
+};
+
+let fbApp = null, fbAuth = null, fbDb = null;
+let currentUserEmail = null;
+const ADMIN_EMAILS = ['enrique.rodriguez@in-storemedia.com']; // Usuarios autorizados para modo mantenimiento.
+const MAINTENANCE_COLLECTIONS = ['checklist','changeLog','uploadRuns','archivedLines','maintenanceLog'];
+let maintenanceBackupData = null;
+let maintenanceBackupCollections = [];
+let checklistState = new Map();   // id -> doc data (incluye checks, reportHash, etc.)
+let checklistLoaded = false;
+let pendingChecklistGroups = null; // si llega un archivo antes de que cargue el snapshot inicial
+
+const CHECK_FIELDS = [
+  {key:'correoMarca', label:'Correo enviado'},
+  {key:'artes', label:'Artes'},
+  {key:'validacion', label:'Validación'},
+  {key:'link', label:'Link'},
+  {key:'kevel', label:'Kevel'},
+  {key:'testigosApp', label:'Testigos App'},
+  {key:'testigosWeb', label:'Testigos Web'},
+];
+const CHECKLIST_SCHEMA_VERSION = 'v3.6.1-stable-chain-operational-memory';
+const COMPATIBLE_SCHEMA_PREFIXES = ['v3.2-cid-line','v3.3-operational-memory','v3.6-chain-operational-memory','v3.6.1-stable-chain-operational-memory'];
+const RESET_RULES = {
+  creatividadId: ['artes','validacion','link','kevel','testigosApp','testigosWeb'],
+  creatividadIds: ['artes','validacion','link','kevel','testigosApp','testigosWeb'],
+  cdesc: ['artes','validacion'],
+  start: [], end: [], deadline: [], periodText: [], desktop: [], mobile: [], app1: [], app2: [],
+};
+
+function emptyChecklistChecks(){
+  const o = {}; CHECK_FIELDS.forEach(f => o[f.key] = false); return o;
+}
+function fbReady(){ return !!(fbApp && fbAuth && fbDb); }
+
+function initFirebase(){
+  try{
+    fbApp = firebase.initializeApp(firebaseConfig);
+    fbAuth = firebase.auth();
+    fbDb = firebase.firestore();
+    fbAuth.onAuthStateChanged(user => {
+      const overlay = document.getElementById('loginOverlay');
+      const badge = document.getElementById('userBadge');
+      const label = document.getElementById('userEmailLabel');
+      if(user){
+        currentUserEmail = user.email || 'usuario';
+        overlay.style.display = 'none';
+        badge.style.display = '';
+        label.textContent = currentUserEmail;
+        startChecklistListener();
+      } else {
+        currentUserEmail = null;
+        overlay.style.display = 'flex';
+        badge.style.display = 'none';
+      }
+    });
+  } catch(err){
+    console.error(err);
+    showToast('⚠ No se pudo iniciar Firebase');
+  }
+}
+
+function doLogin(){
+  if(!fbAuth) return;
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  fbAuth.signInWithEmailAndPassword(email, pass)
+    .catch(err => { errEl.textContent = 'No se pudo iniciar sesión. Revisa usuario o contraseña.'; console.error(err); });
+}
+function doLogout(){ if(fbAuth) fbAuth.signOut(); }
+
+function sanitizeId(s){
+  return String(s||'').trim().toUpperCase().replace(/[\/\#\?\[\]]/g,'-').slice(0,300) || 'SIN_DATO';
+}
+function normKeyPart(v){ return String(v||'').trim().toUpperCase(); }
+function joinKey(parts){ return parts.map(normKeyPart).join('|||'); }
+function legacyChecklistLogicalKey(rec){
+  return joinKey([rec.cliente, rec.anunciante, rec.campana, rec.articulo, rec.nivel]);
+}
+function legacyChecklistOperationalKey(rec){
+  return joinKey([rec.cliente, rec.anunciante, rec.campana, rec.articulo, rec.nivel, rec.cid || rec.creatividadId || 'SIN_CREATIVIDAD_ID']);
+}
+function checklistLogicalKey(rec){
+  // Misma línea de negocio sin Creatividad ID: permite detectar cambio de arte, separando cadena.
+  return joinKey([normalizeChain(rec.cadena), rec.cliente, rec.anunciante, rec.campana, rec.articulo, rec.nivel]);
+}
+function checklistOperationalKey(rec){
+  // Línea operativa única por arte: evita mezclar Creatividad ID distintas y separa Soriana/La Comer.
+  return joinKey([normalizeChain(rec.cadena), rec.cliente, rec.anunciante, rec.campana, rec.articulo, rec.nivel, rec.cid || rec.creatividadId || 'SIN_CREATIVIDAD_ID']);
+}
+function checklistGroupKey(rec){ return checklistOperationalKey(rec); }
+
+function buildFingerprint(g){
+  return {
+    cadena: normalizeChain(g.cadena),
+    creatividadId: String(g.creatividadId || ''),
+    creatividadIds: (g.creatividadIds || []).join(','),
+    start: fmtDate(g.start),
+    end: fmtDate(g.end),
+    deadline: fmtDate(g.deadline),
+    periodText: g.periodText || '',
+    cdesc: g.cdesc || '',
+    desktop: g.desktop || '', mobile: g.mobile || '', app1: g.app1 || '', app2: g.app2 || ''
+  };
+}
+function fingerprintString(fp){
+  return Object.keys(fp).sort().map(k => `${k}:${fp[k] ?? ''}`).join('|');
+}
+function normalizeExistingFingerprint(existing){
+  if(existing && existing.reportFingerprint){ const fp = {...existing.reportFingerprint}; if(!fp.cadena) fp.cadena = normalizeChain(existing.cadena || DEFAULT_CHAIN); return fp; }
+  if(existing && existing.reportHash) return {legacyHash: existing.reportHash};
+  return null;
+}
+function diffFingerprint(existing, g){
+  const next = buildFingerprint(g);
+  const prev = normalizeExistingFingerprint(existing);
+  if(!prev) return {changed:true, changes:Object.keys(next).map(k=>({field:k, before:'', after:next[k]})), next};
+  if(prev.legacyHash){
+    const legacy = `${fmtDate(g.start)}|${fmtDate(g.end)}|${g.creatividadId || ''}|${(g.creatividadIds||[]).join(',')}`;
+    if(prev.legacyHash === legacy) return {changed:false, changes:[], next};
+  }
+  const changes = [];
+  Object.keys(next).forEach(k => {
+    const before = String(prev[k] ?? '');
+    const after = String(next[k] ?? '');
+    if(before !== after) changes.push({field:k, before, after});
+  });
+  return {changed: changes.length > 0, changes, next};
+}
+function fieldsToReset(changes){
+  const set = new Set();
+  changes.forEach(c => (RESET_RULES[c.field] || []).forEach(f => set.add(f)));
+  return [...set];
+}
+function applyPartialReset(existingChecks, resetFields){
+  const checks = {...emptyChecklistChecks(), ...(existingChecks || {})};
+  resetFields.forEach(f => { checks[f] = false; });
+  return checks;
+}
+function changeLabel(type){
+  return ({
+    NEW_LINE:'Nueva línea',
+    CREATIVE_CHANGE:'Cambio de Creatividad ID',
+    NEW_CREATIVE_IN_GROUP:'Nueva creatividad en grupo existente',
+    MODIFIED_LINE:'Línea modificada',
+    NOT_INCLUDED:'No incluida en carga actual'
+  })[type] || type || '—';
+}
+
+function buildChecklistGroups(records){
+  const map = new Map();
+  records.forEach(r => {
+    const key = checklistOperationalKey(r);
+    if(!map.has(key)){
+      map.set(key, {
+        id: sanitizeId(key),
+        legacyId: sanitizeId(legacyChecklistOperationalKey(r)),
+        operationalKey: key,
+        legacyOperationalKey: legacyChecklistOperationalKey(r),
+        logicalKey: checklistLogicalKey(r),
+        legacyLogicalKey: legacyChecklistLogicalKey(r),
+        cadena: normalizeChain(r.cadena),
+        cliente: r.cliente, anunciante: r.anunciante, campana: r.campana,
+        articulo: r.articulo, espacio: r.nivel, creatividadId: r.cid || '',
+        creatividadIds: new Set(),
+        cdesc: r.cdesc || '',
+        start: r.start, end: r.end,
+        periodText: periodText(r),
+        desktop:r.desktop, mobile:r.mobile, app1:r.app1, app2:r.app2,
+      });
+    }
+    const g = map.get(key);
+    if(r.cid) g.creatividadIds.add(r.cid);
+    if(r.cdesc && !g.cdesc) g.cdesc = r.cdesc;
+    if(r.start && (!g.start || r.start < g.start)) g.start = r.start;
+    if(r.end && (!g.end || r.end > g.end)) g.end = r.end;
+  });
+  return [...map.values()].map(g => {
+    g.creatividadIds = [...g.creatividadIds].sort();
+    g.deadline = calcDeadline(g.start);
+    g.reportFingerprint = buildFingerprint(g);
+    g.reportHash = fingerprintString(g.reportFingerprint);
+    return g;
+  });
+}
+
+function syncChecklistFromRecords(consolidated){
+  const groups = buildChecklistGroups(consolidated);
+  if(!fbReady() || !checklistLoaded){
+    pendingChecklistGroups = groups;
+    return;
+  }
+  writeChecklistGroups(groups);
+}
+
+function docIsCompatible(d){
+  return !d.schemaVersion || COMPATIBLE_SCHEMA_PREFIXES.includes(d.schemaVersion) || String(d.schemaVersion).startsWith('v3.3') || String(d.schemaVersion).startsWith('v3.6');
+}
+function getDocsByLogicalKey(){
+  const m = new Map();
+  checklistState.forEach((d,id) => {
+    if(!docIsCompatible(d)) return;
+    const cadena = normalizeChain(d.cadena || DEFAULT_CHAIN);
+    const normalized = joinKey([cadena,d.cliente,d.anunciante,d.campana,d.articulo,d.espacio]);
+    const legacy = d.logicalKey || joinKey([d.cliente,d.anunciante,d.campana,d.articulo,d.espacio]);
+    [normalized, legacy].forEach(lk => {
+      if(!lk) return;
+      if(!m.has(lk)) m.set(lk, []);
+      m.get(lk).push({id,...d,cadena});
+    });
+  });
+  return m;
+}
+function commitBatches(ops, done){
+  const CHUNK = 400; let i = 0;
+  function next(){
+    if(i >= ops.length){ if(done) done(); return; }
+    const batch = fbDb.batch();
+    ops.slice(i,i+CHUNK).forEach(op => op(batch));
+    batch.commit().then(() => { i += CHUNK; next(); })
+      .catch(err => { showToast('⚠ Error sincronizando control operativo'); console.error(err); });
+  }
+  next();
+}
+
+function writeChecklistGroups(groups){
+  if(!fbReady()) return;
+  const incomingIds = new Set(groups.flatMap(g => [g.id, g.legacyId].filter(Boolean)));
+  const byLogical = getDocsByLogicalKey();
+  const ops = [];
+  const summary = {scope:loadScope, total:groups.length, newLines:0, modified:0, creativeChanges:0, unchanged:0, notIncluded:0, finishedComplete:0, finishedMissing:0};
+  const loadStamp = new Date();
+
+  groups.forEach(g => {
+    const docId = checklistState.has(g.id) ? g.id : (g.legacyId && checklistState.has(g.legacyId) ? g.legacyId : g.id);
+    incomingIds.add(docId);
+    const existing = checklistState.get(docId);
+    const ref = fbDb.collection('checklist').doc(docId);
+    const logicalMatches = (byLogical.get(g.logicalKey) || []).filter(d => d.id !== g.id);
+    const basePayload = {
+      schemaVersion: CHECKLIST_SCHEMA_VERSION,
+      cadena:normalizeChain(g.cadena),
+      cliente:g.cliente, anunciante:g.anunciante, campana:g.campana,
+      articulo:g.articulo, espacio:g.espacio, creatividadId:g.creatividadId || '', creatividadIds:g.creatividadIds,
+      logicalKey:g.logicalKey, operationalKey:g.operationalKey, legacyLogicalKey:g.legacyLogicalKey || '', legacyOperationalKey:g.legacyOperationalKey || '',
+      cdesc:g.cdesc || '', periodText:g.periodText || '', desktop:g.desktop || '', mobile:g.mobile || '', app1:g.app1 || '', app2:g.app2 || '',
+      start: g.start ? firebase.firestore.Timestamp.fromDate(g.start) : null,
+      end: g.end ? firebase.firestore.Timestamp.fromDate(g.end) : null,
+      deadline: g.deadline ? firebase.firestore.Timestamp.fromDate(g.deadline) : null,
+      reportFingerprint:g.reportFingerprint,
+      reportHash:g.reportHash,
+      missingInLatestLoad:false,
+      lastSeenAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastSeenBy: currentUserEmail || '',
+      lastLoadScope: loadScope,
+    };
+
+    if(!existing){
+      let changeType = 'NEW_LINE';
+      if(logicalMatches.length === 1){ changeType = 'CREATIVE_CHANGE'; summary.creativeChanges++; }
+      else if(logicalMatches.length > 1){ changeType = 'NEW_CREATIVE_IN_GROUP'; summary.creativeChanges++; }
+      else summary.newLines++;
+      const changes = changeType === 'NEW_LINE' ? [] : [{field:'creatividadId', before:(logicalMatches.map(d=>d.creatividadId).filter(Boolean).join(', ') || '—'), after:g.creatividadId || '—'}];
+      ops.push(batch => batch.set(ref, {
+        ...basePayload,
+        checks: emptyChecklistChecks(),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy: currentUserEmail || '',
+        changeDetected: true,
+        changeType,
+        lastChanges: changes,
+        changeAt: firebase.firestore.FieldValue.serverTimestamp(),
+        changeBy: currentUserEmail || '',
+      }, {merge:true}));
+      return;
+    }
+
+    const diff = diffFingerprint(existing, g);
+    if(!diff.changed){
+      summary.unchanged++;
+      // No se tocan checks ni estatus; solo se confirma que volvió a verse en esta carga.
+      ops.push(batch => batch.set(ref, {schemaVersion:CHECKLIST_SCHEMA_VERSION, missingInLatestLoad:false, lastSeenAt:firebase.firestore.FieldValue.serverTimestamp(), lastSeenBy:currentUserEmail || '', lastLoadScope:loadScope}, {merge:true}));
+      return;
+    }
+
+    summary.modified++;
+    const resetFields = fieldsToReset(diff.changes);
+    const nextChecks = applyPartialReset(existing.checks || {}, resetFields);
+    ops.push(batch => batch.set(ref, {
+      ...basePayload,
+      checks: nextChecks,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: currentUserEmail || '',
+      changeDetected: true,
+      changeType:'MODIFIED_LINE',
+      lastChanges: diff.changes,
+      resetFields,
+      resetAt: resetFields.length ? firebase.firestore.FieldValue.serverTimestamp() : (existing.resetAt || null),
+      resetReason: resetFields.length ? 'PARTIAL_RESET_BY_CHANGE' : (existing.resetReason || ''),
+      changeAt: firebase.firestore.FieldValue.serverTimestamp(),
+      changeBy: currentUserEmail || '',
+    }, {merge:true}));
+  });
+
+  if(loadScope === 'complete' || (loadScope === 'period' && selectedPeriod !== 'all')){
+    const range = loadScope === 'period' ? getSelectedPeriodRange() : null;
+    checklistState.forEach((d,id) => {
+      if(!docIsCompatible(d) || incomingIds.has(id)) return;
+      const sd = tsToDate(d.start), ed = tsToDate(d.end);
+      if(range && !(sd && ed && overlaps(sd, ed, range.start, range.end))) return;
+      summary.notIncluded++;
+      const ref = fbDb.collection('checklist').doc(id);
+      ops.push(batch => batch.set(ref, {
+        schemaVersion: CHECKLIST_SCHEMA_VERSION,
+        missingInLatestLoad:true,
+        changeDetected:true,
+        changeType:'NOT_INCLUDED',
+        lastChanges:[{field:'archivo', before:'Incluida en cargas previas', after:'No incluida en esta carga'}],
+        changeAt: firebase.firestore.FieldValue.serverTimestamp(),
+        changeBy: currentUserEmail || '',
+        lastLoadScope: loadScope,
+      }, {merge:true}));
+    });
+  }
+
+  lastLoadSummary = summary;
+  commitBatches(ops, () => { renderGantt(); renderChanges(); renderHistory(); renderWeekSummary(); renderOperationalKpis(); showToast(`Carga procesada: ${groups.length} líneas · ${summary.modified + summary.creativeChanges + summary.newLines} novedades`); });
+}
+
+let checklistListenerStarted = false;
+function startChecklistListener(){
+  if(!fbReady() || checklistListenerStarted) return;
+  checklistListenerStarted = true;
+  fbDb.collection('checklist').onSnapshot(snap => {
+    snap.docChanges().forEach(ch => {
+      if(ch.type === 'removed') checklistState.delete(ch.doc.id);
+      else checklistState.set(ch.doc.id, ch.doc.data());
+    });
+    checklistLoaded = true;
+    if(pendingChecklistGroups){
+      const toSync = pendingChecklistGroups; pendingChecklistGroups = null;
+      writeChecklistGroups(toSync);
+    }
+    if(currentView === 'control') renderGantt();
+    if(currentView === 'changes') renderChanges();
+    if(currentView === 'history') renderHistory();
+    renderWeekSummary();
+    renderOperationalKpis();
+    updateUrgentBadge(); updateChangesBadge();
+  }, err => { console.error(err); showToast('⚠ Error de conexión con el control operativo'); });
+}
+
+function toggleChecklistField(id, field){
+  if(!fbReady() || !currentUserEmail) return;
+  const cur = checklistState.get(id);
+  const curVal = !!(cur && cur.checks && cur.checks[field]);
+  fbDb.collection('checklist').doc(id).set({
+    checks: { [field]: !curVal },
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedBy: currentUserEmail,
+  }, {merge:true});
+}
+function toggleChecklistAllFields(id){
+  if(!fbReady() || !currentUserEmail) return;
+  const cur = checklistState.get(id);
+  const checks = (cur && cur.checks) || {};
+  const allDone = CHECK_FIELDS.every(f => !!checks[f.key]);
+  const nextChecks = {};
+  CHECK_FIELDS.forEach(f => { nextChecks[f.key] = !allDone; });
+  fbDb.collection('checklist').doc(id).set({
+    checks: nextChecks,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedBy: currentUserEmail,
+  }, {merge:true});
+}
+function acknowledgeChange(id){
+  if(!fbReady() || !currentUserEmail) return;
+  fbDb.collection('checklist').doc(id).set({
+    changeDetected:false,
+    acknowledgedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    acknowledgedBy: currentUserEmail,
+  }, {merge:true});
+}
+function deleteChecklistGroup(id, label){
+  if(!fbReady()) return;
+  const ok = confirm(`¿Eliminar este registro del control operativo?\n\n${label}\n\nEsto borra el avance guardado (todos los checks) y no se puede deshacer.`);
+  if(!ok) return;
+  fbDb.collection('checklist').doc(id).delete()
+    .then(() => showToast('🗑 Registro eliminado del control operativo'))
+    .catch(err => { console.error(err); showToast('⚠ No se pudo eliminar el registro'); });
+}
+function tsToDate(ts){
+  if(!ts) return null;
+  if(ts.toDate) return normDate(ts.toDate());
+  if(ts instanceof Date) return normDate(ts);
+  if(typeof ts === 'object' && typeof ts.seconds === 'number') return normDate(new Date(ts.seconds * 1000));
+  return toDate(ts);
+}
+function checksProgress(checks){
+  checks = checks || {};
+  const done = CHECK_FIELDS.filter(f => checks[f.key]).length;
+  return {done, total: CHECK_FIELDS.length};
+}
+function checksRowClass(checks){
+  const {done, total} = checksProgress(checks);
+  if(done === 0) return 'row-none';
+  if(done === total) return 'row-complete';
+  return 'row-partial';
+}
+function isEnded(end){
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const e = toDate(end); return !!(e && e < hoy);
+}
+function operationalStatus(g){
+  const checks = g.checks || {};
+  const {done,total} = checksProgress(checks);
+  // Motor único de estado operativo V3.6.3 Hotfix.
+  // Regla clave: si todos los checks están completos y la pauta sigue vigente, sale del día a día como “Pautado actualmente”.
+  if(g.missingInLatestLoad) return {key:'absent', label:'No incluida', cls:'st-absent'};
+  if(isEnded(g.end)){
+    if(done >= total) return {key:'finished_complete', label:'Finalizada completa', cls:'st-finished-ok'};
+    return {key:'finished_missing', label:'Finalizada incompleta', cls:'st-finished-missing'};
+  }
+  if(done >= total) return {key:'pautado', label:'Pautado actualmente', cls:'st-pautado'};
+  if(g.changeDetected) return {key:'change', label:changeLabel(g.changeType), cls:'st-change'};
+  if(done === 0 && g.changeType === 'NEW_LINE') return {key:'new', label:'Nueva línea', cls:'st-new'};
+  return {key:'active', label:'Activa', cls:'st-active'};
+}
+function statusBadge(g){ const s = operationalStatus(g); return `<span class="status-badge ${s.cls}">${esc(s.label)}</span>`; }
+function missingChecksText(checks){
+  checks = checks || {};
+  const missing = CHECK_FIELDS.filter(f => !checks[f.key]).map(f => f.label);
+  return missing.length ? missing.join(', ') : '—';
+}
+function mapChecklistDocs(){
+  return [...checklistState.entries()]
+    .map(([id,d]) => {
+      const cadena = normalizeChain(d.cadena || DEFAULT_CHAIN);
+      const base = {
+        id, ...d, cadena,
+        start: tsToDate(d.start), end: tsToDate(d.end), deadline: tsToDate(d.deadline),
+        lastReportChangeAt: tsToDate(d.lastReportChangeAt), changeAt: tsToDate(d.changeAt),
+        updatedAt: tsToDate(d.updatedAt), createdAt: tsToDate(d.createdAt)
+      };
+      base.logicalKey = base.logicalKey || joinKey([cadena,base.cliente,base.anunciante,base.campana,base.articulo,base.espacio]);
+      base.operationalKey = base.operationalKey || joinKey([cadena,base.cliente,base.anunciante,base.campana,base.articulo,base.espacio,base.creatividadId || (base.creatividadIds||[]).join(',') || 'SIN_CREATIVIDAD_ID']);
+      base.checks = {...emptyChecklistChecks(), ...(base.checks || {})};
+      return base;
+    })
+    .filter(g => docIsCompatible(g) && (g.start || g.end || g.campana));
+}
+function isChecklistUrgent(checks, deadline, end, g={}){
+  const {done, total} = checksProgress(checks);
+  if(g.changeDetected || g.missingInLatestLoad) return true;
+  if(done >= total) return false;
+  if(isEnded(end)) return true;
+  const s = semaforo(deadline, end);
+  return s.cls === 'sem-red';
+}
+function matchesSelectedChainDoc(g){ return !chainFilter || chainFilter === 'all' || normalizeChain(g.cadena) === normalizeChain(chainFilter); }
+function updateUrgentBadge(){
+  const badge = document.getElementById('sbUrgentBadge');
+  if(!badge) return;
+  let count = 0;
+  mapChecklistDocs().filter(matchesSelectedChainDoc).forEach(d => {
+    const st = operationalStatus(d);
+    if(st.key === 'finished_complete') return;
+    if(isChecklistUrgent(d.checks || {}, d.deadline, d.end, d)) count++;
+  });
+  if(count > 0){ badge.style.display = ''; badge.textContent = count; }
+  else badge.style.display = 'none';
+}
+function updateChangesBadge(){
+  const badge = document.getElementById('sbChangesBadge'); if(!badge) return;
+  const count = mapChecklistDocs().filter(matchesSelectedChainDoc).filter(d => d.changeDetected || d.missingInLatestLoad || ['NEW_LINE','CREATIVE_CHANGE','NEW_CREATIVE_IN_GROUP'].includes(d.changeType)).length;
+  if(count > 0){ badge.style.display=''; badge.textContent=count; } else badge.style.display='none';
+}
+function renderGantt(){ renderChecklist(); }
+
+function renderChecklist(){
+  const wrap = document.getElementById('checklistWrap');
+  if(!wrap) return;
+  if(!fbReady()){ wrap.innerHTML = '<div class="placeholder-msg">Falta configurar Firebase para activar el control operativo.</div>'; return; }
+  if(!checklistLoaded){ wrap.innerHTML = '<div class="placeholder-msg">Sincronizando control operativo…</div>'; return; }
+  const allGroups = mapChecklistDocs().filter(matchesSelectedChainDoc).sort((a,b) => (a.start||0) - (b.start||0));
+  // Control diario: oculta finalizadas completas y pautadas; conserva pendientes, cambios y finalizadas incompletas.
+  const groups = allGroups.filter(g => !['finished_complete','pautado'].includes(operationalStatus(g).key));
+  const searchEl = document.getElementById('controlSearch');
+  const q = (searchEl ? searchEl.value : '').trim().toLowerCase();
+  const filteredGroups = q ? groups.filter(g => searchableText(g).includes(q)) : groups;
+  if(!filteredGroups.length){ wrap.innerHTML = `<div class="placeholder-msg">${q ? 'Sin resultados para tu búsqueda.' : 'Sin pendientes vivos. Las líneas pautadas actualmente y finalizadas completas están en Histórico / Consultas.'}</div>`; return; }
+  const rows = filteredGroups.map(g => renderChecklistRow(g)).join('');
+  wrap.innerHTML = `
+    <table class="checklist-table audit-table">
+      <thead><tr>
+        <th class="row-status"></th><th>Cadena / Cliente / Campaña</th><th>Estado</th><th>Espacio</th><th>Creatividad ID</th><th>Fijación</th><th>Retirada</th><th>Deadline</th><th class="chk-col">Todo</th>
+        ${CHECK_FIELDS.map(f => `<th class="chk-col">${esc(f.label)}</th>`).join('')}
+        <th class="chk-col">Avance</th><th>Faltantes / Cambio</th><th class="chk-col">Acciones</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+  wrap.querySelectorAll('.check-all-box[data-partial="1"]').forEach(cb => { cb.indeterminate = true; });
+}
+function renderChecklistRow(g){
+  const checks = g.checks || {}; const {done,total} = checksProgress(checks); const rowCls = checksRowClass(checks);
+  const urgent = isChecklistUrgent(checks, g.deadline, g.end, g);
+  const labelForDelete = `${chainLabel(g.cadena)} · ${g.cliente} · ${g.anunciante} — #${g.campana} (${g.articulo} / ${g.espacio || 'sin espacio'})`.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  const checkboxes = CHECK_FIELDS.map(f => `<td class="chk-col" title="${esc(f.label)}"><input type="checkbox" ${checks[f.key] ? 'checked' : ''} onchange="toggleChecklistField('${esc(g.id)}','${f.key}')"></td>`).join('');
+  const changes = diffHtml(g);
+  return `<tr class="checklist-row ${rowCls}${urgent?' row-urgent':''}"><td class="row-status"><div></div></td>
+    <td><b>${esc(chainLabel(g.cadena))} · ${esc(g.cliente)} · ${esc(g.anunciante)}</b><span>#${esc(g.campana)} — ${esc(g.articulo)}</span>${g.updatedAt ? `<span class="checklist-updated">Actualizado: ${fmtDate(g.updatedAt)}</span>` : ''}</td>
+    <td>${statusBadge(g)}</td><td>${esc(g.espacio || '—')}</td><td>${esc((g.creatividadIds||[]).join(', ') || g.creatividadId || '—')}</td><td>${fmtDate(g.start)}</td><td>${fmtDate(g.end)}</td><td>${fmtDeadline(g.deadline)}${urgent ? '<span class="urgent-badge">⚠ Urgente</span>' : ''}</td>
+    <td class="chk-col" title="Marcar o desmarcar todos los checks de esta línea"><input type="checkbox" class="check-all-box" ${done === total ? 'checked' : ''} data-partial="${done > 0 && done < total ? '1' : '0'}" onchange="toggleChecklistAllFields('${esc(g.id)}')"></td>
+    ${checkboxes}<td class="checklist-progress">${done}/${total}</td><td class="audit-note">${changes || `Faltantes: ${esc(missingChecksText(checks))}`}</td>
+    <td class="chk-col"><button class="row-delete-btn" title="Eliminar registro" onclick="deleteChecklistGroup('${esc(g.id)}','${labelForDelete}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="15" height="15"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m3 0-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16z"/></svg></button></td></tr>`;
+}
+function diffHtml(g){
+  const changes = g.lastChanges || [];
+  if(!changes.length) return '';
+  return `<div class="diff-list"><b>${esc(changeLabel(g.changeType))}</b><br>${changes.slice(0,3).map(c => `${esc(c.field)}: ${esc(c.before||'—')} → ${esc(c.after||'—')}`).join('<br>')}${changes.length>3?'<br>…':''}</div>`;
+}
+function searchableText(g){
+  return [g.cadena,chainLabel(g.cadena),g.cliente,g.anunciante,g.campana,g.articulo,g.espacio,g.creatividadId,(g.creatividadIds||[]).join(' '),g.periodText,operationalStatus(g).label,missingChecksText(g.checks),g.updatedBy,g.changeBy,JSON.stringify(g.lastChanges||[])].join(' ').toLowerCase();
+}
+function renderChanges(){
+  const wrap = document.getElementById('changesWrap'); const summaryEl = document.getElementById('changeSummary');
+  if(!wrap) return;
+  const docs = mapChecklistDocs().filter(matchesSelectedChainDoc);
+  const changes = docs.filter(g => g.changeDetected || g.missingInLatestLoad || ['NEW_LINE','CREATIVE_CHANGE','NEW_CREATIVE_IN_GROUP','MODIFIED_LINE','NOT_INCLUDED'].includes(g.changeType));
+  const q = (document.getElementById('changesSearch')?.value || '').trim().toLowerCase();
+  const filtered = q ? changes.filter(g => searchableText(g).includes(q)) : changes;
+  const counts = {total:changes.length, nuevas:changes.filter(g=>g.changeType==='NEW_LINE').length, cambios:changes.filter(g=>['MODIFIED_LINE','CREATIVE_CHANGE','NEW_CREATIVE_IN_GROUP'].includes(g.changeType)).length, ausentes:changes.filter(g=>g.changeType==='NOT_INCLUDED'||g.missingInLatestLoad).length};
+  if(summaryEl) summaryEl.innerHTML = [ ['Total alertas',counts.total], ['Líneas nuevas',counts.nuevas], ['Cambios reales',counts.cambios], ['No incluidas',counts.ausentes] ].map(x=>`<div class="change-card"><div class="change-card-label">${x[0]}</div><div class="change-card-num">${x[1]}</div></div>`).join('');
+  if(!filtered.length){ wrap.innerHTML = '<div class="placeholder-msg">No hay cambios pendientes de revisión.</div>'; return; }
+  const rows = filtered.sort((a,b)=>(b.changeAt||b.updatedAt||0)-(a.changeAt||a.updatedAt||0)).map(g => `<tr><td>${statusBadge(g)}</td><td><b>${esc(chainLabel(g.cadena))} · ${esc(g.cliente)} · ${esc(g.anunciante)}</b><br><span>#${esc(g.campana)} — ${esc(g.articulo)}</span></td><td>${esc(g.espacio||'—')}</td><td>${esc(g.creatividadId || (g.creatividadIds||[]).join(', ') || '—')}</td><td>${fmtDate(g.start)} a ${fmtDate(g.end)}</td><td>${diffHtml(g) || '—'}</td><td>${g.changeAt ? fmtDate(g.changeAt) : '—'}<br><span class="checklist-updated">${esc(g.changeBy||'')}</span></td><td><button class="btn-secondary" onclick="acknowledgeChange('${esc(g.id)}')">Revisado</button></td></tr>`).join('');
+  wrap.innerHTML = `<table class="specs-table audit-table"><thead><tr><th class="h-dark">Tipo</th><th class="h-dark">Cliente / Campaña</th><th class="h-dark">Espacio</th><th class="h-dark">Creatividad ID</th><th class="h-blue">Fechas</th><th class="h-blue">Detalle</th><th class="h-blue">Detectado</th><th class="h-green">Acción</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function renderHistory(){
+  const wrap = document.getElementById('historyWrap'); if(!wrap) return;
+  const q = (document.getElementById('historySearch')?.value || '').trim().toLowerCase();
+  const stFilter = document.getElementById('historyStatusFilter')?.value || 'all';
+  let rowsData = mapChecklistDocs().filter(matchesSelectedChainDoc).filter(g => ['pautado','finished_complete','finished_missing'].includes(operationalStatus(g).key));
+  if(stFilter === 'pautado') rowsData = rowsData.filter(g => operationalStatus(g).key === 'pautado');
+  if(stFilter === 'complete') rowsData = rowsData.filter(g => operationalStatus(g).key === 'finished_complete');
+  if(stFilter === 'missing') rowsData = rowsData.filter(g => operationalStatus(g).key === 'finished_missing');
+  if(q) rowsData = rowsData.filter(g => searchableText(g).includes(q));
+  if(!rowsData.length){ wrap.innerHTML = '<div class="placeholder-msg">Sin resultados en histórico.</div>'; return; }
+  const rows = rowsData.sort((a,b)=>(b.end||0)-(a.end||0)).map(g => `<tr><td>${statusBadge(g)}</td><td><b>${esc(chainLabel(g.cadena))} · ${esc(g.cliente)} · ${esc(g.anunciante)}</b><br><span>#${esc(g.campana)} — ${esc(g.articulo)}</span></td><td>${esc(g.espacio||'—')}</td><td>${esc(g.creatividadId || (g.creatividadIds||[]).join(', ') || '—')}</td><td>${fmtDate(g.start)}</td><td>${fmtDate(g.end)}</td><td>${checksProgress(g.checks).done}/${CHECK_FIELDS.length}</td><td>${esc(missingChecksText(g.checks))}</td><td>${esc(g.updatedBy||g.changeBy||'—')}</td></tr>`).join('');
+  wrap.innerHTML = `<table class="specs-table audit-table"><thead><tr><th class="h-dark">Estado</th><th class="h-dark">Cliente / Campaña</th><th class="h-dark">Espacio</th><th class="h-dark">Creatividad ID</th><th class="h-blue">Fijación</th><th class="h-blue">Retirada</th><th class="h-green">Avance</th><th class="h-green">Faltantes</th><th class="h-green">Último usuario</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function renderOperationalKpis(){
+  const el = document.getElementById('opsKpiCards'); if(!el) return;
+  const docs = mapChecklistDocs().filter(matchesSelectedChainDoc);
+  if(!docs.length){ el.style.display='none'; return; }
+  const counts = {active:0, pautado:0, changes:0, finishedOk:0, finishedMissing:0, absent:0, compliance:0};
+  docs.forEach(g => {
+    const st = operationalStatus(g).key;
+    if(st==='active'||st==='new') counts.active++;
+    if(st==='pautado') counts.pautado++;
+    if(st==='change') counts.changes++;
+    if(st==='finished_complete') counts.finishedOk++;
+    if(st==='finished_missing') counts.finishedMissing++;
+    if(st==='absent') counts.absent++;
+  });
+  const finished = counts.finishedOk + counts.finishedMissing; counts.compliance = finished ? Math.round((counts.finishedOk/finished)*100) : 0;
+  el.style.display='grid';
+  el.innerHTML = `<div class="ops-kpi-card"><div class="ops-kpi-label">Activas vivas</div><div class="ops-kpi-val">${counts.active}</div><div class="ops-kpi-hint">requieren seguimiento</div></div><div class="ops-kpi-card"><div class="ops-kpi-label">Pautado actualmente</div><div class="ops-kpi-val">${counts.pautado}</div><div class="ops-kpi-hint">completas en pauta</div></div><div class="ops-kpi-card"><div class="ops-kpi-label">Cambios</div><div class="ops-kpi-val">${counts.changes}</div><div class="ops-kpi-hint">por revisar</div></div><div class="ops-kpi-card"><div class="ops-kpi-label">Finalizadas OK</div><div class="ops-kpi-val">${counts.finishedOk}</div><div class="ops-kpi-hint">cierre completo</div></div><div class="ops-kpi-card"><div class="ops-kpi-label">Finalizadas con faltantes</div><div class="ops-kpi-val">${counts.finishedMissing}</div><div class="ops-kpi-hint">afectan KPI</div></div><div class="ops-kpi-card"><div class="ops-kpi-label">No incluidas</div><div class="ops-kpi-val">${counts.absent}</div><div class="ops-kpi-hint">solo cargas completas/rango</div></div><div class="ops-kpi-card"><div class="ops-kpi-label">Cumplimiento</div><div class="ops-kpi-val">${counts.compliance}%</div><div class="ops-kpi-hint">sobre finalizadas</div></div>`;
+}
+
+
+/* ============================================================
+   MODO MANTENIMIENTO OCULTO — 7 clics sobre badge de versión
+   ============================================================ */
+function isMaintenanceAdmin(){
+  const email = String(currentUserEmail || '').trim().toLowerCase();
+  return ADMIN_EMAILS.map(e => String(e).toLowerCase()).includes(email);
+}
+function selectedMaintenanceCollections(){
+  return [...document.querySelectorAll('.maint-col:checked')].map(x => x.value).filter(Boolean);
+}
+function setMaintenanceProgress(msg){
+  const el = document.getElementById('maintenanceProgress');
+  if(el) el.textContent = msg;
+}
+function openMaintenanceModal(){
+  if(!fbReady() || !currentUserEmail){ showToast('Inicia sesión para usar mantenimiento'); return; }
+  if(!isMaintenanceAdmin()){
+    showToast('🔒 Modo mantenimiento no autorizado para este usuario');
+    return;
+  }
+  maintenanceBackupData = null;
+  maintenanceBackupCollections = [];
+  maintenanceBackupDownloaded = false;
+  maintenanceBackupErrors = {};
+  const counts = document.getElementById('maintenanceCounts');
+  if(counts) counts.textContent = 'Sin calcular. Usa “Calcular registros”.';
+  const confirmText = document.getElementById('maintenanceConfirmText');
+  const confirmCheck = document.getElementById('maintenanceConfirmCheck');
+  if(confirmText) confirmText.value = '';
+  if(confirmCheck) confirmCheck.checked = false;
+  const backupBtn = document.getElementById('btnMaintenanceBackup');
+  if(backupBtn) backupBtn.disabled = true;
+  updateMaintenanceDeleteButton();
+  setMaintenanceProgress('Listo para calcular registros.');
+  const overlay = document.getElementById('maintenanceOverlay');
+  if(overlay) overlay.style.display = 'flex';
+}
+function closeMaintenanceModal(){
+  const overlay = document.getElementById('maintenanceOverlay');
+  if(overlay) overlay.style.display = 'none';
+}
+function updateMaintenanceDeleteButton(){
+  const btn = document.getElementById('btnMaintenanceDelete');
+  const txt = (document.getElementById('maintenanceConfirmText')?.value || '').trim().toUpperCase();
+  const chk = !!document.getElementById('maintenanceConfirmCheck')?.checked;
+  const selected = selectedMaintenanceCollections();
+  const hasBackup = !!maintenanceBackupData && maintenanceBackupDownloaded;
+  const sameAsBackup = hasBackup && selected.length > 0 && selected.length === maintenanceBackupCollections.length && selected.every(c => maintenanceBackupCollections.includes(c));
+  if(btn) btn.disabled = !(txt === 'BORRAR FIREBASE' && chk && sameAsBackup);
+}
+function serializeFirestoreValue(v){
+  if(v == null) return v;
+  if(v && typeof v.toDate === 'function') return v.toDate().toISOString();
+  if(v instanceof Date) return v.toISOString();
+  if(Array.isArray(v)) return v.map(serializeFirestoreValue);
+  if(typeof v === 'object'){
+    const out = {};
+    Object.keys(v).forEach(k => out[k] = serializeFirestoreValue(v[k]));
+    return out;
+  }
+  return v;
+}
+async function readMaintenanceSnapshot(collections){
+  const out = {
+    createdAt:new Date().toISOString(),
+    appVersion:'V3.7 Stable',
+    user:currentUserEmail || '',
+    projectId:(firebaseConfig && firebaseConfig.projectId) || '',
+    collections:{},
+    errors:{}
+  };
+  for(const col of collections){
+    try{
+      const snap = await fbDb.collection(col).get();
+      out.collections[col] = snap.docs.map(doc => ({id:doc.id, data:serializeFirestoreValue(doc.data())}));
+    }catch(err){
+      console.error('Maintenance read error:', col, err);
+      out.collections[col] = [];
+      out.errors[col] = (err && (err.code || err.message)) ? (err.code || err.message) : String(err);
+    }
+  }
+  return out;
+}
+async function maintenanceCountCollections(){
+  if(!fbReady() || !isMaintenanceAdmin()) return openMaintenanceModal();
+  const collections = selectedMaintenanceCollections();
+  if(!collections.length){ showToast('Selecciona al menos una colección'); return; }
+  const btn = document.getElementById('btnMaintenanceCount');
+  const backupBtn = document.getElementById('btnMaintenanceBackup');
+  try{
+    if(btn) btn.disabled = true;
+    if(backupBtn) backupBtn.disabled = true;
+    setMaintenanceProgress('Leyendo colecciones de Firestore…');
+    maintenanceBackupData = await readMaintenanceSnapshot(collections);
+    maintenanceBackupErrors = maintenanceBackupData.errors || {};
+    maintenanceBackupCollections = collections.filter(col => !maintenanceBackupErrors[col]);
+    maintenanceBackupDownloaded = false;
+
+    const html = collections.map(col => {
+      const docs = maintenanceBackupData.collections[col] || [];
+      if(maintenanceBackupErrors[col]){
+        return `${esc(col)}: <b style="color:#B91C1C">sin permiso / error</b><br><span style="font-size:11px;color:#7F1D1D">Detalle: ${esc(maintenanceBackupErrors[col])}</span>`;
+      }
+      return `${esc(col)}: <b>${docs.length}</b> documento${docs.length===1?'':'s'}`;
+    }).join('<br><hr style="border:0;border-top:1px dashed #D8DEEA;margin:7px 0">');
+
+    const counts = document.getElementById('maintenanceCounts');
+    if(counts) counts.innerHTML = html || 'Sin colecciones seleccionadas.';
+
+    if(backupBtn) backupBtn.disabled = maintenanceBackupCollections.length === 0;
+
+    if(maintenanceBackupCollections.length === 0){
+      setMaintenanceProgress('No hay colecciones legibles con tus reglas actuales. Revisa permisos de Firestore.');
+    }else if(Object.keys(maintenanceBackupErrors).length){
+      setMaintenanceProgress('Conteo parcial listo. Algunas colecciones no tienen permiso. Desmarca las colecciones con error o ajusta reglas, luego descarga backup.');
+    }else{
+      setMaintenanceProgress('Conteo listo. Descarga el backup JSON antes de borrar.');
+    }
+    updateMaintenanceDeleteButton();
+  }catch(err){
+    console.error(err);
+    setMaintenanceProgress('Error leyendo Firestore. Revisa permisos/reglas en consola.');
+    showToast('⚠ No se pudo calcular registros');
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+function maintenanceDownloadBackup(){
+  if(!maintenanceBackupData){ showToast('Primero calcula registros'); return; }
+  if(!maintenanceBackupCollections.length){ showToast('No hay colecciones legibles para respaldar'); return; }
+  const filteredBackup = {
+    ...maintenanceBackupData,
+    note:'Backup generado desde eComFlow V3.7 Stable Maintenance. Solo incluye colecciones leídas correctamente; las colecciones con error se listan en errors.',
+    selectedReadableCollections: maintenanceBackupCollections,
+    collections: Object.fromEntries(maintenanceBackupCollections.map(col => [col, maintenanceBackupData.collections[col] || []]))
+  };
+  const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  const blob = new Blob([JSON.stringify(filteredBackup,null,2)], {type:'application/json;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ecomflow_firebase_backup_${stamp}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  maintenanceBackupDownloaded = true;
+  if(Object.keys(maintenanceBackupErrors).length){
+    setMaintenanceProgress('Backup descargado de colecciones legibles. Para borrar, desmarca colecciones con error, escribe BORRAR FIREBASE y confirma la casilla.');
+  }else{
+    setMaintenanceProgress('Backup descargado. Para borrar, escribe BORRAR FIREBASE y confirma la casilla.');
+  }
+  updateMaintenanceDeleteButton();
+}
+async function maintenanceDeleteSelectedCollections(){
+  if(!fbReady() || !isMaintenanceAdmin()) return;
+  const selected = selectedMaintenanceCollections();
+  if(!selected.length){ showToast('Selecciona al menos una colección'); return; }
+  if(!maintenanceBackupData){ showToast('Primero descarga/genera backup'); return; }
+  const backupCols = maintenanceBackupCollections.join('|');
+  if(selected.join('|') !== backupCols){
+    showToast('⚠ Desmarca colecciones con error o recalcula backup antes de borrar.');
+    return;
+  }
+  const finalOk = confirm(`Vas a borrar datos de Firestore en:\n\n${selected.join('\n')}\n\n¿Confirmas el borrado definitivo?`);
+  if(!finalOk) return;
+  const deleteBtn = document.getElementById('btnMaintenanceDelete');
+  const countBtn = document.getElementById('btnMaintenanceCount');
+  const backupBtn = document.getElementById('btnMaintenanceBackup');
+  try{
+    if(deleteBtn) deleteBtn.disabled = true;
+    if(countBtn) countBtn.disabled = true;
+    if(backupBtn) backupBtn.disabled = true;
+    let totalDeleted = 0;
+    const deletedCounts = {};
+    for(const col of selected){
+      const docs = (maintenanceBackupData.collections[col] || []);
+      deletedCounts[col] = 0;
+      for(let i=0;i<docs.length;i+=400){
+        const chunk = docs.slice(i,i+400);
+        const batch = fbDb.batch();
+        chunk.forEach(d => batch.delete(fbDb.collection(col).doc(d.id)));
+        await batch.commit();
+        deletedCounts[col] += chunk.length;
+        totalDeleted += chunk.length;
+        setMaintenanceProgress(`Borrando ${col}: ${deletedCounts[col]}/${docs.length}\nTotal eliminado: ${totalDeleted}`);
+      }
+    }
+    try{
+      await fbDb.collection('maintenanceLog').add({
+        type:'TRUNCATE_SELECTED_COLLECTIONS',
+        appVersion:'V3.7 Stable',
+        user:currentUserEmail || '',
+        collections:selected,
+        deletedCounts,
+        totalDeleted,
+        backupCreatedAt:maintenanceBackupData.createdAt,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }catch(logErr){
+      console.warn('No se pudo escribir maintenanceLog; el borrado ya terminó.', logErr);
+    }
+    if(selected.includes('checklist')){
+      checklistState.clear(); checklistLoaded = true;
+      pendingChecklistGroups = null;
+    }
+    lastLoadSummary = null;
+    renderGantt(); renderChanges(); renderHistory(); renderWeekSummary(); renderOperationalKpis();
+    updateUrgentBadge(); updateChangesBadge();
+    setMaintenanceProgress(`Borrado finalizado. Documentos eliminados: ${totalDeleted}. Registro creado en maintenanceLog.`);
+    showToast(`🧹 Firebase limpio: ${totalDeleted} documentos eliminados`);
+    maintenanceBackupData = null; maintenanceBackupCollections = [];
+    updateMaintenanceDeleteButton();
+  }catch(err){
+    console.error(err);
+    setMaintenanceProgress('Error durante el borrado. Revisa consola y Firestore. No repitas sin validar el estado actual.');
+    showToast('⚠ Error borrando datos de Firebase');
+  }finally{
+    if(countBtn) countBtn.disabled = false;
+    if(backupBtn) backupBtn.disabled = !maintenanceBackupData;
+  }
+}
+function initMaintenanceSecretClick(){
+  const badge = document.getElementById('versionSecretBadge');
+  if(!badge) return;
+  let clicks = 0;
+  let timer = null;
+  badge.style.cursor = 'default';
+  badge.addEventListener('click', () => {
+    clicks++;
+    clearTimeout(timer);
+    if(clicks >= 7){
+      clicks = 0;
+      openMaintenanceModal();
+      return;
+    }
+    timer = setTimeout(() => { clicks = 0; }, 3000);
+  });
+}
+initMaintenanceSecretClick();
+
+
+(function restoreSavedMode(){
+  const prefs = loadFilterPrefs();
+  if(prefs && prefs.mode && (prefs.mode === 'consolidated' || prefs.mode === 'weekly')){
+    currentMode = prefs.mode;
+    document.getElementById('btnModeConsolidated').classList.toggle('active', currentMode==='consolidated');
+    document.getElementById('btnModeWeekly').classList.toggle('active', currentMode==='weekly');
+    document.getElementById('modeHint').textContent = currentMode === 'consolidated'
+      ? 'Vista consolidada: une periodos sin mezclar Cadena ni Creatividad ID; cada ID se gestiona como un arte independiente.'
+      : 'Vista semanal: conserva cada periodo del archivo para operar por semana sin perder trazabilidad.';
+  }
+})();
+
+initFirebase();
+</script>
+</body>
+</html>

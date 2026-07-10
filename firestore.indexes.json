@@ -1,0 +1,136 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "campaign_lines",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "is_current", "order": "ASCENDING" },
+        { "fieldPath": "fecha_fijacion", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_lines",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "cliente_key", "order": "ASCENDING" },
+        { "fieldPath": "fecha_fijacion", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_lines",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campaign_group_id", "order": "ASCENDING" },
+        { "fieldPath": "is_current", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_lines",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campaign_space_id", "order": "ASCENDING" },
+        { "fieldPath": "active", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_lines",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "responsable_operativo", "order": "ASCENDING" },
+        { "fieldPath": "fecha_fijacion", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_lines",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "creatividad_id_key", "order": "ASCENDING" },
+        { "fieldPath": "active", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_spaces",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "fecha_fijacion", "order": "ASCENDING" },
+        { "fieldPath": "fecha_retirada", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_spaces",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campaign_group_id", "order": "ASCENDING" },
+        { "fieldPath": "placement_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_spaces",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "present_in_latest_import", "order": "ASCENDING" },
+        { "fieldPath": "updated_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_groups",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "cliente_key", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "imports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "uploaded_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "import_rows",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "import_id", "order": "ASCENDING" },
+        { "fieldPath": "row_number", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "change_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campaign_group_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "change_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "entity_type", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campaign_line_id", "order": "ASCENDING" },
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "detected_changes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

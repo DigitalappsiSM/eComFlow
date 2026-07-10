@@ -1,0 +1,210 @@
+rules_version = '2';
+
+// ==========================================================================
+// eComFlow Next — Firestore Security Rules (§27, §30)
+//
+// Principios:
+//   - Requiere autenticación en todo acceso.
+//   - Requiere que exista users/{uid} y que el usuario esté activo.
+//   - Autoriza lectura/escritura según rol.
+//   - Prohíbe eliminaciones físicas (toda baja es lógica: active=false).
+//   - Protege identificadores internos, created_at y created_by.
+//   - Exige que created_by / updated_by coincidan con request.auth.uid.
+//   - Impide que un usuario cambie su propio rol.
+//   - Rechaza colecciones no declaradas (default deny al final).
+//
+// NOTA: estas reglas son la base de la primera entrega. Las validaciones de
+// contenido por colección se irán endureciendo en fases posteriores.
+// ==========================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------- helpers ------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userExists() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveUser() {
+      return userExists() && userDoc().active == true;
+    }
+
+    function role() {
+      return isActiveUser() ? userDoc().role : 'none';
+    }
+
+    function hasRole(roles) {
+      return role() in roles;
+    }
+
+    function canRead() {
+      // Cualquier usuario activo puede leer los datos operativos.
+      return isActiveUser();
+    }
+
+    function canWriteOperational() {
+      return hasRole(['admin', 'manager', 'operator']);
+    }
+
+    function canManageCatalog() {
+      return hasRole(['admin', 'manager']);
+    }
+
+    function isAdmin() {
+      return hasRole(['admin']);
+    }
+
+    // No se puede tocar created_at / created_by en una actualización.
+    function immutableCreation() {
+      return request.resource.data.created_at == resource.data.created_at
+        && request.resource.data.created_by == resource.data.created_by;
+    }
+
+    // updated_by debe ser el usuario autenticado.
+    function updatedByIsCaller() {
+      return request.resource.data.updated_by == request.auth.uid;
+    }
+
+    // created_by debe ser el usuario autenticado en una creación.
+    function createdByIsCaller() {
+      return request.resource.data.created_by == request.auth.uid;
+    }
+
+    // Baja lógica únicamente: nunca se permite `delete`.
+    // (No se define ninguna regla `allow delete`, por lo que queda prohibido.)
+
+    // ---------------------- users --------------------------------------
+    match /users/{uid} {
+      // Un usuario puede leer su propio doc; admin puede leer todos.
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+
+      // La creación de usuarios y asignación de roles se hace desde la
+      // consola de Firebase / Admin, no desde el navegador.
+      allow create: if false;
+
+      // Solo admin puede modificar usuarios, y nadie puede cambiar su
+      // propio rol.
+      allow update: if isAdmin()
+        && !(request.auth.uid == uid
+             && request.resource.data.role != resource.data.role);
+
+      allow delete: if false;
+    }
+
+    // ---------------------- catálogo -----------------------------------
+    match /placements/{id} {
+      allow read: if canRead();
+      allow create: if canManageCatalog() && createdByIsCaller();
+      allow update: if canManageCatalog() && immutableCreation() && updatedByIsCaller();
+      allow delete: if false;
+    }
+
+    match /placement_requirements/{id} {
+      allow read: if canRead();
+      allow create: if canManageCatalog() && createdByIsCaller();
+      allow update: if canManageCatalog() && immutableCreation() && updatedByIsCaller();
+      allow delete: if false;
+    }
+
+    // ---------------------- campañas / jerarquía -----------------------
+    match /campaign_groups/{id} {
+      allow read: if canRead();
+      allow create: if canWriteOperational() && createdByIsCaller();
+      allow update: if canWriteOperational() && immutableCreation() && updatedByIsCaller();
+      allow delete: if false;
+    }
+
+    match /campaign_spaces/{id} {
+      allow read: if canRead();
+      allow create: if canWriteOperational() && createdByIsCaller();
+      allow update: if canWriteOperational() && immutableCreation() && updatedByIsCaller();
+      allow delete: if false;
+    }
+
+    match /campaign_lines/{id} {
+      allow read: if canRead();
+      allow create: if canWriteOperational() && createdByIsCaller();
+      allow update: if canWriteOperational() && immutableCreation() && updatedByIsCaller();
+      allow delete: if false;
+    }
+
+    match /campaign_line_requirements/{id} {
+      allow read: if canRead();
+      allow create: if canWriteOperational();
+      // Snapshot inmutable: no se permite actualizar (histórico fiel).
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ---------------------- operación ----------------------------------
+    match /campaign_operations/{id} {
+      allow read: if canRead();
+      allow create: if canWriteOperational() && createdByIsCaller();
+      allow update: if canWriteOperational() && immutableCreation() && updatedByIsCaller();
+      allow delete: if false;
+    }
+
+    match /campaign_comments/{id} {
+      allow read: if canRead();
+      allow create: if canWriteOperational() && createdByIsCaller();
+      // Un comentario sólo se archiva (active=false) o edita por su autor
+      // o por un admin.
+      allow update: if canWriteOperational()
+        && immutableCreation()
+        && (resource.data.created_by == request.auth.uid || isAdmin());
+      allow delete: if false;
+    }
+
+    match /detected_changes/{id} {
+      allow read: if canRead();
+      allow create: if canWriteOperational();
+      allow update: if canWriteOperational();
+      allow delete: if false;
+    }
+
+    // ---------------------- importaciones ------------------------------
+    match /imports/{id} {
+      allow read: if canRead();
+      allow create: if canWriteOperational() && createdByIsCaller();
+      allow update: if canWriteOperational();
+      allow delete: if false;
+    }
+
+    match /import_rows/{id} {
+      allow read: if canRead();
+      allow create: if canWriteOperational();
+      allow update: if canWriteOperational();
+      allow delete: if false;
+    }
+
+    // ---------------------- auditoría ----------------------------------
+    match /change_history/{id} {
+      allow read: if canRead();
+      // La auditoría es append-only: se crea, nunca se modifica ni borra.
+      allow create: if canWriteOperational() && createdByIsCaller();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ---------------------- configuración ------------------------------
+    match /app_settings/{id} {
+      allow read: if canRead();
+      allow write: if isAdmin();
+    }
+
+    // ---------------------- default deny -------------------------------
+    // Rechaza cualquier colección no declarada arriba.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
