@@ -213,10 +213,14 @@ sustitución) para revisión manual.
 
 ## Limitaciones conocidas
 
-- **Fases 5 (seguimiento operativo) y 6 (importador) implementadas** además del
-  alcance inicial (§58). Cambios detectados, configuración y administración de
-  usuarios siguen **preparados a nivel de contrato**; su UI se implementa en
-  fases posteriores (marcadas explícitamente en la app).
+- **Fases 5 (seguimiento operativo), 6 (importador) y 7 (cambios detectados)
+  implementadas** además del alcance inicial (§58). Configuración y
+  administración de usuarios siguen **preparadas a nivel de contrato**; su UI se
+  implementa en fases posteriores (marcadas explícitamente en la app).
+- **Cambios detectados** (`/cambios`): revisión de las nuevas creatividades y
+  posibles sustituciones que genera el importador. El usuario confirma si una
+  creatividad SUSTITUYE a una anterior (relaciona ambas y retira la previa),
+  es ADICIONAL, o rechaza el cambio — con auditoría (§9, §43).
 - **Seguimiento operativo** (`/operacion`): tabla paginada con edición de checks
   (cada check con value/updated_at/updated_by), recálculo automático de avance,
   responsable, comentarios (colección independiente, baja lógica) e historial
