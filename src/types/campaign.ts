@@ -68,12 +68,18 @@ export interface CampaignLine extends AuditFields {
   replacement_status: ReplacementStatus;
   content_hash: string;
 
-  // Campos denormalizados (read-model) para consultas de dashboard eficientes
-  // en una sola colección (§53, §54). Se escriben en la importación.
+  // Campos denormalizados (read-model) para consultas de dashboard y de
+  // seguimiento operativo en una sola colección (§53, §54). Se escriben en la
+  // importación.
   cliente_key: string;
+  cliente_original: string;
+  numero_campaña_original: string;
   placement_id: string;
+  placement_name_snapshot: string;
   fecha_fijacion: IsoDate;
   fecha_retirada: IsoDate;
+  creatividad_titulo_original: string;
+  creatividad_descripcion_original: string;
   anunciante: string;
   required_pieces: number;
   cancelled: boolean;

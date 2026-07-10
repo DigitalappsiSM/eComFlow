@@ -5,6 +5,9 @@ import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { PlacementsPage } from '@/pages/placements/PlacementsPage';
 import { NewImportPage } from '@/pages/imports/NewImportPage';
 import { ImportHistoryPage } from '@/pages/imports/ImportHistoryPage';
+import { OperationsPage } from '@/pages/operations/OperationsPage';
+import { CampaignsListPage } from '@/pages/campaigns/CampaignsListPage';
+import { CampaignDetailPage } from '@/pages/campaigns/CampaignDetailPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 
 function protectedElement(node: JSX.Element, permission?: Parameters<typeof ProtectedRoute>[0]['permission']) {
@@ -14,13 +17,7 @@ function protectedElement(node: JSX.Element, permission?: Parameters<typeof Prot
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   { path: '/', element: protectedElement(<DashboardPage />, 'dashboard') },
-  {
-    path: '/operacion',
-    element: protectedElement(
-      <PlaceholderPage title="Seguimiento operativo" description="Checks, responsables y comentarios por línea" phase="Fase 5" />,
-      'operations',
-    ),
-  },
+  { path: '/operacion', element: protectedElement(<OperationsPage />, 'operations') },
   { path: '/nueva-carga', element: protectedElement(<NewImportPage />, 'imports') },
   {
     path: '/cambios',
@@ -30,13 +27,8 @@ export const router = createBrowserRouter([
     ),
   },
   { path: '/historial', element: protectedElement(<ImportHistoryPage />, 'history') },
-  {
-    path: '/campanas',
-    element: protectedElement(
-      <PlaceholderPage title="Detalle de campaña" description="Jerarquía campaña / espacios / líneas" phase="Fase 5" />,
-      'campaigns',
-    ),
-  },
+  { path: '/campanas', element: protectedElement(<CampaignsListPage />, 'campaigns') },
+  { path: '/campanas/:id', element: protectedElement(<CampaignDetailPage />, 'campaigns') },
   { path: '/catalogo', element: protectedElement(<PlacementsPage />, 'catalog') },
   {
     path: '/configuracion',

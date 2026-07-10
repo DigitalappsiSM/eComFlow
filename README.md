@@ -213,10 +213,16 @@ sustitución) para revisión manual.
 
 ## Limitaciones conocidas
 
-- **Fase 6 (importador) implementada** además del alcance inicial (§58).
-  Operación, cambios detectados, detalle de campaña, configuración y
-  administración de usuarios siguen **preparados a nivel de contrato**; su UI se
-  implementa en fases posteriores (marcadas explícitamente en la app).
+- **Fases 5 (seguimiento operativo) y 6 (importador) implementadas** además del
+  alcance inicial (§58). Cambios detectados, configuración y administración de
+  usuarios siguen **preparados a nivel de contrato**; su UI se implementa en
+  fases posteriores (marcadas explícitamente en la app).
+- **Seguimiento operativo** (`/operacion`): tabla paginada con edición de checks
+  (cada check con value/updated_at/updated_by), recálculo automático de avance,
+  responsable, comentarios (colección independiente, baja lógica) e historial
+  por línea — todo transaccional con auditoría (§12, §13, §24, §41). El detalle
+  de campaña (`/campanas`) muestra la jerarquía espacios/líneas (§42). La
+  búsqueda opera sobre las líneas ya cargadas (paginadas), no sobre toda la base.
 - El importador escribe con IDs deterministas y bloqueo por `file_hash`, lo que
   evita duplicar entidades al reintentar; la **reanudación fina desde el último
   lote confirmado** queda como limitación conocida (§25).
