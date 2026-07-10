@@ -54,6 +54,9 @@ jobs:
           # Fallback SPA: Pages sirve 404.html en rutas desconocidas → carga la app.
           cp dist/index.html dist/404.html
       - uses: actions/configure-pages@v5
+        with:
+          # Habilita GitHub Pages automáticamente si aún no lo está.
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
