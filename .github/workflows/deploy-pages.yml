@@ -1,0 +1,69 @@
+name: Deploy to GitHub Pages
+
+# Publica la app (build de Vite) en GitHub Pages.
+#
+# Requisitos para que funcione:
+#   1. En el repo: Settings → Pages → Source = "GitHub Actions".
+#   2. (Para que la app sea funcional) definir la config PÚBLICA de Firebase como
+#      Variables del repo (Settings → Secrets and variables → Actions → Variables):
+#        VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID,
+#        VITE_FIREBASE_STORAGE_BUCKET, VITE_FIREBASE_MESSAGING_SENDER_ID,
+#        VITE_FIREBASE_APP_ID
+#      Sin ellas, la app despliega igual pero solo muestra el login con un aviso
+#      de configuración faltante.
+
+on:
+  push:
+    branches:
+      - main
+      - claude/ecomflow-next-db-first-4vw81b
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build
+        env:
+          # Base = /<repo>/ para GitHub Pages.
+          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_USE_FIREBASE_EMULATORS: 'false'
+        run: |
+          npm run build
+          # Fallback SPA: Pages sirve 404.html en rutas desconocidas → carga la app.
+          cp dist/index.html dist/404.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

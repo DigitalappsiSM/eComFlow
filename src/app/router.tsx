@@ -16,7 +16,8 @@ function protectedElement(node: JSX.Element, permission?: Parameters<typeof Prot
   return <ProtectedRoute permission={permission}>{node}</ProtectedRoute>;
 }
 
-export const router = createBrowserRouter([
+export const router = createBrowserRouter(
+  [
   { path: '/login', element: <LoginPage /> },
   { path: '/', element: protectedElement(<DashboardPage />, 'dashboard') },
   { path: '/operacion', element: protectedElement(<OperationsPage />, 'operations') },
@@ -29,4 +30,6 @@ export const router = createBrowserRouter([
   { path: '/configuracion', element: protectedElement(<SettingsPage />, 'settings') },
   { path: '/usuarios', element: protectedElement(<UsersPage />, 'users') },
   { path: '*', element: <Navigate to="/" replace /> },
-]);
+  ],
+  { basename: import.meta.env.BASE_URL },
+);
