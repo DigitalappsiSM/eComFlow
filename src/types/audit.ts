@@ -30,7 +30,9 @@ export type EntityType =
   | 'campaign_line'
   | 'campaign_operation'
   | 'campaign_comment'
-  | 'placement';
+  | 'placement'
+  | 'app_settings'
+  | 'user';
 
 export interface ChangeHistoryEntry {
   change_id: string;

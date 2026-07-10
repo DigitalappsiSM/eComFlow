@@ -140,7 +140,8 @@ clasificación de importación y métricas.
 ```text
 src/
   app/            App.tsx, router.tsx
-  pages/          auth, dashboard, placements, PlaceholderPage (fases 5–8)
+  pages/          auth, dashboard, operations, imports, changes, campaigns,
+                  placements, settings, users
   components/     layout, dashboard, feedback
   features/       auth (contexto/provider/guarda), dashboard (hook de datos)
   hooks/          useAuth, usePermissions, useConnectivity
@@ -213,14 +214,19 @@ sustitución) para revisión manual.
 
 ## Limitaciones conocidas
 
-- **Fases 5 (seguimiento operativo), 6 (importador) y 7 (cambios detectados)
-  implementadas** además del alcance inicial (§58). Configuración y
-  administración de usuarios siguen **preparadas a nivel de contrato**; su UI se
-  implementa en fases posteriores (marcadas explícitamente en la app).
+- **Todas las vistas del sidebar implementadas** (Fases 5–8 además del alcance
+  inicial §58): dashboard, seguimiento operativo, nueva carga, cambios
+  detectados, historial de cargas, detalle de campaña, catálogo, configuración
+  y administración de usuarios.
 - **Cambios detectados** (`/cambios`): revisión de las nuevas creatividades y
   posibles sustituciones que genera el importador. El usuario confirma si una
   creatividad SUSTITUYE a una anterior (relaciona ambas y retira la previa),
   es ADICIONAL, o rechaza el cambio — con auditoría (§9, §43).
+- **Configuración** (`/configuracion`, solo admin): `app_settings` editable
+  (risk_days, semana, checks obligatorios, plantilla, extensiones, paginación)
+  con historial (§47). **Administración de usuarios** (`/usuarios`, solo admin):
+  gestión de rol y estado; los usuarios se crean en la Consola de Firebase y
+  nadie puede cambiar su propio rol (§27).
 - **Seguimiento operativo** (`/operacion`): tabla paginada con edición de checks
   (cada check con value/updated_at/updated_by), recálculo automático de avance,
   responsable, comentarios (colección independiente, baja lógica) e historial

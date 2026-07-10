@@ -9,7 +9,8 @@ import { OperationsPage } from '@/pages/operations/OperationsPage';
 import { CampaignsListPage } from '@/pages/campaigns/CampaignsListPage';
 import { CampaignDetailPage } from '@/pages/campaigns/CampaignDetailPage';
 import { DetectedChangesPage } from '@/pages/changes/DetectedChangesPage';
-import { PlaceholderPage } from '@/pages/PlaceholderPage';
+import { SettingsPage } from '@/pages/settings/SettingsPage';
+import { UsersPage } from '@/pages/users/UsersPage';
 
 function protectedElement(node: JSX.Element, permission?: Parameters<typeof ProtectedRoute>[0]['permission']) {
   return <ProtectedRoute permission={permission}>{node}</ProtectedRoute>;
@@ -25,19 +26,7 @@ export const router = createBrowserRouter([
   { path: '/campanas', element: protectedElement(<CampaignsListPage />, 'campaigns') },
   { path: '/campanas/:id', element: protectedElement(<CampaignDetailPage />, 'campaigns') },
   { path: '/catalogo', element: protectedElement(<PlacementsPage />, 'catalog') },
-  {
-    path: '/configuracion',
-    element: protectedElement(
-      <PlaceholderPage title="Configuración" description="Parámetros de la aplicación" phase="Fase 8" />,
-      'settings',
-    ),
-  },
-  {
-    path: '/usuarios',
-    element: protectedElement(
-      <PlaceholderPage title="Administración de usuarios" description="Roles y permisos" phase="Fase 8" />,
-      'users',
-    ),
-  },
+  { path: '/configuracion', element: protectedElement(<SettingsPage />, 'settings') },
+  { path: '/usuarios', element: protectedElement(<UsersPage />, 'users') },
   { path: '*', element: <Navigate to="/" replace /> },
 ]);
