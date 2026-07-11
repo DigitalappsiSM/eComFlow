@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react';
-import { AlertTriangle, CheckCircle2, Download, FileUp, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, FileUp, Loader2, Tags } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useImport } from '@/features/imports/useImport';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -32,7 +32,7 @@ const RESULT_STYLES: Record<ImportResult, string> = {
 
 export function NewImportPage() {
   const { can } = usePermissions();
-  const { state, selectFile, confirm, reset } = useImport();
+  const { state, selectFile, confirm, classifyAndContinue, reset } = useImport();
   const inputRef = useRef<HTMLInputElement>(null);
   const [acknowledgedDuplicate, setAcknowledgedDuplicate] = useState(false);
 
@@ -99,6 +99,16 @@ export function NewImportPage() {
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
           Leyendo y validando el archivo…
         </div>
+      )}
+
+      {state.step === 'classify' && (
+        <ClassifyArticulos
+          unknown={state.unknown}
+          tipos={state.tipos}
+          canWrite={canWrite}
+          onCancel={reset}
+          onSubmit={(assignments) => void classifyAndContinue(assignments)}
+        />
       )}
 
       {state.step === 'preview' && (
@@ -254,6 +264,104 @@ export function NewImportPage() {
         </div>
       )}
     </AppLayout>
+  );
+}
+
+function ClassifyArticulos({
+  unknown,
+  tipos,
+  canWrite,
+  onCancel,
+  onSubmit,
+}: {
+  unknown: string[];
+  tipos: string[];
+  canWrite: boolean;
+  onCancel: () => void;
+  onSubmit: (assignments: Record<string, string>) => void;
+}) {
+  const [mode, setMode] = useState<Record<string, 'existing' | 'new'>>({});
+  const [val, setVal] = useState<Record<string, string>>({});
+
+  const effective = (a: string) => (val[a] ?? '').trim().toUpperCase();
+  const allAssigned = unknown.every((a) => effective(a) !== '');
+
+  function submit() {
+    const assignments: Record<string, string> = {};
+    for (const a of unknown) assignments[a] = effective(a);
+    onSubmit(assignments);
+  }
+
+  return (
+    <div className="card p-6">
+      <div className="mb-3 flex items-center gap-2">
+        <Tags className="h-5 w-5 text-accent-violet" aria-hidden="true" />
+        <h2 className="text-base font-semibold text-slate-800">Artículos sin clasificar</h2>
+      </div>
+      <p className="mb-4 text-sm text-slate-500">
+        El archivo contiene {unknown.length} artículo(s) que aún no tienen tipo de operación.
+        Clasifícalos antes de continuar (se guardan para futuras cargas).
+      </p>
+
+      <div className="space-y-2">
+        {unknown.map((a) => (
+          <div key={a} className="flex flex-wrap items-center gap-3">
+            <span className="w-64 font-medium text-slate-700">{a}</span>
+            <select
+              disabled={!canWrite}
+              value={mode[a] === 'new' ? '__new__' : (val[a] ?? '')}
+              onChange={(e) => {
+                if (e.target.value === '__new__') {
+                  setMode((m) => ({ ...m, [a]: 'new' }));
+                  setVal((v) => ({ ...v, [a]: '' }));
+                } else {
+                  setMode((m) => ({ ...m, [a]: 'existing' }));
+                  setVal((v) => ({ ...v, [a]: e.target.value }));
+                }
+              }}
+              className="focus-ring rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+              aria-label={`Tipo de operación para ${a}`}
+            >
+              <option value="">Seleccionar tipo…</option>
+              {tipos.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+              <option value="__new__">＋ Nuevo tipo…</option>
+            </select>
+            {mode[a] === 'new' && (
+              <input
+                value={val[a] ?? ''}
+                disabled={!canWrite}
+                onChange={(e) => setVal((v) => ({ ...v, [a]: e.target.value }))}
+                placeholder="Nombre del nuevo tipo"
+                className="focus-ring rounded-lg border border-slate-300 px-3 py-1.5 text-sm uppercase"
+                aria-label={`Nombre del nuevo tipo para ${a}`}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 flex items-center gap-3">
+        <button
+          type="button"
+          disabled={!canWrite || !allAssigned}
+          onClick={submit}
+          className="focus-ring rounded-lg bg-accent-blue px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          Guardar clasificación y continuar
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
   );
 }
 

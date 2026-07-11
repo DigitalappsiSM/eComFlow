@@ -10,6 +10,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { KpiCard } from '@/components/dashboard/KpiCard';
 import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/States';
 import { useDashboardData } from '@/features/dashboard/useDashboardData';
+import type { BreakdownItem } from '@/domain/dashboard-metrics';
 import { getWeekRange, todayIso } from '@/lib/dates';
 
 const DEFINITIONS: { term: string; detail: string }[] = [
@@ -98,6 +99,11 @@ export function DashboardPage() {
             </section>
           </div>
 
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <BreakdownCard title="Por tipo de operación" items={state.byTipo} color="bg-accent-violet" />
+            <BreakdownCard title="Por cadena" items={state.byCadena} color="bg-accent-teal" />
+          </div>
+
           {state.lineCount === 0 && (
             <div className="mt-6">
               <EmptyState
@@ -109,5 +115,40 @@ export function DashboardPage() {
         </>
       )}
     </AppLayout>
+  );
+}
+
+function BreakdownCard({
+  title,
+  items,
+  color,
+}: {
+  title: string;
+  items: BreakdownItem[];
+  color: string;
+}) {
+  return (
+    <section className="card p-5" aria-label={title}>
+      <h2 className="mb-3 text-sm font-semibold text-slate-800">{title}</h2>
+      {items.length === 0 ? (
+        <EmptyState title="Sin datos en el periodo" />
+      ) : (
+        <ul className="space-y-2">
+          {items.map((d) => (
+            <li key={d.label} className="flex items-center gap-3 text-sm">
+              <span className="w-40 truncate text-slate-600" title={d.label}>
+                {d.label}
+              </span>
+              <div className="h-2 flex-1 rounded-full bg-slate-100">
+                <div className={`h-2 rounded-full ${color}`} style={{ width: `${d.percentage}%` }} />
+              </div>
+              <span className="w-24 text-right tabular-nums text-slate-500">
+                {d.lines} · {d.requiredPieces} pz
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

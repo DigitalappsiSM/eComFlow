@@ -47,6 +47,8 @@ export interface AppSettings {
   allowed_file_extensions: string[];
   max_file_size: number;
   pagination_size: number;
+  /** Clasificación personalizada Artículo(clave normalizada) → tipo de operación. */
+  articulo_tipos?: Record<string, string>;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {

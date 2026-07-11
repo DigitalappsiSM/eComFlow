@@ -57,6 +57,7 @@ export interface RowPlan {
     cadena?: string;
     lineaCampana?: string;
     requiredPieces?: number;
+    tipoOperacion?: string | null;
   };
 }
 

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { getWeekRange, todayIso, type DateRange } from '@/lib/dates';
 import {
   computeDashboardMetrics,
+  computeLineBreakdown,
   computePlacementDistribution,
+  type BreakdownItem,
   type DashboardMetrics,
   type MetricLine,
   type PlacementDistributionItem,
@@ -16,6 +18,8 @@ type State =
       status: 'ready';
       metrics: DashboardMetrics;
       distribution: PlacementDistributionItem[];
+      byTipo: BreakdownItem[];
+      byCadena: BreakdownItem[];
       lineCount: number;
       fromCache: boolean;
     };
@@ -35,6 +39,8 @@ export function useDashboardData(period: DateRange = getWeekRange(todayIso())) {
         status: 'ready',
         metrics: computeDashboardMetrics(lines, period),
         distribution: computePlacementDistribution(lines, period),
+        byTipo: computeLineBreakdown(lines, period, (l) => l.tipoOperacion ?? '(sin clasificar)'),
+        byCadena: computeLineBreakdown(lines, period, (l) => l.cadena ?? '(sin cadena)'),
         lineCount: lines.length,
         fromCache: false,
       });

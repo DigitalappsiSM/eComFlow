@@ -25,6 +25,9 @@ export interface MetricLine {
   active: boolean;
   /** Piezas requeridas obligatorias aplicables a esta línea (§15, §36). */
   requiredPieces: number;
+  /** Dimensiones de retail media (plantilla Ekon). */
+  tipoOperacion?: string | null;
+  cadena?: string | null;
 }
 
 export interface DashboardMetrics {
@@ -116,6 +119,39 @@ export function computePlacementDistribution(
   }));
 
   return items.sort((a, b) => b.spaces - a.spaces);
+}
+
+/** Desglose por una dimensión (tipo de operación, cadena) sobre líneas activas. */
+export interface BreakdownItem {
+  label: string;
+  lines: number;
+  requiredPieces: number;
+  percentage: number;
+}
+
+export function computeLineBreakdown(
+  lines: readonly MetricLine[],
+  period: DateRange,
+  keyOf: (line: MetricLine) => string,
+): BreakdownItem[] {
+  const active = filterActiveInPeriod(lines, period);
+  const byKey = new Map<string, { lines: number; pieces: number }>();
+  for (const l of active) {
+    const k = keyOf(l) || '(sin dato)';
+    const cur = byKey.get(k) ?? { lines: 0, pieces: 0 };
+    cur.lines += 1;
+    cur.pieces += l.requiredPieces;
+    byKey.set(k, cur);
+  }
+  const total = active.length;
+  return Array.from(byKey.entries())
+    .map(([label, v]) => ({
+      label,
+      lines: v.lines,
+      requiredPieces: v.pieces,
+      percentage: total === 0 ? 0 : Math.round((v.lines / total) * 100),
+    }))
+    .sort((a, b) => b.lines - a.lines);
 }
 
 /** Evento mínimo de auditoría para "trabajadas" (§38). */

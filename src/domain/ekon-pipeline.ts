@@ -11,6 +11,7 @@
 import { buildIdentity } from './identity';
 import { normalizeSlugKey } from './normalization';
 import { classifyRow } from './import-classification';
+import type { TipoClassifier } from './articulo-tipos';
 import type {
   ImportPlan,
   ImportStoreLookup,
@@ -47,7 +48,12 @@ export function ekonPlacementName(cadena: string, articulo: string): string {
   return `${cadena.trim()} / ${articulo.trim()}`;
 }
 
-function buildRowPlan(rowNumber: number, raw: Record<string, string>, n: EkonNormalizedRow): RowPlan {
+function buildRowPlan(
+  rowNumber: number,
+  raw: Record<string, string>,
+  n: EkonNormalizedRow,
+  classifier?: TipoClassifier,
+): RowPlan {
   const placementId = ekonPlacementId(n.cadena, n.articulo);
   const identity = buildIdentity({
     cliente: n.cliente,
@@ -84,6 +90,7 @@ function buildRowPlan(rowNumber: number, raw: Record<string, string>, n: EkonNor
       cadena: n.cadena,
       lineaCampana: n.lineaCampana,
       requiredPieces: n.numSoportes,
+      tipoOperacion: classifier ? classifier.resolve(n.articulo) : null,
     },
   };
 }
@@ -92,6 +99,7 @@ export async function buildEkonImportPlan(
   headers: readonly string[],
   rawRows: readonly Record<string, string>[],
   store: ImportStoreLookup,
+  classifier?: TipoClassifier,
 ): Promise<ImportPlan> {
   const headerCheck = validateEkonHeaders(headers);
   if (!headerCheck.ok) {
@@ -122,7 +130,7 @@ export async function buildEkonImportPlan(
       });
       return;
     }
-    const plan = buildRowPlan(rowNumber, raw, mapped.normalized);
+    const plan = buildRowPlan(rowNumber, raw, mapped.normalized, classifier);
     const key = plan.identity!.campaignLineKey;
     if (byLineKey.has(key)) {
       mergedRows += 1; // material adicional de una línea ya vista

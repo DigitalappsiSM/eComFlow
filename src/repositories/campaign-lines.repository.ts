@@ -31,6 +31,8 @@ function toMetricLine(line: CampaignLine): MetricLine {
     isCurrent: line.is_current,
     active: line.active,
     requiredPieces: line.required_pieces ?? 0,
+    tipoOperacion: (line as { tipo_operacion?: string | null }).tipo_operacion ?? null,
+    cadena: (line as { cadena?: string | null }).cadena ?? null,
   };
 }
 

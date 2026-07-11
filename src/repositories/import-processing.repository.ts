@@ -290,6 +290,7 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
       row.extra?.placementName ?? ctx.catalog.names.get(placementId) ?? placementId;
     const cadena = row.extra?.cadena ?? null;
     const lineaCampana = row.extra?.lineaCampana ?? null;
+    const tipoOperacion = row.extra?.tipoOperacion ?? null;
 
     const createsGroup = row.result === 'new_campaign';
     const createsSpace = row.result === 'new_campaign' || row.result === 'new_space';
@@ -387,6 +388,7 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
           placement_id: placementId,
           placement_name_snapshot: placementName,
           cadena,
+          tipo_operacion: tipoOperacion,
           linea_campana: lineaCampana,
           fecha_fijacion: n.fechaFijacionIso,
           fecha_retirada: n.fechaRetiradaIso,

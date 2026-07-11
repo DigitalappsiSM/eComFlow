@@ -2,10 +2,16 @@ import { useCallback, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { isOnline } from '@/lib/connectivity';
 import { loadFile, validateFileMeta, type LoadedFile } from '@/lib/file-reader';
-import { extractSingleTable } from '@/lib/excel';
+import { extractSingleTable, type ExtractedTable } from '@/lib/excel';
 import { buildImportPlan, type ImportPlan } from '@/domain/import-pipeline';
 import { buildEkonImportPlan } from '@/domain/ekon-pipeline';
-import { validateEkonHeaders } from '@/schemas/ekon.schema';
+import { validateEkonHeaders, EKON_COLUMNS } from '@/schemas/ekon.schema';
+import {
+  articuloKey,
+  availableTipos,
+  buildTipoClassifier,
+  unclassifiedArticulos,
+} from '@/domain/articulo-tipos';
 import { buildPlacementIndex } from '@/domain/placement-index';
 import { fetchPlacements } from '@/repositories/placements.repository';
 import {
@@ -15,6 +21,7 @@ import {
   runImport,
   type RunImportResult,
 } from '@/repositories/import-processing.repository';
+import { fetchArticuloTipos, saveArticuloTipos } from '@/repositories/settings.repository';
 import { DEFAULT_APP_SETTINGS } from '@/types/operations';
 import type { ImportScope } from '@/types/import';
 
@@ -28,6 +35,14 @@ export type ImportState =
   | { step: 'idle' }
   | { step: 'reading' }
   | { step: 'rejected'; reason: string }
+  | {
+      step: 'classify';
+      file: LoadedFile;
+      table: ExtractedTable;
+      unknown: string[];
+      tipos: string[];
+      customMap: Record<string, string>;
+    }
   | { step: 'preview'; file: LoadedFile; plan: ImportPlan; alreadyImported: boolean }
   | { step: 'confirming'; progress: ImportProgress }
   | { step: 'done'; result: RunImportResult }
@@ -48,62 +63,120 @@ export function useImport() {
 
   const reset = useCallback(() => setState({ step: 'idle' }), []);
 
-  const selectFile = useCallback(async (file: File) => {
-    if (!isOnline()) {
-      setState({
-        step: 'rejected',
-        reason: 'No hay conexión. No se puede iniciar una importación sin conexión (§29).',
-      });
-      return;
-    }
-
-    const meta = validateFileMeta(
-      file,
-      DEFAULT_APP_SETTINGS.allowed_file_extensions,
-      DEFAULT_APP_SETTINGS.max_file_size,
-    );
-    if (!meta.ok) {
-      setState({ step: 'rejected', reason: meta.reason ?? 'Archivo no válido.' });
-      return;
-    }
-
-    setState({ step: 'reading' });
-    try {
-      const loaded = await loadFile(file);
-      const table = extractSingleTable(loaded.buffer);
-      if (!table.ok) {
-        setState({ step: 'rejected', reason: table.reason });
-        return;
-      }
-
+  /** Construye el plan Ekon con el clasificador dado y pasa a vista previa. */
+  const ekonPreview = useCallback(
+    async (loaded: LoadedFile, table: ExtractedTable, customMap: Record<string, string>) => {
+      const classifier = buildTipoClassifier(customMap);
       const lookup = buildFirestoreLookup();
-      const isEkon = validateEkonHeaders(table.table.headers).ok;
-
-      let plan: ImportPlan;
-      if (isEkon) {
-        // Plantilla Ekon (archivo operativo real): no requiere catálogo.
-        plan = await buildEkonImportPlan(table.table.headers, table.table.rows, lookup);
-      } else {
-        // Plantilla de la especificación (§11): resuelve placement por catálogo.
-        const placements = await fetchPlacements();
-        const index = buildPlacementIndex(placements);
-        plan = await buildImportPlan(table.table.headers, table.table.rows, index, lookup);
-      }
+      const plan = await buildEkonImportPlan(table.headers, table.rows, lookup, classifier);
       const alreadyImported = await findImportByFileHash(loaded.hash);
-
       if (plan.generalRejection) {
         setState({ step: 'rejected', reason: plan.generalRejection });
         return;
       }
-
       setState({ step: 'preview', file: loaded, plan, alreadyImported });
-    } catch (err) {
-      setState({
-        step: 'error',
-        message: err instanceof Error ? err.message : 'Error al leer el archivo.',
-      });
-    }
-  }, []);
+    },
+    [],
+  );
+
+  const selectFile = useCallback(
+    async (file: File) => {
+      if (!isOnline()) {
+        setState({
+          step: 'rejected',
+          reason: 'No hay conexión. No se puede iniciar una importación sin conexión (§29).',
+        });
+        return;
+      }
+
+      const meta = validateFileMeta(
+        file,
+        DEFAULT_APP_SETTINGS.allowed_file_extensions,
+        DEFAULT_APP_SETTINGS.max_file_size,
+      );
+      if (!meta.ok) {
+        setState({ step: 'rejected', reason: meta.reason ?? 'Archivo no válido.' });
+        return;
+      }
+
+      setState({ step: 'reading' });
+      try {
+        const loaded = await loadFile(file);
+        const table = extractSingleTable(loaded.buffer);
+        if (!table.ok) {
+          setState({ step: 'rejected', reason: table.reason });
+          return;
+        }
+
+        const isEkon = validateEkonHeaders(table.table.headers).ok;
+        if (isEkon) {
+          // Detectar artículos sin clasificar ANTES de continuar.
+          const customMap = await fetchArticuloTipos();
+          const classifier = buildTipoClassifier(customMap);
+          const articulos = table.table.rows.map((r) => r[EKON_COLUMNS.articulo] ?? '');
+          const unknown = unclassifiedArticulos(articulos, classifier);
+          if (unknown.length > 0) {
+            setState({
+              step: 'classify',
+              file: loaded,
+              table: table.table,
+              unknown,
+              tipos: availableTipos(customMap),
+              customMap,
+            });
+            return;
+          }
+          await ekonPreview(loaded, table.table, customMap);
+          return;
+        }
+
+        // Plantilla de la especificación (§11): resuelve placement por catálogo.
+        const placements = await fetchPlacements();
+        const index = buildPlacementIndex(placements);
+        const lookup = buildFirestoreLookup();
+        const plan = await buildImportPlan(table.table.headers, table.table.rows, index, lookup);
+        const alreadyImported = await findImportByFileHash(loaded.hash);
+        if (plan.generalRejection) {
+          setState({ step: 'rejected', reason: plan.generalRejection });
+          return;
+        }
+        setState({ step: 'preview', file: loaded, plan, alreadyImported });
+      } catch (err) {
+        setState({
+          step: 'error',
+          message: err instanceof Error ? err.message : 'Error al leer el archivo.',
+        });
+      }
+    },
+    [ekonPreview],
+  );
+
+  /** Guarda las clasificaciones de artículos nuevos y continúa a vista previa. */
+  const classifyAndContinue = useCallback(
+    async (assignments: Record<string, string>) => {
+      if (state.step !== 'classify') return;
+      if (!firebaseUser) {
+        setState({ step: 'error', message: 'Sesión no válida.' });
+        return;
+      }
+      const { file, table } = state;
+      setState({ step: 'reading' });
+      try {
+        const newEntries: Record<string, string> = {};
+        for (const [articulo, tipo] of Object.entries(assignments)) {
+          newEntries[articuloKey(articulo)] = tipo;
+        }
+        const merged = await saveArticuloTipos(newEntries, { uid: firebaseUser.uid });
+        await ekonPreview(file, table, merged);
+      } catch (err) {
+        setState({
+          step: 'error',
+          message: err instanceof Error ? err.message : 'Error al guardar la clasificación.',
+        });
+      }
+    },
+    [state, firebaseUser, ekonPreview],
+  );
 
   const confirm = useCallback(
     async (scope: ImportScope = DEFAULT_SCOPE) => {
@@ -142,5 +215,5 @@ export function useImport() {
     [state, firebaseUser, appUser],
   );
 
-  return { state, selectFile, confirm, reset };
+  return { state, selectFile, confirm, classifyAndContinue, reset };
 }
