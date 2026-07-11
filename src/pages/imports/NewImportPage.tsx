@@ -131,6 +131,13 @@ export function NewImportPage() {
               <Stat label="Cambios creat." value={state.plan.summary.creativity_changes} />
             </div>
 
+            {typeof state.plan.mergedRows === 'number' && state.plan.mergedRows > 0 && (
+              <p className="mt-3 text-xs text-slate-500">
+                {state.plan.mergedRows} fila(s) de material se agruparon en su línea operativa
+                correspondiente (misma Creatividad Id).
+              </p>
+            )}
+
             {state.alreadyImported && (
               <label className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
                 <input

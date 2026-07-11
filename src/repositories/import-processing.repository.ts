@@ -282,8 +282,14 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
       ctx.catalog.requirements.get(placementId) ?? [],
       n.fechaFijacionIso,
     );
-    const requiredPieces = applicable.filter((r) => r.obligatorio).length;
-    const placementName = ctx.catalog.names.get(placementId) ?? placementId;
+    // Piezas: si la plantilla las trae (Ekon → Nº Soportes) se usan; si no, se
+    // cuentan los requisitos obligatorios aplicables del catálogo.
+    const requiredPieces =
+      row.extra?.requiredPieces ?? applicable.filter((r) => r.obligatorio).length;
+    const placementName =
+      row.extra?.placementName ?? ctx.catalog.names.get(placementId) ?? placementId;
+    const cadena = row.extra?.cadena ?? null;
+    const lineaCampana = row.extra?.lineaCampana ?? null;
 
     const createsGroup = row.result === 'new_campaign';
     const createsSpace = row.result === 'new_campaign' || row.result === 'new_space';
@@ -324,6 +330,7 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
           campaign_space_key_raw: id.campaignSpaceKeyRaw,
           placement_id: placementId,
           placement_name_snapshot: placementName,
+          cadena,
           fecha_fijacion: n.fechaFijacionIso,
           fecha_retirada: n.fechaRetiradaIso,
           creatividad_titulo_original: n.creatividadTitulo,
@@ -379,6 +386,8 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
           numero_campaña_original: n.numeroCampana,
           placement_id: placementId,
           placement_name_snapshot: placementName,
+          cadena,
+          linea_campana: lineaCampana,
           fecha_fijacion: n.fechaFijacionIso,
           fecha_retirada: n.fechaRetiradaIso,
           creatividad_titulo_original: n.creatividadTitulo,

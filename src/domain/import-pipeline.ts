@@ -51,6 +51,13 @@ export interface RowPlan {
   existingGroupId?: string | null;
   existingSpaceId?: string | null;
   existingLineId?: string | null;
+  /** Datos adicionales específicos de plantilla (p. ej. Ekon). */
+  extra?: {
+    placementName?: string;
+    cadena?: string;
+    lineaCampana?: string;
+    requiredPieces?: number;
+  };
 }
 
 export interface ImportSummary {
@@ -70,6 +77,8 @@ export interface ImportPlan {
   generalRejection: string | null;
   rows: RowPlan[];
   summary: ImportSummary;
+  /** Filas de material agrupadas en una misma línea (plantilla Ekon). */
+  mergedRows?: number;
 }
 
 function rejectRow(

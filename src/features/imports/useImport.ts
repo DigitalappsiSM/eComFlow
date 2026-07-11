@@ -4,6 +4,8 @@ import { isOnline } from '@/lib/connectivity';
 import { loadFile, validateFileMeta, type LoadedFile } from '@/lib/file-reader';
 import { extractSingleTable } from '@/lib/excel';
 import { buildImportPlan, type ImportPlan } from '@/domain/import-pipeline';
+import { buildEkonImportPlan } from '@/domain/ekon-pipeline';
+import { validateEkonHeaders } from '@/schemas/ekon.schema';
 import { buildPlacementIndex } from '@/domain/placement-index';
 import { fetchPlacements } from '@/repositories/placements.repository';
 import {
@@ -74,13 +76,20 @@ export function useImport() {
         return;
       }
 
-      const placements = await fetchPlacements();
-      const index = buildPlacementIndex(placements);
       const lookup = buildFirestoreLookup();
-      const [plan, alreadyImported] = await Promise.all([
-        buildImportPlan(table.table.headers, table.table.rows, index, lookup),
-        findImportByFileHash(loaded.hash),
-      ]);
+      const isEkon = validateEkonHeaders(table.table.headers).ok;
+
+      let plan: ImportPlan;
+      if (isEkon) {
+        // Plantilla Ekon (archivo operativo real): no requiere catálogo.
+        plan = await buildEkonImportPlan(table.table.headers, table.table.rows, lookup);
+      } else {
+        // Plantilla de la especificación (§11): resuelve placement por catálogo.
+        const placements = await fetchPlacements();
+        const index = buildPlacementIndex(placements);
+        plan = await buildImportPlan(table.table.headers, table.table.rows, index, lookup);
+      }
+      const alreadyImported = await findImportByFileHash(loaded.hash);
 
       if (plan.generalRejection) {
         setState({ step: 'rejected', reason: plan.generalRejection });
