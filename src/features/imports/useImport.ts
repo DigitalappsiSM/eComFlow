@@ -57,6 +57,16 @@ const DEFAULT_SCOPE: ImportScope = {
   is_complete_scope: false,
 };
 
+/** Etiqueta el origen de un error para diagnosticar permisos/índices. */
+async function labeled<T>(phase: string, p: Promise<T>): Promise<T> {
+  try {
+    return await p;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`[${phase}] ${msg}`);
+  }
+}
+
 export function useImport() {
   const { appUser, firebaseUser } = useAuth();
   const [state, setState] = useState<ImportState>({ step: 'idle' });
@@ -68,8 +78,14 @@ export function useImport() {
     async (loaded: LoadedFile, table: ExtractedTable, customMap: Record<string, string>) => {
       const classifier = buildTipoClassifier(customMap);
       const lookup = buildFirestoreLookup();
-      const plan = await buildEkonImportPlan(table.headers, table.rows, lookup, classifier);
-      const alreadyImported = await findImportByFileHash(loaded.hash);
+      const plan = await labeled(
+        'comparar con Firestore (campaign_groups/spaces/lines)',
+        buildEkonImportPlan(table.headers, table.rows, lookup, classifier),
+      );
+      const alreadyImported = await labeled(
+        'verificar file_hash (imports)',
+        findImportByFileHash(loaded.hash),
+      );
       if (plan.generalRejection) {
         setState({ step: 'rejected', reason: plan.generalRejection });
         return;
@@ -111,7 +127,7 @@ export function useImport() {
         const isEkon = validateEkonHeaders(table.table.headers).ok;
         if (isEkon) {
           // Detectar artículos sin clasificar ANTES de continuar.
-          const customMap = await fetchArticuloTipos();
+          const customMap = await labeled('leer configuración (app_settings)', fetchArticuloTipos());
           const classifier = buildTipoClassifier(customMap);
           const articulos = table.table.rows.map((r) => r[EKON_COLUMNS.articulo] ?? '');
           const unknown = unclassifiedArticulos(articulos, classifier);
