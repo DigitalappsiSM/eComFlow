@@ -47,6 +47,18 @@ export function ProtectedRoute({
             Su cuenta no tiene un perfil activo en el sistema. Solicite a un administrador que
             cree o active su documento <code>users/&#123;uid&#125;</code> en Firestore.
           </p>
+          <div className="mt-4 rounded-lg bg-slate-50 p-3 text-left text-xs text-slate-600">
+            <p>
+              <span className="font-semibold">Sesión:</span> {firebaseUser.email}
+            </p>
+            <p className="mt-1 break-all">
+              <span className="font-semibold">UID:</span> <code>{firebaseUser.uid}</code>
+            </p>
+            <p className="mt-2 text-slate-400">
+              El documento <code>users/&#123;UID&#125;</code> en Firestore debe tener exactamente
+              este UID como ID, con <code>active: true</code> (boolean).
+            </p>
+          </div>
         </div>
       </FullScreen>
     );
