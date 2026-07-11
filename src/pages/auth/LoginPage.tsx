@@ -1,13 +1,19 @@
 import { useState, type FormEvent } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
 /** Inicio de sesión con correo y contraseña (§27, Fase 1). */
 export function LoginPage() {
-  const { signIn, configError } = useAuth();
+  const { signIn, configError, firebaseUser, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Sesión ya iniciada: redirigir al dashboard en lugar de quedarse en login.
+  if (!loading && firebaseUser) {
+    return <Navigate to="/" replace />;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
