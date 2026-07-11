@@ -189,6 +189,9 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
     status: 'processing' as const,
     uploaded_at: now(),
     uploaded_by: user.uid,
+    // created_by/created_at requeridos por las reglas (createdByIsCaller).
+    created_by: user.uid,
+    created_at: now(),
     total_rows: plan.summary.total,
     valid_rows: plan.summary.valid,
     new_campaigns: plan.summary.new_campaigns,
@@ -245,6 +248,12 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
     });
   };
 
+  // Deduplicación dentro de la importación: muchas filas comparten el mismo
+  // grupo/espacio (IDs deterministas). Cada documento se escribe UNA sola vez
+  // para no reenviar created_at y violar immutableCreation en la 2ª escritura.
+  const touchedGroups = new Set<string>();
+  const touchedSpaces = new Set<string>();
+
   for (const row of plan.rows) {
     // import_rows: SIEMPRE (incluye rechazos) con id determinista.
     const importRowId = `${importId}__${row.rowNumber}`;
@@ -300,7 +309,8 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
       row.result === 'new_line' ||
       row.result === 'creativity_change';
 
-    if (createsGroup) {
+    if (createsGroup && !touchedGroups.has(id.campaignGroupKey)) {
+      touchedGroups.add(id.campaignGroupKey);
       ops.push({
         kind: 'set',
         path: [COLLECTIONS.campaignGroups, id.campaignGroupKey],
@@ -321,34 +331,38 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
     }
 
     if (createsSpace) {
-      ops.push({
-        kind: 'set',
-        path: [COLLECTIONS.campaignSpaces, id.campaignSpaceKey],
-        data: {
-          campaign_space_id: id.campaignSpaceKey,
-          campaign_group_id: id.campaignGroupKey,
-          campaign_space_key: id.campaignSpaceKey,
-          campaign_space_key_raw: id.campaignSpaceKeyRaw,
-          placement_id: placementId,
-          placement_name_snapshot: placementName,
-          cadena,
-          fecha_fijacion: n.fechaFijacionIso,
-          fecha_retirada: n.fechaRetiradaIso,
-          creatividad_titulo_original: n.creatividadTitulo,
-          creatividad_titulo_key: id.creatividadTituloKey,
-          creatividad_descripcion_original: n.creatividadDescripcion,
-          creatividad_descripcion_key: id.creatividadDescripcionKey,
-          anunciante: n.anunciante,
-          active: true,
-          present_in_latest_import: true,
-          first_seen_at: now(),
-          last_seen_at: now(),
-          ...audit(),
-        },
-      });
-      changeHistory('campaign_space', id.campaignSpaceKey, 'created', row, null, null, id.campaignSpaceKeyRaw);
-    } else {
-      // Espacio existente: refrescar presencia y, si cambió, la retirada.
+      if (!touchedSpaces.has(id.campaignSpaceKey)) {
+        touchedSpaces.add(id.campaignSpaceKey);
+        ops.push({
+          kind: 'set',
+          path: [COLLECTIONS.campaignSpaces, id.campaignSpaceKey],
+          data: {
+            campaign_space_id: id.campaignSpaceKey,
+            campaign_group_id: id.campaignGroupKey,
+            campaign_space_key: id.campaignSpaceKey,
+            campaign_space_key_raw: id.campaignSpaceKeyRaw,
+            placement_id: placementId,
+            placement_name_snapshot: placementName,
+            cadena,
+            fecha_fijacion: n.fechaFijacionIso,
+            fecha_retirada: n.fechaRetiradaIso,
+            creatividad_titulo_original: n.creatividadTitulo,
+            creatividad_titulo_key: id.creatividadTituloKey,
+            creatividad_descripcion_original: n.creatividadDescripcion,
+            creatividad_descripcion_key: id.creatividadDescripcionKey,
+            anunciante: n.anunciante,
+            active: true,
+            present_in_latest_import: true,
+            first_seen_at: now(),
+            last_seen_at: now(),
+            ...audit(),
+          },
+        });
+        changeHistory('campaign_space', id.campaignSpaceKey, 'created', row, null, null, id.campaignSpaceKeyRaw);
+      }
+    } else if (!touchedSpaces.has(id.campaignSpaceKey)) {
+      // Espacio existente en Firestore: refrescar presencia/retirada una vez.
+      touchedSpaces.add(id.campaignSpaceKey);
       ops.push({
         kind: 'update',
         path: [COLLECTIONS.campaignSpaces, id.campaignSpaceKey],
