@@ -6,8 +6,8 @@ import {
   Activity,
   CheckCircle2,
   Clock,
-  Gauge,
   Timer,
+  Image,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { KpiCard } from '@/components/dashboard/KpiCard';
@@ -16,10 +16,11 @@ import { FilterBar } from '@/components/filters/FilterBar';
 import { distinctOptions, sortedOptions, type FilterValues } from '@/components/filters/filter-utils';
 import { useDashboardData } from '@/features/dashboard/useDashboardData';
 import {
+  AvgProgressByClientBar,
   CheckBottleneckBar,
-  ComplianceByClientBar,
-  ComplianceByPeriodBar,
   ComplianceDonut,
+  ComplianceStackedByClient,
+  ComplianceStackedByPeriod,
 } from '@/components/dashboard/DashboardCharts';
 import {
   complianceStatusOf,
@@ -54,12 +55,12 @@ const COMPLIANCE_LABEL: Record<ComplianceStatus, string> = {
 };
 
 const DEFINITIONS: { term: string; detail: string }[] = [
+  { term: 'Avance', detail: 'Promedio del % de checks obligatorios completos por línea.' },
   { term: 'Cumplida', detail: 'Todos los checks obligatorios de la línea están completos.' },
-  { term: 'A tiempo', detail: 'Se completó a más tardar al fin de su periodo operativo.' },
-  { term: 'En riesgo', detail: 'El periodo ya venció y la línea sigue incompleta (SLA incumplido).' },
+  { term: 'En riesgo', detail: 'El periodo ya venció y la línea sigue incompleta.' },
   { term: 'En proceso', detail: 'El periodo está en curso y la línea aún no se completa.' },
-  { term: '% Cumplimiento', detail: 'Líneas cumplidas ÷ total de líneas del grupo.' },
-  { term: '% A tiempo', detail: 'Líneas completadas a tiempo ÷ líneas cuyo periodo ya venció.' },
+  { term: 'Futura', detail: 'El periodo aún no comienza.' },
+  { term: '% A tiempo', detail: 'Líneas completadas antes del fin de su periodo ÷ líneas ya vencidas.' },
   { term: 'Checks obligatorios', detail: 'DIGITAL SIGNAGE solo exige Artes; el resto, los 7 checks.' },
 ];
 
@@ -157,28 +158,28 @@ export function DashboardPage() {
           />
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-            <KpiCard label="% Cumplimiento" value={`${summary.cumplimientoPct}%`} icon={Gauge} accent={accentForPct(summary.cumplimientoPct)} />
-            <KpiCard label="% A tiempo" value={`${summary.aTiempoPct}%`} icon={Timer} accent={accentForPct(summary.aTiempoPct)} />
+            <KpiCard label="Avance prom." value={`${summary.avgProgress}%`} icon={Activity} accent={accentForPct(summary.avgProgress)} />
             <KpiCard label="En riesgo" value={summary.enRiesgo} icon={AlertTriangle} accent="red" />
-            <KpiCard label="Avance prom." value={`${summary.avgProgress}%`} icon={Activity} accent="blue" />
-            <KpiCard label="Cumplidas" value={summary.cumplidas} icon={CheckCircle2} accent="green" />
             <KpiCard label="En proceso" value={summary.enProceso} icon={Clock} accent="violet" />
-            <KpiCard label="Clientes" value={clientes} icon={Users} accent="teal" />
-            <KpiCard label="Periodos" value={periodos} icon={CalendarRange} accent="blue" />
+            <KpiCard label="Cumplidas" value={summary.cumplidas} icon={CheckCircle2} accent="green" />
+            <KpiCard label="% A tiempo" value={`${summary.aTiempoPct}%`} icon={Timer} accent={accentForPct(summary.aTiempoPct)} />
+            <KpiCard label="Líneas" value={summary.total} icon={Image} accent="teal" />
+            <KpiCard label="Clientes" value={clientes} icon={Users} accent="blue" />
+            <KpiCard label="Periodos" value={periodos} icon={CalendarRange} accent="orange" />
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <ChartCard
-              title="Cumplimiento por cliente"
-              subtitle="% de líneas cumplidas (peor primero, top 10)"
+              title="Estado por cliente"
+              subtitle="Líneas por estado (top 10, mayor riesgo primero)"
               isEmpty={byClient.length === 0}
               className="lg:col-span-2"
             >
-              <ComplianceByClientBar data={byClient} />
+              <ComplianceStackedByClient data={byClient} />
             </ChartCard>
             <ChartCard
               title="Semáforo de cumplimiento"
-              subtitle="Cumplidas / En riesgo / En proceso / Futuras"
+              subtitle="Cumplidas / En proceso / En riesgo / Futuras"
               isEmpty={summary.total === 0}
             >
               <ComplianceDonut summary={summary} />
@@ -187,12 +188,12 @@ export function DashboardPage() {
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <ChartCard
-              title="Cumplimiento por periodo"
-              subtitle="% de líneas cumplidas por semana / catorcena"
+              title="Estado por periodo"
+              subtitle="Líneas por estado en cada semana / catorcena"
               isEmpty={byPeriod.length === 0}
               className="lg:col-span-2"
             >
-              <ComplianceByPeriodBar data={byPeriod} />
+              <ComplianceStackedByPeriod data={byPeriod} />
             </ChartCard>
             <ChartCard
               title="Cuellos de botella"
@@ -205,55 +206,14 @@ export function DashboardPage() {
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <section className="card overflow-hidden p-0 lg:col-span-2" aria-labelledby="detail-heading">
-              <div className="border-b border-slate-100 p-5">
-                <h2 id="detail-heading" className="text-sm font-semibold text-slate-800">
-                  Detalle de cumplimiento
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Por cliente · periodo · tipo (mayor riesgo primero)
-                </p>
-              </div>
-              {detail.length === 0 ? (
-                <EmptyState title="Sin líneas" description="No hay líneas para el filtro actual." />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[680px] text-sm">
-                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                      <tr>
-                        <th className="px-4 py-2 font-medium">Cliente</th>
-                        <th className="px-4 py-2 font-medium">Periodo</th>
-                        <th className="px-4 py-2 font-medium">Tipo</th>
-                        <th className="px-4 py-2 text-right font-medium">Total</th>
-                        <th className="px-4 py-2 text-right font-medium">Cumplidas</th>
-                        <th className="px-4 py-2 text-right font-medium">% Cumpl.</th>
-                        <th className="px-4 py-2 text-right font-medium">En riesgo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.slice(0, 14).map((r) => (
-                        <tr key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="border-t border-slate-100">
-                          <td className="max-w-52 truncate px-4 py-2 font-medium text-slate-700" title={r.cliente}>
-                            {r.cliente}
-                          </td>
-                          <td className="px-4 py-2 text-slate-600">{r.periodo}</td>
-                          <td className="px-4 py-2 text-slate-600">{r.tipo}</td>
-                          <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.total}</td>
-                          <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.cumplidas}</td>
-                          <td className="px-4 py-2 text-right">
-                            <CompliancePct pct={r.cumplimientoPct} />
-                          </td>
-                          <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600">
-                            {r.enRiesgo || <span className="text-slate-300">—</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
+            <ChartCard
+              title="Avance por cliente"
+              subtitle="Avance promedio de checks (%), menor primero"
+              isEmpty={byClient.length === 0}
+              className="lg:col-span-2"
+            >
+              <AvgProgressByClientBar data={byClient} />
+            </ChartCard>
             <section className="card p-5" aria-labelledby="defs-heading">
               <h2 id="defs-heading" className="mb-3 text-sm font-semibold text-slate-800">
                 Definiciones
@@ -268,6 +228,53 @@ export function DashboardPage() {
               </dl>
             </section>
           </div>
+
+          <section className="card mt-6 overflow-hidden p-0" aria-labelledby="detail-heading">
+            <div className="border-b border-slate-100 p-5">
+              <h2 id="detail-heading" className="text-sm font-semibold text-slate-800">
+                Detalle de cumplimiento
+              </h2>
+              <p className="text-xs text-slate-400">Por cliente · periodo · tipo (mayor riesgo primero)</p>
+            </div>
+            {detail.length === 0 ? (
+              <EmptyState title="Sin líneas" description="No hay líneas para el filtro actual." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Cliente</th>
+                      <th className="px-4 py-2 font-medium">Periodo</th>
+                      <th className="px-4 py-2 font-medium">Tipo</th>
+                      <th className="px-4 py-2 text-right font-medium">Total</th>
+                      <th className="px-4 py-2 text-right font-medium">Cumplidas</th>
+                      <th className="px-4 py-2 text-right font-medium">% Cumpl.</th>
+                      <th className="px-4 py-2 text-right font-medium">En riesgo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.slice(0, 16).map((r) => (
+                      <tr key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="border-t border-slate-100">
+                        <td className="max-w-52 truncate px-4 py-2 font-medium text-slate-700" title={r.cliente}>
+                          {r.cliente}
+                        </td>
+                        <td className="px-4 py-2 text-slate-600">{r.periodo}</td>
+                        <td className="px-4 py-2 text-slate-600">{r.tipo}</td>
+                        <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.total}</td>
+                        <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.cumplidas}</td>
+                        <td className="px-4 py-2 text-right">
+                          <CompliancePct pct={r.cumplimientoPct} />
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600">
+                          {r.enRiesgo || <span className="text-slate-300">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
 
           {lines.length === 0 && (
             <div className="mt-6">

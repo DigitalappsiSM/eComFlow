@@ -38,14 +38,18 @@ Además del alcance de la especificación, se adaptó a los **datos reales**:
 - **Filtros dinámicos** (Periodo, Cadena, Tipo, Cliente, Estado + búsqueda) en
   Dashboard y Seguimiento operativo.
 - **Dashboard de cumplimiento operativo**: estatus REAL basado en el avance de
-  checks (une líneas con sus operaciones). KPIs de **% cumplimiento**, **% a
-  tiempo**, **en riesgo**, avance promedio; gráficos Recharts (cumplimiento por
-  cliente y por periodo, semáforo Cumplida/En riesgo/En proceso/Futura, cuellos
-  de botella por check) y tabla de detalle por cliente·periodo·tipo. Ver
+  checks (une líneas con sus operaciones). KPIs de avance promedio, en riesgo, en
+  proceso, cumplidas y % a tiempo; gráficos Recharts con **conteos apilados por
+  estado** (por cliente y por periodo), avance por cliente, semáforo y cuellos de
+  botella por check, más tabla de detalle. Ver
   [`docs/dashboard-operativo.md`](docs/dashboard-operativo.md).
+- **Correo de especificaciones Ecommerce** (`/campanas`): generador
+  **filtro-primero** que agrega líneas Ecommerce de varias campañas (por cliente,
+  periodo o fechas) y arma un correo en **HTML para Outlook** (y texto plano) con
+  medidas de un catálogo fijo. Ver [`docs/correo-ecommerce.md`](docs/correo-ecommerce.md).
 - **Reinicio de datos de prueba** oculto y protegido por interruptor.
 
-Pruebas: **98** unitarias en verde. Lint, TypeScript y build de producción limpios.
+Pruebas: **115** unitarias en verde. Lint, TypeScript y build de producción limpios.
 
 ---
 

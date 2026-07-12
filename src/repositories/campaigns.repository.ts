@@ -17,6 +17,23 @@ export async function fetchCampaignGroups(max = 100): Promise<CampaignGroup[]> {
   return snap.docs.map((d) => d.data() as CampaignGroup);
 }
 
+/**
+ * Carga las líneas actuales y activas de TODAS las campañas (sin agrupar por
+ * campaña) para el generador de correo Ecommerce filtro-primero. El filtrado por
+ * tipo de operación, cliente, periodo y fechas se hace en cliente (§54).
+ */
+export async function fetchActiveCampaignLines(max = 2000): Promise<CampaignLine[]> {
+  const db = requireDb();
+  const q = query(
+    collection(db, COLLECTIONS.campaignLines),
+    where('active', '==', true),
+    where('is_current', '==', true),
+    limit(max),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data() as CampaignLine);
+}
+
 export interface CampaignDetail {
   group: CampaignGroup;
   spaces: CampaignSpace[];

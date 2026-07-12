@@ -51,25 +51,33 @@ todos los cálculos.
 
 ## KPIs
 
+Se muestran métricas que **siempre tienen valor** (avance y conteos), no solo el
+% de "todo completo" que en la práctica suele ser bajo.
+
 | KPI | Qué mide |
 |-----|----------|
-| **% Cumplimiento** | Líneas cumplidas ÷ total (verde ≥90, ámbar ≥60, rojo <60). |
-| **% A tiempo** | Líneas completadas a tiempo ÷ líneas cuyo periodo ya venció. |
+| **Avance prom.** | Promedio del avance de checks (0–100 %; verde ≥90, ámbar ≥60, rojo <60). |
 | **En riesgo** | Líneas vencidas aún incompletas (pendientes de cierre). |
-| **Avance prom.** | Promedio del avance de checks (0–100 %). |
-| **Cumplidas** | Nº de líneas con todos sus checks obligatorios completos. |
 | **En proceso** | Líneas en curso todavía incompletas. |
+| **Cumplidas** | Nº de líneas con todos sus checks obligatorios completos. |
+| **% A tiempo** | Líneas completadas a tiempo ÷ líneas cuyo periodo ya venció. |
+| **Líneas** | Total de líneas en el filtro actual (excluye canceladas). |
 | **Clientes** | Clientes distintos en el filtro actual. |
 | **Periodos** | Periodos (semana/catorcena) distintos en el filtro actual. |
 
 ## Gráficos y tabla (Recharts)
 
-- **Cumplimiento por cliente** — barras horizontales del % de cumplimiento,
-  **peor primero** (más riesgo / menor %), coloreadas por umbral.
-- **Semáforo de cumplimiento** — dona Cumplidas / En riesgo / En proceso / Futuras.
-- **Cumplimiento por periodo** — barras del % por semana/catorcena (cronológico).
+Las gráficas usan **conteos por estado** y **avance**, que siempre se ven —a
+diferencia de un "% cumplido" que sale vacío cuando casi nada está al 100 %.
+
+- **Estado por cliente** — barras **apiladas** con las líneas por estado
+  (Cumplidas / En proceso / En riesgo / Futuras), top 10, mayor riesgo primero.
+- **Semáforo de cumplimiento** — dona Cumplidas / En proceso / En riesgo / Futuras.
+- **Estado por periodo** — barras apiladas por semana/catorcena (cronológico).
 - **Cuellos de botella** — barras del nº de líneas con cada check obligatorio
   pendiente (dónde se atora la operación).
+- **Avance por cliente** — barras del **avance promedio (%)** por cliente, menor
+  primero, coloreadas por umbral.
 - **Detalle de cumplimiento** — tabla por Cliente · Periodo · Tipo con total,
   cumplidas, % de cumplimiento y líneas en riesgo (mayor riesgo primero).
 

@@ -2,6 +2,28 @@
 
 Registro de cambios relevantes de eComFlow Next. Fechas en formato ISO.
 
+## 2026-07-12 (iteración 2)
+
+### Dashboard: gráficas siempre visibles (rediseño)
+- Las barras de "% cumplido" salían **vacías** porque casi ninguna línea tiene
+  los 7 checks al 100 %. Se reemplazaron por **conteos apilados por estado**
+  (Cumplidas / En proceso / En riesgo / Futuras) y **avance promedio (%)**, que
+  siempre muestran datos y son más accionables.
+- Gráficas: **Estado por cliente** (apilado), **Estado por periodo** (apilado),
+  **Avance por cliente**, semáforo (dona) y cuellos de botella por check.
+- KPIs encabezados por **Avance prom.**, **En riesgo**, **En proceso**,
+  **Cumplidas**. `ComplianceStat` ahora incluye `futuras`.
+
+### Correo Ecommerce: filtro-primero, entre campañas y HTML para Outlook
+- `/campanas` deja de ser lista campaña-por-campaña: ahora es un **generador
+  filtro-primero** que agrega líneas Ecommerce de **todas** las campañas según
+  Cliente / Periodo / **rango de fechas** / Cadena / Anunciante / Artículo.
+- **Correo en HTML** con tabla estilizada (estilos en línea) para pegar directo
+  en **Outlook** (`buildEmailHtml`, copia `text/html` + `text/plain`), además del
+  **texto plano** tabulado. Vista previa visual del correo.
+- Nuevo `fetchActiveCampaignLines` (todas las campañas). Doc:
+  [`docs/correo-ecommerce.md`](docs/correo-ecommerce.md).
+
 ## 2026-07-12
 
 ### Correo de especificaciones Ecommerce (Detalle de campaña)

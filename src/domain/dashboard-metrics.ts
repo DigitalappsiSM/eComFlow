@@ -606,12 +606,16 @@ export interface ComplianceStat {
   cumplidas: number;
   enRiesgo: number;
   enProceso: number;
+  futuras: number;
   avgProgress: number;
   cumplimientoPct: number;
 }
 
+type StatAccumulator = Omit<ComplianceStat, 'key' | 'sortKey'> & { progressSum: number };
+type ComplianceGroups = Map<string, { sortKey: string; stat: StatAccumulator }>;
+
 function accumulateCompliance(
-  groups: Map<string, { sortKey: string; stat: Omit<ComplianceStat, 'key' | 'sortKey'> & { progressSum: number } }>,
+  groups: ComplianceGroups,
   key: string,
   sortKey: string,
   line: MetricLine,
@@ -620,7 +624,16 @@ function accumulateCompliance(
   if (!groups.has(key)) {
     groups.set(key, {
       sortKey,
-      stat: { total: 0, cumplidas: 0, enRiesgo: 0, enProceso: 0, avgProgress: 0, cumplimientoPct: 0, progressSum: 0 },
+      stat: {
+        total: 0,
+        cumplidas: 0,
+        enRiesgo: 0,
+        enProceso: 0,
+        futuras: 0,
+        avgProgress: 0,
+        cumplimientoPct: 0,
+        progressSum: 0,
+      },
     });
   }
   const g = groups.get(key)!;
@@ -636,12 +649,13 @@ function accumulateCompliance(
     case 'en_proceso':
       g.stat.enProceso += 1;
       break;
+    case 'pendiente_futuro':
+      g.stat.futuras += 1;
+      break;
   }
 }
 
-function finalizeCompliance(
-  groups: Map<string, { sortKey: string; stat: Omit<ComplianceStat, 'key' | 'sortKey'> & { progressSum: number } }>,
-): ComplianceStat[] {
+function finalizeCompliance(groups: ComplianceGroups): ComplianceStat[] {
   return [...groups.entries()].map(([key, { sortKey, stat }]) => ({
     key,
     sortKey,
@@ -649,6 +663,7 @@ function finalizeCompliance(
     cumplidas: stat.cumplidas,
     enRiesgo: stat.enRiesgo,
     enProceso: stat.enProceso,
+    futuras: stat.futuras,
     avgProgress: stat.total === 0 ? 0 : Math.round(stat.progressSum / stat.total),
     cumplimientoPct: stat.total === 0 ? 0 : Math.round((stat.cumplidas / stat.total) * 100),
   }));
@@ -659,7 +674,7 @@ export function computeComplianceByClient(
   lines: readonly MetricLine[],
   today: IsoDate,
 ): ComplianceStat[] {
-  const groups = new Map<string, { sortKey: string; stat: Omit<ComplianceStat, 'key' | 'sortKey'> & { progressSum: number } }>();
+  const groups: ComplianceGroups = new Map();
   for (const l of lines) {
     if (l.cancelled) continue;
     const cliente = clienteLabel(l);
@@ -675,7 +690,7 @@ export function computeComplianceByPeriod(
   lines: readonly MetricLine[],
   today: IsoDate,
 ): ComplianceStat[] {
-  const groups = new Map<string, { sortKey: string; stat: Omit<ComplianceStat, 'key' | 'sortKey'> & { progressSum: number } }>();
+  const groups: ComplianceGroups = new Map();
   for (const l of lines) {
     if (l.cancelled) continue;
     const periodo = (l.periodoOriginal ?? '').trim() || NO_PERIOD;

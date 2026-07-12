@@ -290,3 +290,59 @@ export function buildEmailText(
     'Saludos,',
   ].join('\n');
 }
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => {
+    switch (c) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      default: return '&#39;';
+    }
+  });
+}
+
+/**
+ * Arma el correo en HTML con tabla estilizada (estilos en línea) para pegarlo
+ * directo en Outlook y que conserve el formato. Mismo contenido que el texto.
+ */
+export function buildEmailHtml(
+  recipientName: string,
+  campaignId: string,
+  rows: readonly EmailRow[],
+): string {
+  const ctx = computeEmailContext(rows);
+  const periodosTexto = escapeHtml(ctx.periodos.join(', ') || EM_DASH);
+  const deadlineTexto = escapeHtml(ctx.deadlineIso ? formatDateLong(ctx.deadlineIso) : 'Por confirmar');
+  const campaignTexto = escapeHtml(campaignId || EM_DASH);
+
+  const th =
+    'padding:6px 10px;border:1px solid #cbd5e1;text-align:left;font-weight:600;white-space:nowrap;';
+  const td = 'padding:6px 10px;border:1px solid #cbd5e1;vertical-align:top;';
+
+  const headCells = EMAIL_TABLE_COLUMNS.map((c) => `<th style="${th}">${escapeHtml(c)}</th>`).join('');
+  const bodyRows = rows
+    .map((r) => {
+      const cells = emailRowCells(r).map((cell) => `<td style="${td}">${escapeHtml(cell)}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .join('');
+
+  return [
+    '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1e293b;line-height:1.5;">',
+    `<p>${escapeHtml(greeting(recipientName))}</p>`,
+    `<p>Espero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${campaignTexto} para <strong>Soriana.com</strong>, activa del ${escapeHtml(formatDateLong(ctx.inicioIso))} al ${escapeHtml(formatDateLong(ctx.finIso))}, correspondiente a los periodos ${periodosTexto}.</p>`,
+    '<p>A continuación encontrarán el detalle de las creatividades requeridas:</p>',
+    '<table role="presentation" cellspacing="0" cellpadding="0" border="1" style="border-collapse:collapse;font-size:12px;color:#1e293b;">',
+    `<thead><tr style="background:#0f2350;color:#ffffff;">${headCells}</tr></thead>`,
+    `<tbody>${bodyRows}</tbody>`,
+    '</table>',
+    `<p>📅 <strong>Fecha límite de entrega de materiales:</strong> ${deadlineTexto}</p>`,
+    '<p>Esta fecha es indispensable para asegurar la correcta implementación de su campaña. Materiales recibidos fuera de plazo podrán quedar sujetos a reprogramación.</p>',
+    '<p>📎 Adjunto encontrarán nuestra Guía de Buenas Prácticas con los requisitos técnicos que deben cumplir todos los materiales antes del envío.</p>',
+    '<p>Ante cualquier duda, con gusto les orientamos.</p>',
+    '<p>Saludos,</p>',
+    '</div>',
+  ].join('');
+}

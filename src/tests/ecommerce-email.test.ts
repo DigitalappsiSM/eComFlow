@@ -7,6 +7,7 @@ import {
 import {
   addDaysIso,
   articuloOf,
+  buildEmailHtml,
   buildEmailRows,
   buildEmailText,
   computeEmailContext,
@@ -159,5 +160,18 @@ describe('ecommerceEmail · agrupación y correo', () => {
 
   it('saludo sin nombre usa "Hola,"', () => {
     expect(buildEmailText('', '1', buildEmailRows([srcLine()]))).toContain('Hola,\n');
+  });
+
+  it('buildEmailHtml genera tabla HTML estilizada con las columnas y escapado', () => {
+    const rows = buildEmailRows([srcLine({ cliente_original: 'Marcas & Cía <SA>' })]);
+    const html = buildEmailHtml('Ana', '23353', rows);
+    expect(html).toContain('<table');
+    expect(html).toContain('<th style=');
+    expect(html).toContain('Creatividad descripción');
+    expect(html).toContain('campaña #23353 para <strong>Soriana.com</strong>');
+    expect(html).toContain('1920 x 259');
+    // Escapado seguro de HTML en el contenido dinámico.
+    expect(html).toContain('Marcas &amp; Cía &lt;SA&gt;');
+    expect(html).not.toContain('<SA>');
   });
 });

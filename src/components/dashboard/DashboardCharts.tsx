@@ -277,6 +277,80 @@ export function ComplianceByPeriodBar({ data }: { data: ComplianceStat[] }) {
   );
 }
 
+const STACK_SERIES = [
+  { key: 'cumplidas', name: 'Cumplidas', color: COMPLIANCE_COLORS.cumplida },
+  { key: 'enProceso', name: 'En proceso', color: COMPLIANCE_COLORS.enProceso },
+  { key: 'enRiesgo', name: 'En riesgo', color: COMPLIANCE_COLORS.enRiesgo },
+  { key: 'futuras', name: 'Futuras', color: COMPLIANCE_COLORS.futuro },
+] as const;
+
+/** Barras apiladas horizontales: estado de líneas por cliente (conteos). */
+export function ComplianceStackedByClient({ data }: { data: ComplianceStat[] }) {
+  const rows = data.slice(0, 10).map((d) => ({ ...d, label: truncate(d.key, 20) }));
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 38)}>
+      <BarChart data={rows} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
+        <CartesianGrid horizontal={false} stroke={GRID} />
+        <XAxis type="number" tick={{ fontSize: 11, fill: AXIS }} allowDecimals={false} />
+        <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 11, fill: AXIS }} interval={0} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        {STACK_SERIES.map((s) => (
+          <Bar key={s.key} dataKey={s.key} name={s.name} stackId="estado" fill={s.color} maxBarSize={26} />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Barras apiladas verticales: estado de líneas por periodo (conteos). */
+export function ComplianceStackedByPeriod({ data }: { data: ComplianceStat[] }) {
+  const rows = data.map((d) => ({ ...d, label: truncate(d.key, 16) }));
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <BarChart data={rows} margin={{ left: 4, right: 16, top: 8, bottom: 4 }}>
+        <CartesianGrid vertical={false} stroke={GRID} />
+        <XAxis dataKey="label" tick={{ fontSize: 10, fill: AXIS }} interval={0} angle={-20} textAnchor="end" height={54} />
+        <YAxis tick={{ fontSize: 11, fill: AXIS }} allowDecimals={false} width={32} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        {STACK_SERIES.map((s) => (
+          <Bar key={s.key} dataKey={s.key} name={s.name} stackId="estado" fill={s.color} maxBarSize={44} />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Barras horizontales: avance promedio (%) por cliente. */
+export function AvgProgressByClientBar({ data }: { data: ComplianceStat[] }) {
+  const rows = [...data]
+    .sort((a, b) => a.avgProgress - b.avgProgress || a.key.localeCompare(b.key, 'es'))
+    .slice(0, 10)
+    .map((d) => ({ ...d, label: truncate(d.key, 20) }));
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(200, rows.length * 34)}>
+      <BarChart data={rows} layout="vertical" margin={{ left: 8, right: 32, top: 4, bottom: 4 }}>
+        <CartesianGrid horizontal={false} stroke={GRID} />
+        <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: AXIS }} unit="%" />
+        <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 11, fill: AXIS }} interval={0} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          formatter={(v: number, _n, item) => {
+            const p = item?.payload as ComplianceStat | undefined;
+            return [`${v}%  ·  ${p?.cumplidas ?? 0}/${p?.total ?? 0} cumplidas`, 'Avance'];
+          }}
+        />
+        <Bar dataKey="avgProgress" name="Avance" radius={[0, 4, 4, 0]} maxBarSize={24}>
+          {rows.map((r, i) => (
+            <Cell key={i} fill={complianceColor(r.avgProgress)} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 /** Dona: semáforo de cumplimiento (cumplidas / en riesgo / en proceso / futuras). */
 export function ComplianceDonut({ summary }: { summary: ComplianceSummary }) {
   const data = [
