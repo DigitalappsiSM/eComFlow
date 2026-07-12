@@ -49,6 +49,8 @@ export interface AppSettings {
   pagination_size: number;
   /** Clasificación personalizada Artículo(clave normalizada) → tipo de operación. */
   articulo_tipos?: Record<string, string>;
+  /** Interruptor de reinicio de datos SOLO para pruebas (default false). */
+  dev_reset_enabled?: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {

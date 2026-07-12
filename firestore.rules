@@ -63,6 +63,19 @@ service cloud.firestore {
       return hasRole(['admin']);
     }
 
+    // Interruptor de reinicio SOLO para pruebas: permite borrado físico
+    // (truncate) únicamente cuando app_settings.dev_reset_enabled == true.
+    // Por defecto es false → los `delete` quedan bloqueados (producción segura).
+    function devResetEnabled() {
+      return exists(/databases/$(database)/documents/app_settings/global)
+        && get(/databases/$(database)/documents/app_settings/global)
+             .data.get('dev_reset_enabled', false) == true;
+    }
+
+    function canResetData() {
+      return isAdmin() && devResetEnabled();
+    }
+
     // No se puede tocar created_at / created_by en una actualización.
     function immutableCreation() {
       return request.resource.data.created_at == resource.data.created_at
@@ -116,25 +129,28 @@ service cloud.firestore {
     }
 
     // ---------------------- campañas / jerarquía -----------------------
+    // NOTA: `allow delete` en las colecciones OPERATIVAS está permitido SOLO
+    // para admin y SOLO con el interruptor de pruebas encendido (canResetData).
+    // Con el interruptor apagado (por defecto), el borrado queda bloqueado.
     match /campaign_groups/{id} {
       allow read: if canRead();
       allow create: if canWriteOperational() && createdByIsCaller();
       allow update: if canWriteOperational() && immutableCreation() && updatedByIsCaller();
-      allow delete: if false;
+      allow delete: if canResetData();
     }
 
     match /campaign_spaces/{id} {
       allow read: if canRead();
       allow create: if canWriteOperational() && createdByIsCaller();
       allow update: if canWriteOperational() && immutableCreation() && updatedByIsCaller();
-      allow delete: if false;
+      allow delete: if canResetData();
     }
 
     match /campaign_lines/{id} {
       allow read: if canRead();
       allow create: if canWriteOperational() && createdByIsCaller();
       allow update: if canWriteOperational() && immutableCreation() && updatedByIsCaller();
-      allow delete: if false;
+      allow delete: if canResetData();
     }
 
     match /campaign_line_requirements/{id} {
@@ -142,7 +158,7 @@ service cloud.firestore {
       allow create: if canWriteOperational();
       // Snapshot inmutable: no se permite actualizar (histórico fiel).
       allow update: if false;
-      allow delete: if false;
+      allow delete: if canResetData();
     }
 
     // ---------------------- operación ----------------------------------
@@ -150,7 +166,7 @@ service cloud.firestore {
       allow read: if canRead();
       allow create: if canWriteOperational() && createdByIsCaller();
       allow update: if canWriteOperational() && immutableCreation() && updatedByIsCaller();
-      allow delete: if false;
+      allow delete: if canResetData();
     }
 
     match /campaign_comments/{id} {
@@ -161,14 +177,14 @@ service cloud.firestore {
       allow update: if canWriteOperational()
         && immutableCreation()
         && (resource.data.created_by == request.auth.uid || isAdmin());
-      allow delete: if false;
+      allow delete: if canResetData();
     }
 
     match /detected_changes/{id} {
       allow read: if canRead();
       allow create: if canWriteOperational();
       allow update: if canWriteOperational();
-      allow delete: if false;
+      allow delete: if canResetData();
     }
 
     // ---------------------- importaciones ------------------------------
@@ -176,23 +192,23 @@ service cloud.firestore {
       allow read: if canRead();
       allow create: if canWriteOperational() && createdByIsCaller();
       allow update: if canWriteOperational();
-      allow delete: if false;
+      allow delete: if canResetData();
     }
 
     match /import_rows/{id} {
       allow read: if canRead();
       allow create: if canWriteOperational();
       allow update: if canWriteOperational();
-      allow delete: if false;
+      allow delete: if canResetData();
     }
 
     // ---------------------- auditoría ----------------------------------
     match /change_history/{id} {
       allow read: if canRead();
-      // La auditoría es append-only: se crea, nunca se modifica ni borra.
+      // La auditoría es append-only: se crea, nunca se modifica.
       allow create: if canWriteOperational() && createdByIsCaller();
       allow update: if false;
-      allow delete: if false;
+      allow delete: if canResetData();
     }
 
     // ---------------------- configuración ------------------------------

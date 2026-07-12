@@ -51,6 +51,27 @@ export async function saveSettings(
   await batch.commit();
 }
 
+/** Lee el interruptor de reinicio de datos de prueba (default false). */
+export async function fetchDevResetEnabled(): Promise<boolean> {
+  const db = requireDb();
+  const snap = await getDoc(doc(db, COLLECTIONS.appSettings, SETTINGS_DOC));
+  if (!snap.exists()) return false;
+  return (snap.data() as Partial<AppSettings>).dev_reset_enabled === true;
+}
+
+/** Enciende/apaga el interruptor de reinicio (solo admin, reglas). */
+export async function setDevResetEnabled(
+  enabled: boolean,
+  actor: { uid: string },
+): Promise<void> {
+  const db = requireDb();
+  await setDoc(
+    doc(db, COLLECTIONS.appSettings, SETTINGS_DOC),
+    { dev_reset_enabled: enabled, updated_at: serverTimestamp(), updated_by: actor.uid },
+    { merge: true },
+  );
+}
+
 /** Mapa de clasificación personalizada Artículo→tipo (clave normalizada). */
 export async function fetchArticuloTipos(): Promise<Record<string, string>> {
   const db = requireDb();

@@ -11,6 +11,7 @@ import { CampaignDetailPage } from '@/pages/campaigns/CampaignDetailPage';
 import { DetectedChangesPage } from '@/pages/changes/DetectedChangesPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { UsersPage } from '@/pages/users/UsersPage';
+import { ResetDataPage } from '@/pages/admin/ResetDataPage';
 
 function protectedElement(node: JSX.Element, permission?: Parameters<typeof ProtectedRoute>[0]['permission']) {
   return <ProtectedRoute permission={permission}>{node}</ProtectedRoute>;
@@ -29,6 +30,8 @@ export const router = createBrowserRouter(
   { path: '/catalogo', element: protectedElement(<PlacementsPage />, 'catalog') },
   { path: '/configuracion', element: protectedElement(<SettingsPage />, 'settings') },
   { path: '/usuarios', element: protectedElement(<UsersPage />, 'users') },
+  // Ruta OCULTA (no está en el menú): reinicio de datos de prueba, solo admin.
+  { path: '/reiniciar-datos', element: protectedElement(<ResetDataPage />, 'users') },
   { path: '*', element: <Navigate to="/" replace /> },
   ],
   { basename: import.meta.env.BASE_URL },
