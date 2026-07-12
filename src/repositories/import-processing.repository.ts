@@ -33,6 +33,8 @@ import type { CampaignLine } from '@/types/campaign';
 import type { Placement, PlacementRequirement } from '@/types/placement';
 import type { ImportScope } from '@/types/import';
 import type { IsoDate } from '@/lib/dates';
+import { computeProgress } from '@/domain/progress';
+import { initialChecksForImportedLine, requiredChecksForOperationType } from '@/domain/operation-rules';
 
 // ----------------------------- Lookups ------------------------------------
 
@@ -312,6 +314,7 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
       periodo_tipo: row.extra?.periodoTipo ?? null,
       periodo_inicio: row.extra?.periodoInicio ?? null,
       periodo_fin: row.extra?.periodoFin ?? null,
+      tipo_campana_periodo: row.extra?.tipoCampanaPeriodo ?? null,
     };
 
     const createsGroup = row.result === 'new_campaign';
@@ -438,7 +441,13 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
         n.creatividadId,
       );
 
-      // Operación inicial: todos los checks en false (§9, §12).
+      // Operación inicial: Ecommerce continua hereda checks salvo testigos;
+      // Digital Signage sólo requiere artes y no usa herencia especial.
+      const initialChecks = initialChecksForImportedLine({
+        tipoOperacion,
+        tipoCampanaPeriodo: row.extra?.tipoCampanaPeriodo,
+      });
+      const requiredChecks = requiredChecksForOperationType(tipoOperacion);
       ops.push({
         kind: 'set',
         path: [COLLECTIONS.campaignOperations, id.campaignLineKey],
@@ -448,13 +457,14 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
           campaign_space_id: id.campaignSpaceKey,
           campaign_group_id: id.campaignGroupKey,
           checks: Object.fromEntries(
-            ['correo_enviado', 'artes', 'validacion', 'link', 'kevel', 'testigos_app', 'testigos_web'].map(
-              (k) => [k, { value: false, updated_at: now(), updated_by: user.uid }],
-            ),
+            Object.entries(initialChecks).map(([k, value]) => [
+              k,
+              { value, updated_at: now(), updated_by: user.uid },
+            ]),
           ),
           comentarios: '',
           responsable_operativo: null,
-          porcentaje_avance: 0,
+          porcentaje_avance: computeProgress(initialChecks, requiredChecks),
           created_at: now(),
           created_by: user.uid,
           updated_at: now(),
@@ -521,6 +531,7 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
         data: {
           fecha_retirada: n.fechaRetiradaIso,
           required_pieces: requiredPieces,
+          ...periodo,
           content_hash: id.contentHash,
           present_in_latest_import: true,
           updated_at: now(),
