@@ -182,6 +182,39 @@ describe('Ekon template (archivo operativo real)', () => {
     expect(parsePeriodo('').codigo).toBe('');
   });
 
+  it('mantiene líneas separadas por periodo aunque compartan campaña, creatividad y fecha de fijación', async () => {
+    const plan = await buildEkonImportPlan(
+      headers,
+      [
+        ekonRow({
+          [EKON_COLUMNS.articulo]: 'CATEGORY BANNER',
+          [EKON_COLUMNS.fechaFijacion]: '2026-07-10',
+          [EKON_COLUMNS.fechaRetirada]: '2026-07-24',
+          [EKON_COLUMNS.periodo]: 'S28 - 10/07/2026 a 16/07/2026',
+          [EKON_COLUMNS.creatividadId]: '64743',
+          [EKON_COLUMNS.creatividadTitulo]: 'N1 HOGAR Y ELECTRODOMESTICOS',
+        }),
+        ekonRow({
+          [EKON_COLUMNS.articulo]: 'CATEGORY BANNER',
+          [EKON_COLUMNS.fechaFijacion]: '2026-07-10',
+          [EKON_COLUMNS.fechaRetirada]: '2026-07-24',
+          [EKON_COLUMNS.periodo]: 'S29 - 17/07/2026 a 23/07/2026',
+          [EKON_COLUMNS.creatividadId]: '64743',
+          [EKON_COLUMNS.creatividadTitulo]: 'N1 HOGAR Y ELECTRODOMESTICOS',
+        }),
+      ],
+      new EmptyStore(),
+      buildTipoClassifier(),
+    );
+
+    expect(plan.mergedRows).toBe(0);
+    expect(plan.rows).toHaveLength(2);
+    expect(plan.rows[0]!.identity?.campaignLineKey).not.toBe(plan.rows[1]!.identity?.campaignLineKey);
+    expect(plan.rows[0]!.extra?.periodoCodigo).toBe('S28');
+    expect(plan.rows[1]!.extra?.periodoCodigo).toBe('S29');
+    expect(plan.rows[1]!.extra?.tipoCampanaPeriodo).toBe('continua');
+  });
+
   it('rechazo estructural si faltan columnas obligatorias', async () => {
     const plan = await buildEkonImportPlan(['Cliente'], [ekonRow()], new EmptyStore());
     expect(plan.generalRejection).toContain('Faltan columnas');

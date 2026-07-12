@@ -98,12 +98,16 @@ function buildRowPlan(
   classifier?: TipoClassifier,
 ): RowPlan {
   const placementId = ekonPlacementId(n.cadena, n.articulo);
+  // En seguimiento operativo, una misma campaña/creatividad debe existir por
+  // periodo para que se pueda coordinar desde la semana en que inicia. Las
+  // fechas de campaña se conservan en normalized; la identidad usa el periodo
+  // del archivo cuando está disponible para no absorber S28 dentro de S29.
   const identity = buildIdentity({
     cliente: n.cliente,
     numeroCampana: n.campana,
     placementId,
-    fechaFijacionIso: n.fechaFijacionIso,
-    fechaRetiradaIso: n.fechaRetiradaIso,
+    fechaFijacionIso: n.periodo.inicioIso || n.fechaFijacionIso,
+    fechaRetiradaIso: n.periodo.finIso || n.fechaRetiradaIso,
     creatividadTitulo: n.creatividadTitulo,
     creatividadDescripcion: n.creatividadDescripcion,
     creatividadId: n.creatividadId,

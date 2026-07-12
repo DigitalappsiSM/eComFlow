@@ -7,7 +7,7 @@ import {
   updateCheck,
   type OperationRow,
 } from '@/repositories/operations.repository';
-import type { CheckKey } from '@/domain/progress';
+import { computeProgress, type CheckKey } from '@/domain/progress';
 import { computeStatus, STATUS_LABELS } from '@/domain/campaign-status';
 import { requiredChecksForLine } from '@/domain/operation-rules';
 import { todayIso } from '@/lib/dates';
@@ -24,6 +24,7 @@ export function useOperations(pageSize = 50) {
   const [hasMore, setHasMore] = useState(false);
   const [filters, setFilters] = useState<FilterValues>({});
   const [search, setSearch] = useState('');
+  const [bulkExpiredStatus, setBulkExpiredStatus] = useState<'idle' | 'saving'>('idle');
 
   const actor = useMemo(
     () =>
@@ -142,6 +143,50 @@ export function useOperations(pageSize = 50) {
     });
   }, [rows, search, filters, statusLabelOf]);
 
+  // Líneas filtradas cuyo PERIODO ya venció y aún tienen checks obligatorios
+  // pendientes. Usa periodo_fin si existe (el periodo operativo vence antes que
+  // la campaña global); si no, cae a fecha_retirada.
+  const expiredRowsWithPendingChecks = useMemo(
+    () =>
+      filtered.filter((r) => {
+        const periodEnd = r.line.periodo_fin ?? r.line.fecha_retirada;
+        if (periodEnd >= today) return false;
+        return requiredChecksForLine(r.line).some((key) => !r.checks[key]);
+      }),
+    [filtered, today],
+  );
+
+  const markExpiredChecks = useCallback(async () => {
+    if (!actor || bulkExpiredStatus === 'saving' || expiredRowsWithPendingChecks.length === 0) return;
+
+    setBulkExpiredStatus('saving');
+    const updatedRows = new Map<string, Pick<OperationRow, 'checks' | 'progress'>>();
+    try {
+      for (const row of expiredRowsWithPendingChecks) {
+        const requiredChecks = requiredChecksForLine(row.line);
+        const nextChecks = { ...row.checks };
+        for (const key of requiredChecks) {
+          if (nextChecks[key]) continue;
+          await updateCheck(idsOf(row), nextChecks, key, true, actor, requiredChecks);
+          nextChecks[key] = true;
+        }
+        updatedRows.set(row.line.campaign_line_id, {
+          checks: nextChecks,
+          progress: computeProgress(nextChecks, requiredChecks),
+        });
+      }
+
+      setRows((prev) =>
+        prev.map((r) => {
+          const updated = updatedRows.get(r.line.campaign_line_id);
+          return updated ? { ...r, ...updated } : r;
+        }),
+      );
+    } finally {
+      setBulkExpiredStatus('idle');
+    }
+  }, [actor, bulkExpiredStatus, expiredRowsWithPendingChecks]);
+
   const filterFields = useMemo(
     () => [
       {
@@ -179,6 +224,9 @@ export function useOperations(pageSize = 50) {
       setFilters({});
       setSearch('');
     },
+    expiredPendingCount: expiredRowsWithPendingChecks.length,
+    bulkExpiredStatus,
+    markExpiredChecks,
     toggleCheck,
     setResponsable,
   };
