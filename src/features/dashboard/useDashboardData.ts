@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { MetricLine } from '@/domain/dashboard-metrics';
-import { fetchActiveLinesForDashboard } from '@/repositories/campaign-lines.repository';
+import { fetchOperationalLinesForDashboard } from '@/repositories/campaign-lines.repository';
 
 type State =
   | { status: 'loading' }
@@ -18,7 +18,7 @@ export function useDashboardData() {
   const load = useCallback(async () => {
     setState({ status: 'loading' });
     try {
-      const lines = await fetchActiveLinesForDashboard();
+      const lines = await fetchOperationalLinesForDashboard();
       setState({ status: 'ready', lines });
     } catch (err) {
       setState({

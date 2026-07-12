@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  completedOnTime,
+  complianceStatusOf,
   computeActiveClients,
   computeAttentionByClient,
   computeChainLoad,
+  computeCheckBottlenecks,
   computeClientTypeMatrix,
+  computeComplianceByClient,
+  computeComplianceByPeriod,
+  computeComplianceDetail,
+  computeComplianceSummary,
   computeDashboardMetrics,
   computeMonthlyOperationTrend,
   computeOperationalStatusBreakdown,
@@ -270,6 +277,140 @@ describe('dashboard-metrics · Operativo 360', () => {
       tipo: 'ECOMMERCE',
       expiredLines: 2,
       requiredPieces: 5,
+    });
+  });
+});
+
+describe('dashboard-metrics · Cumplimiento (SLA)', () => {
+  const today = '2026-07-20';
+
+  // Línea COMPLETA a tiempo (dentro de su periodo).
+  const done = (o: Partial<MetricLine> = {}): MetricLine =>
+    line({
+      complete: true,
+      progress: 100,
+      pendingChecks: [],
+      completedAtIso: '2026-07-15',
+      periodoInicio: '2026-07-10',
+      periodoFin: '2026-07-16',
+      ...o,
+    });
+
+  // Línea INCOMPLETA (checks pendientes).
+  const pend = (o: Partial<MetricLine> = {}): MetricLine =>
+    line({
+      complete: false,
+      progress: 40,
+      pendingChecks: ['link', 'kevel'],
+      ...o,
+    });
+
+  it('complianceStatusOf clasifica según completitud y periodo', () => {
+    expect(complianceStatusOf(done(), today)).toBe('cumplida');
+    expect(
+      complianceStatusOf(pend({ periodoInicio: '2026-07-03', periodoFin: '2026-07-09' }), today),
+    ).toBe('en_riesgo');
+    expect(
+      complianceStatusOf(pend({ periodoInicio: '2026-07-17', periodoFin: '2026-07-23' }), today),
+    ).toBe('en_proceso');
+    expect(
+      complianceStatusOf(pend({ periodoInicio: '2026-07-24', periodoFin: '2026-07-30' }), today),
+    ).toBe('pendiente_futuro');
+  });
+
+  it('completedOnTime compara la fecha de completado con el fin del periodo', () => {
+    expect(completedOnTime(done({ completedAtIso: '2026-07-16' }))).toBe(true);
+    expect(completedOnTime(done({ completedAtIso: '2026-07-20' }))).toBe(false); // tras el fin
+    expect(completedOnTime(done({ completedAtIso: null }))).toBe(true); // sin fecha → a tiempo
+    expect(completedOnTime(pend())).toBe(false); // incompleta nunca está a tiempo
+  });
+
+  it('computeComplianceSummary agrega cumplidas, a tiempo, en riesgo y avance', () => {
+    const lines = [
+      done({ campaignLineId: 'l1', completedAtIso: '2026-07-15' }), // cumplida + a tiempo
+      done({ campaignLineId: 'l2', campaignSpaceId: 's2', completedAtIso: '2026-07-20' }), // cumplida tarde
+      pend({ campaignLineId: 'l3', campaignSpaceId: 's3', periodoInicio: '2026-07-03', periodoFin: '2026-07-09' }), // en riesgo
+      pend({ campaignLineId: 'l4', campaignSpaceId: 's4', periodoInicio: '2026-07-17', periodoFin: '2026-07-23', progress: 60 }), // en proceso
+      line({ campaignLineId: 'l5', campaignSpaceId: 's5', cancelled: true }), // excluida
+    ];
+    const s = computeComplianceSummary(lines, today);
+    expect(s.total).toBe(4);
+    expect(s.cumplidas).toBe(2);
+    expect(s.enRiesgo).toBe(1);
+    expect(s.enProceso).toBe(1);
+    expect(s.vencidas).toBe(3); // l1, l2 (periodo 10-16 < hoy) y l3
+    expect(s.aTiempo).toBe(1); // solo l1
+    expect(s.cumplimientoPct).toBe(50); // 2/4
+    expect(s.avgProgress).toBe(75); // (100+100+40+60)/4
+  });
+
+  it('computeComplianceByClient ordena peor primero (más riesgo)', () => {
+    const lines = [
+      done({ clienteOriginal: 'BUENO', clienteKey: 'bueno', campaignLineId: 'l1' }),
+      pend({
+        clienteOriginal: 'MALO',
+        clienteKey: 'malo',
+        campaignLineId: 'l2',
+        campaignSpaceId: 's2',
+        periodoInicio: '2026-07-03',
+        periodoFin: '2026-07-09',
+      }),
+    ];
+    const stats = computeComplianceByClient(lines, today);
+    expect(stats[0]!.key).toBe('MALO');
+    expect(stats[0]!.enRiesgo).toBe(1);
+    expect(stats[0]!.cumplimientoPct).toBe(0);
+    expect(stats[1]).toMatchObject({ key: 'BUENO', cumplidas: 1, cumplimientoPct: 100 });
+  });
+
+  it('computeComplianceByPeriod ordena cronológicamente', () => {
+    const lines = [
+      done({ periodoOriginal: 'S29', periodoInicio: '2026-07-17', periodoFin: '2026-07-23', campaignLineId: 'l1' }),
+      done({ periodoOriginal: 'S28', periodoInicio: '2026-07-10', periodoFin: '2026-07-16', campaignLineId: 'l2', campaignSpaceId: 's2' }),
+    ];
+    const stats = computeComplianceByPeriod(lines, today);
+    expect(stats.map((s) => s.key)).toEqual(['S28', 'S29']);
+  });
+
+  it('computeCheckBottlenecks cuenta checks pendientes por tipo', () => {
+    const lines = [
+      pend({ campaignLineId: 'l1', pendingChecks: ['link', 'kevel'] }),
+      pend({ campaignLineId: 'l2', campaignSpaceId: 's2', pendingChecks: ['link'] }),
+      line({ campaignLineId: 'l3', campaignSpaceId: 's3', cancelled: true, pendingChecks: ['link'] }), // excluida
+    ];
+    const b = computeCheckBottlenecks(lines);
+    expect(b[0]).toEqual({ check: 'link', pending: 2 });
+    expect(b.find((x) => x.check === 'kevel')?.pending).toBe(1);
+  });
+
+  it('computeComplianceDetail agrupa por cliente/periodo/tipo con % y riesgo', () => {
+    const lines = [
+      done({
+        clienteOriginal: 'MABE',
+        periodoOriginal: 'S28',
+        tipoOperacion: 'ECOMMERCE',
+        campaignLineId: 'l1',
+      }),
+      pend({
+        clienteOriginal: 'MABE',
+        periodoOriginal: 'S28',
+        tipoOperacion: 'ECOMMERCE',
+        periodoInicio: '2026-07-03',
+        periodoFin: '2026-07-09',
+        campaignLineId: 'l2',
+        campaignSpaceId: 's2',
+      }),
+    ];
+    const rows = computeComplianceDetail(lines, today);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      cliente: 'MABE',
+      periodo: 'S28',
+      tipo: 'ECOMMERCE',
+      total: 2,
+      cumplidas: 1,
+      enRiesgo: 1,
+      cumplimientoPct: 50,
     });
   });
 });

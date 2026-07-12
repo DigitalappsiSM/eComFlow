@@ -10,6 +10,7 @@
  */
 
 import { periodOverlaps, type DateRange, type IsoDate } from '@/lib/dates';
+import type { CheckKey } from '@/domain/progress';
 
 /** Proyección mínima de una línea operativa para métricas. */
 export interface MetricLine {
@@ -37,6 +38,20 @@ export interface MetricLine {
   tipoCampanaPeriodo?: 'fijacion' | 'continua' | null;
   /** Baja lógica de la línea (cancelada). */
   cancelled?: boolean;
+
+  // --- Estatus operativo real (join con campaign_operations) ---
+  /** Avance 0..100 sobre los checks obligatorios de la línea. */
+  progress?: number;
+  /** Todos los checks obligatorios están completos. */
+  complete?: boolean;
+  /** Checks obligatorios aún pendientes (para cuellos de botella). */
+  pendingChecks?: CheckKey[];
+  /** Nº de checks obligatorios de la línea (según su tipo de operación). */
+  requiredChecksCount?: number;
+  /** Fecha (ISO) en que quedó completa (máx. updated_at de los obligatorios). */
+  completedAtIso?: string | null;
+  /** Responsable operativo asignado. */
+  responsable?: string | null;
 }
 
 /** Estado operativo de una línea respecto a hoy (por periodo operativo). */
@@ -479,4 +494,254 @@ export function computeAttentionByClient(
       a.cliente.localeCompare(b.cliente, 'es') ||
       a.periodo.localeCompare(b.periodo, 'es'),
   );
+}
+
+// ---------------------------------------------------------------------------
+// CUMPLIMIENTO (SLA) — estatus operativo real por cliente y por periodo.
+// Requiere que las líneas traigan su avance de checks (join con operaciones):
+// `complete`, `progress`, `completedAtIso`. Sin esos datos, una línea se toma
+// como incompleta (avance 0).
+// ---------------------------------------------------------------------------
+
+/** Estado de cumplimiento de una línea respecto a hoy. */
+export type ComplianceStatus =
+  | 'cumplida' // todos los checks obligatorios completos
+  | 'en_riesgo' // periodo vencido y aún incompleta
+  | 'en_proceso' // periodo en curso e incompleta
+  | 'pendiente_futuro'; // periodo futuro e incompleta
+
+export function isComplete(line: MetricLine): boolean {
+  return line.complete === true;
+}
+
+/** ¿La línea se completó a tiempo (a más tardar al fin de su periodo)? */
+export function completedOnTime(line: MetricLine): boolean {
+  if (!isComplete(line)) return false;
+  // Sin fecha de completado no podemos probar tardanza → se asume a tiempo.
+  if (!line.completedAtIso) return true;
+  return line.completedAtIso <= lineEnd(line);
+}
+
+export function complianceStatusOf(line: MetricLine, today: IsoDate): ComplianceStatus {
+  if (isComplete(line)) return 'cumplida';
+  switch (operationalStatusOf(line, today)) {
+    case 'vencido':
+      return 'en_riesgo';
+    case 'en_curso':
+      return 'en_proceso';
+    case 'futuro':
+      return 'pendiente_futuro';
+  }
+}
+
+/** Resumen global de cumplimiento (excluye canceladas). */
+export interface ComplianceSummary {
+  total: number;
+  cumplidas: number;
+  aTiempo: number;
+  enRiesgo: number;
+  enProceso: number;
+  futuras: number;
+  vencidas: number; // líneas cuyo periodo ya venció (base del SLA "a tiempo")
+  avgProgress: number; // promedio de avance (0..100)
+  cumplimientoPct: number; // cumplidas / total
+  aTiempoPct: number; // aTiempo / vencidas
+}
+
+export function computeComplianceSummary(
+  lines: readonly MetricLine[],
+  today: IsoDate,
+): ComplianceSummary {
+  let total = 0;
+  let cumplidas = 0;
+  let aTiempo = 0;
+  let enRiesgo = 0;
+  let enProceso = 0;
+  let futuras = 0;
+  let vencidas = 0;
+  let progressSum = 0;
+
+  for (const l of lines) {
+    if (l.cancelled) continue;
+    total += 1;
+    progressSum += l.progress ?? 0;
+    const vencida = operationalStatusOf(l, today) === 'vencido';
+    if (vencida) vencidas += 1;
+    switch (complianceStatusOf(l, today)) {
+      case 'cumplida':
+        cumplidas += 1;
+        if (completedOnTime(l)) aTiempo += 1;
+        break;
+      case 'en_riesgo':
+        enRiesgo += 1;
+        break;
+      case 'en_proceso':
+        enProceso += 1;
+        break;
+      case 'pendiente_futuro':
+        futuras += 1;
+        break;
+    }
+  }
+
+  return {
+    total,
+    cumplidas,
+    aTiempo,
+    enRiesgo,
+    enProceso,
+    futuras,
+    vencidas,
+    avgProgress: total === 0 ? 0 : Math.round(progressSum / total),
+    cumplimientoPct: total === 0 ? 0 : Math.round((cumplidas / total) * 100),
+    aTiempoPct: vencidas === 0 ? 0 : Math.round((aTiempo / vencidas) * 100),
+  };
+}
+
+/** Fila de cumplimiento agrupada (por cliente o por periodo). */
+export interface ComplianceStat {
+  key: string;
+  sortKey: string;
+  total: number;
+  cumplidas: number;
+  enRiesgo: number;
+  enProceso: number;
+  avgProgress: number;
+  cumplimientoPct: number;
+}
+
+function accumulateCompliance(
+  groups: Map<string, { sortKey: string; stat: Omit<ComplianceStat, 'key' | 'sortKey'> & { progressSum: number } }>,
+  key: string,
+  sortKey: string,
+  line: MetricLine,
+  today: IsoDate,
+): void {
+  if (!groups.has(key)) {
+    groups.set(key, {
+      sortKey,
+      stat: { total: 0, cumplidas: 0, enRiesgo: 0, enProceso: 0, avgProgress: 0, cumplimientoPct: 0, progressSum: 0 },
+    });
+  }
+  const g = groups.get(key)!;
+  g.stat.total += 1;
+  g.stat.progressSum += line.progress ?? 0;
+  switch (complianceStatusOf(line, today)) {
+    case 'cumplida':
+      g.stat.cumplidas += 1;
+      break;
+    case 'en_riesgo':
+      g.stat.enRiesgo += 1;
+      break;
+    case 'en_proceso':
+      g.stat.enProceso += 1;
+      break;
+  }
+}
+
+function finalizeCompliance(
+  groups: Map<string, { sortKey: string; stat: Omit<ComplianceStat, 'key' | 'sortKey'> & { progressSum: number } }>,
+): ComplianceStat[] {
+  return [...groups.entries()].map(([key, { sortKey, stat }]) => ({
+    key,
+    sortKey,
+    total: stat.total,
+    cumplidas: stat.cumplidas,
+    enRiesgo: stat.enRiesgo,
+    enProceso: stat.enProceso,
+    avgProgress: stat.total === 0 ? 0 : Math.round(stat.progressSum / stat.total),
+    cumplimientoPct: stat.total === 0 ? 0 : Math.round((stat.cumplidas / stat.total) * 100),
+  }));
+}
+
+/** Cumplimiento por cliente. Ordenado peor primero (más riesgo, menor %). */
+export function computeComplianceByClient(
+  lines: readonly MetricLine[],
+  today: IsoDate,
+): ComplianceStat[] {
+  const groups = new Map<string, { sortKey: string; stat: Omit<ComplianceStat, 'key' | 'sortKey'> & { progressSum: number } }>();
+  for (const l of lines) {
+    if (l.cancelled) continue;
+    const cliente = clienteLabel(l);
+    accumulateCompliance(groups, cliente, cliente, l, today);
+  }
+  return finalizeCompliance(groups).sort(
+    (a, b) => b.enRiesgo - a.enRiesgo || a.cumplimientoPct - b.cumplimientoPct || a.key.localeCompare(b.key, 'es'),
+  );
+}
+
+/** Cumplimiento por periodo (semana/catorcena). Ordenado cronológicamente. */
+export function computeComplianceByPeriod(
+  lines: readonly MetricLine[],
+  today: IsoDate,
+): ComplianceStat[] {
+  const groups = new Map<string, { sortKey: string; stat: Omit<ComplianceStat, 'key' | 'sortKey'> & { progressSum: number } }>();
+  for (const l of lines) {
+    if (l.cancelled) continue;
+    const periodo = (l.periodoOriginal ?? '').trim() || NO_PERIOD;
+    const sortKey = l.periodoInicio ?? l.fechaFijacion ?? '';
+    accumulateCompliance(groups, periodo, sortKey, l, today);
+  }
+  return finalizeCompliance(groups).sort(
+    (a, b) => a.sortKey.localeCompare(b.sortKey) || a.key.localeCompare(b.key, 'es'),
+  );
+}
+
+/** Cuello de botella por check: nº de líneas obligadas a ese check aún pendiente. */
+export interface CheckBottleneck {
+  check: CheckKey;
+  pending: number;
+}
+
+export function computeCheckBottlenecks(lines: readonly MetricLine[]): CheckBottleneck[] {
+  const counts = new Map<CheckKey, number>();
+  for (const l of lines) {
+    if (l.cancelled) continue;
+    for (const key of l.pendingChecks ?? []) {
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([check, pending]) => ({ check, pending }))
+    .sort((a, b) => b.pending - a.pending);
+}
+
+/** Detalle de cumplimiento por cliente + periodo + tipo (tabla). */
+export interface ComplianceDetailRow {
+  cliente: string;
+  periodo: string;
+  tipo: string;
+  total: number;
+  cumplidas: number;
+  enRiesgo: number;
+  cumplimientoPct: number;
+}
+
+export function computeComplianceDetail(
+  lines: readonly MetricLine[],
+  today: IsoDate,
+): ComplianceDetailRow[] {
+  const byKey = new Map<string, ComplianceDetailRow>();
+  for (const l of lines) {
+    if (l.cancelled) continue;
+    const cliente = clienteLabel(l);
+    const periodo = (l.periodoOriginal ?? '').trim() || NO_PERIOD;
+    const tipo = (l.tipoOperacion ?? '').trim() || NO_TIPO;
+    const key = `${cliente}||${periodo}||${tipo}`;
+    const row =
+      byKey.get(key) ?? { cliente, periodo, tipo, total: 0, cumplidas: 0, enRiesgo: 0, cumplimientoPct: 0 };
+    row.total += 1;
+    const status = complianceStatusOf(l, today);
+    if (status === 'cumplida') row.cumplidas += 1;
+    if (status === 'en_riesgo') row.enRiesgo += 1;
+    byKey.set(key, row);
+  }
+  return [...byKey.values()]
+    .map((r) => ({ ...r, cumplimientoPct: r.total === 0 ? 0 : Math.round((r.cumplidas / r.total) * 100) }))
+    .sort(
+      (a, b) =>
+        b.enRiesgo - a.enRiesgo ||
+        a.cumplimientoPct - b.cumplimientoPct ||
+        a.cliente.localeCompare(b.cliente, 'es'),
+    );
 }

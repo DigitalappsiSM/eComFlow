@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import {
-  Flag,
-  Image,
-  Boxes,
   Users,
-  Layers,
   CalendarRange,
   AlertTriangle,
   Activity,
+  CheckCircle2,
+  Clock,
+  Gauge,
+  Timer,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { KpiCard } from '@/components/dashboard/KpiCard';
@@ -16,37 +16,26 @@ import { FilterBar } from '@/components/filters/FilterBar';
 import { distinctOptions, sortedOptions, type FilterValues } from '@/components/filters/filter-utils';
 import { useDashboardData } from '@/features/dashboard/useDashboardData';
 import {
-  ChainBar,
-  ClientTypeStacked,
-  MonthlyArea,
-  PeriodBar,
-  StatusPie,
-  TipoDonut,
-  TopClientsBar,
+  CheckBottleneckBar,
+  ComplianceByClientBar,
+  ComplianceByPeriodBar,
+  ComplianceDonut,
 } from '@/components/dashboard/DashboardCharts';
 import {
-  computeActiveClients,
-  computeAttentionByClient,
-  computeChainLoad,
-  computeClientTypeMatrix,
-  computeDashboardMetrics,
-  computeMonthlyOperationTrend,
-  computeOperationalStatusBreakdown,
-  computePeriodLoad,
-  computeTipoOperationDistribution,
-  computeTopClients,
-  filterActiveInPeriod,
+  complianceStatusOf,
+  computeCheckBottlenecks,
+  computeComplianceByClient,
+  computeComplianceByPeriod,
+  computeComplianceDetail,
+  computeComplianceSummary,
   lineMonthKey,
   operationalStatusOf,
+  type ComplianceStatus,
   type MetricLine,
   type OperationalStatus,
 } from '@/domain/dashboard-metrics';
-import { todayIso, type DateRange } from '@/lib/dates';
+import { todayIso } from '@/lib/dates';
 import type { ReactNode } from 'react';
-
-// Rango amplio: el "cruce de vigencia" no debe vaciar el dashboard. El alcance
-// temporal se maneja con los filtros de Periodo / Mes (semana/catorcena del archivo).
-const WIDE_PERIOD: DateRange = { start: '0001-01-01', end: '9999-12-31' };
 
 const OP_STATUS_LABEL: Record<OperationalStatus, string> = {
   vencido: 'Vencido',
@@ -57,16 +46,21 @@ const CONTINUITY_LABEL: Record<'fijacion' | 'continua', string> = {
   fijacion: 'Fijación',
   continua: 'Continua',
 };
+const COMPLIANCE_LABEL: Record<ComplianceStatus, string> = {
+  cumplida: 'Cumplida',
+  en_riesgo: 'En riesgo',
+  en_proceso: 'En proceso',
+  pendiente_futuro: 'Futura',
+};
 
 const DEFINITIONS: { term: string; detail: string }[] = [
-  { term: 'Cliente activo', detail: 'Cliente con al menos una línea vigente que cruza el periodo.' },
-  { term: 'Campaña', detail: 'Agrupación por Cliente + Número de campaña.' },
-  { term: 'Línea', detail: 'Una Creatividad ID dentro de un espacio (cadena/artículo).' },
-  { term: 'Pieza requerida', detail: 'Nº de soportes / requisitos obligatorios aplicables.' },
-  { term: 'Vencido', detail: 'El periodo operativo (fin) ya pasó respecto a hoy.' },
-  { term: 'En curso', detail: 'Hoy cae dentro del periodo operativo.' },
-  { term: 'Futuro', detail: 'El periodo operativo aún no comienza.' },
-  { term: 'Continuidad', detail: 'Fijación (inicia) o Continua (viene del periodo anterior).' },
+  { term: 'Cumplida', detail: 'Todos los checks obligatorios de la línea están completos.' },
+  { term: 'A tiempo', detail: 'Se completó a más tardar al fin de su periodo operativo.' },
+  { term: 'En riesgo', detail: 'El periodo ya venció y la línea sigue incompleta (SLA incumplido).' },
+  { term: 'En proceso', detail: 'El periodo está en curso y la línea aún no se completa.' },
+  { term: '% Cumplimiento', detail: 'Líneas cumplidas ÷ total de líneas del grupo.' },
+  { term: '% A tiempo', detail: 'Líneas completadas a tiempo ÷ líneas cuyo periodo ya venció.' },
+  { term: 'Checks obligatorios', detail: 'DIGITAL SIGNAGE solo exige Artes; el resto, los 7 checks.' },
 ];
 
 function applyFilters(lines: readonly MetricLine[], f: FilterValues, today: string): MetricLine[] {
@@ -78,12 +72,18 @@ function applyFilters(lines: readonly MetricLine[], f: FilterValues, today: stri
       (!f.tipo || (l.tipoOperacion ?? '') === f.tipo) &&
       (!f.cliente || (l.clienteOriginal ?? '') === f.cliente) &&
       (!f.estado || OP_STATUS_LABEL[operationalStatusOf(l, today)] === f.estado) &&
+      (!f.cumplimiento || COMPLIANCE_LABEL[complianceStatusOf(l, today)] === f.cumplimiento) &&
       (!f.continuidad || (l.tipoCampanaPeriodo ? CONTINUITY_LABEL[l.tipoCampanaPeriodo] : '') === f.continuidad),
   );
 }
 
+function accentForPct(pct: number): 'green' | 'orange' | 'red' {
+  if (pct >= 90) return 'green';
+  if (pct >= 60) return 'orange';
+  return 'red';
+}
+
 export function DashboardPage() {
-  const period = WIDE_PERIOD;
   const today = todayIso();
   const { state, reload } = useDashboardData();
   const [filters, setFilters] = useState<FilterValues>({});
@@ -95,32 +95,22 @@ export function DashboardPage() {
 
   const filtered = useMemo(() => applyFilters(lines, filters, today), [lines, filters, today]);
 
-  const metrics = useMemo(() => computeDashboardMetrics(filtered, period), [filtered, period]);
-  const clientesActivos = useMemo(() => computeActiveClients(filtered, period), [filtered, period]);
-  const topClients = useMemo(() => computeTopClients(filtered, period), [filtered, period]);
-  const tipoDist = useMemo(
-    () => computeTipoOperationDistribution(filtered, period),
-    [filtered, period],
-  );
-  const monthly = useMemo(() => computeMonthlyOperationTrend(filtered), [filtered]);
-  const periodLoad = useMemo(() => computePeriodLoad(filtered), [filtered]);
-  const chainLoad = useMemo(() => computeChainLoad(filtered, period), [filtered, period]);
-  const statusBreakdown = useMemo(
-    () => computeOperationalStatusBreakdown(filtered, today),
-    [filtered, today],
-  );
-  const clientTypeMatrix = useMemo(
-    () => computeClientTypeMatrix(filtered, period),
-    [filtered, period],
-  );
-  const attention = useMemo(() => computeAttentionByClient(filtered, today), [filtered, today]);
-  const periodosActivos = useMemo(() => {
+  const summary = useMemo(() => computeComplianceSummary(filtered, today), [filtered, today]);
+  const byClient = useMemo(() => computeComplianceByClient(filtered, today), [filtered, today]);
+  const byPeriod = useMemo(() => computeComplianceByPeriod(filtered, today), [filtered, today]);
+  const bottlenecks = useMemo(() => computeCheckBottlenecks(filtered), [filtered]);
+  const detail = useMemo(() => computeComplianceDetail(filtered, today), [filtered, today]);
+
+  const clientes = useMemo(() => {
     const set = new Set<string>();
-    for (const l of filterActiveInPeriod(filtered, period)) {
-      if (l.periodoOriginal) set.add(l.periodoOriginal);
-    }
+    for (const l of filtered) if (!l.cancelled) set.add(l.clienteKey);
     return set.size;
-  }, [filtered, period]);
+  }, [filtered]);
+  const periodos = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of filtered) if (!l.cancelled && l.periodoOriginal) set.add(l.periodoOriginal);
+    return set.size;
+  }, [filtered]);
 
   const fields = [
     {
@@ -132,6 +122,11 @@ export function DashboardPage() {
     { key: 'cadena', label: 'Cadena', options: distinctOptions(lines, (l) => l.cadena) },
     { key: 'tipo', label: 'Tipo', options: distinctOptions(lines, (l) => l.tipoOperacion) },
     { key: 'cliente', label: 'Cliente', options: distinctOptions(lines, (l) => l.clienteOriginal) },
+    {
+      key: 'cumplimiento',
+      label: 'Cumplimiento',
+      options: distinctOptions(lines, (l) => COMPLIANCE_LABEL[complianceStatusOf(l, today)]),
+    },
     {
       key: 'estado',
       label: 'Estado',
@@ -147,8 +142,8 @@ export function DashboardPage() {
   ];
 
   return (
-    <AppLayout title="Dashboard operativo" description="Visión 360 de campañas y operación">
-      {state.status === 'loading' && <LoadingState label="Cargando métricas…" />}
+    <AppLayout title="Cumplimiento operativo" description="Estatus real de operación por cliente y periodo">
+      {state.status === 'loading' && <LoadingState label="Cargando cumplimiento (líneas y checks)…" />}
       {state.status === 'error' && <ErrorState description={state.message} onRetry={() => void reload()} />}
 
       {state.status === 'ready' && (
@@ -162,120 +157,94 @@ export function DashboardPage() {
           />
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-            <KpiCard label="Clientes activos" value={clientesActivos} icon={Users} accent="blue" />
-            <KpiCard label="Campañas activas" value={metrics.campanasActivas} icon={Flag} accent="green" />
-            <KpiCard label="Líneas operativas" value={metrics.lineasActivas} icon={Image} accent="violet" />
-            <KpiCard label="Piezas requeridas" value={metrics.piezasRequeridas} icon={Boxes} accent="orange" />
-            <KpiCard label="Tipos activos" value={tipoDist.length} icon={Layers} accent="teal" />
-            <KpiCard label="Periodos activos" value={periodosActivos} icon={CalendarRange} accent="blue" />
-            <KpiCard label="Líneas vencidas" value={statusBreakdown.vencido} icon={AlertTriangle} accent="red" />
-            <KpiCard label="En curso" value={statusBreakdown.enCurso} icon={Activity} accent="green" />
+            <KpiCard label="% Cumplimiento" value={`${summary.cumplimientoPct}%`} icon={Gauge} accent={accentForPct(summary.cumplimientoPct)} />
+            <KpiCard label="% A tiempo" value={`${summary.aTiempoPct}%`} icon={Timer} accent={accentForPct(summary.aTiempoPct)} />
+            <KpiCard label="En riesgo" value={summary.enRiesgo} icon={AlertTriangle} accent="red" />
+            <KpiCard label="Avance prom." value={`${summary.avgProgress}%`} icon={Activity} accent="blue" />
+            <KpiCard label="Cumplidas" value={summary.cumplidas} icon={CheckCircle2} accent="green" />
+            <KpiCard label="En proceso" value={summary.enProceso} icon={Clock} accent="violet" />
+            <KpiCard label="Clientes" value={clientes} icon={Users} accent="teal" />
+            <KpiCard label="Periodos" value={periodos} icon={CalendarRange} accent="blue" />
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <ChartCard
-              title="Principales clientes"
-              subtitle="Top 8 por líneas operativas activas"
-              isEmpty={topClients.length === 0}
+              title="Cumplimiento por cliente"
+              subtitle="% de líneas cumplidas (peor primero, top 10)"
+              isEmpty={byClient.length === 0}
               className="lg:col-span-2"
             >
-              <TopClientsBar data={topClients} />
+              <ComplianceByClientBar data={byClient} />
             </ChartCard>
             <ChartCard
-              title="Tipos de operación"
-              subtitle="Distribución de líneas activas"
-              isEmpty={tipoDist.length === 0}
+              title="Semáforo de cumplimiento"
+              subtitle="Cumplidas / En riesgo / En proceso / Futuras"
+              isEmpty={summary.total === 0}
             >
-              <TipoDonut data={tipoDist} />
+              <ComplianceDonut summary={summary} />
             </ChartCard>
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <ChartCard
-              title="Operación por mes"
-              subtitle="Líneas por mes de inicio operativo"
-              isEmpty={monthly.length === 0}
+              title="Cumplimiento por periodo"
+              subtitle="% de líneas cumplidas por semana / catorcena"
+              isEmpty={byPeriod.length === 0}
               className="lg:col-span-2"
             >
-              <MonthlyArea data={monthly} />
+              <ComplianceByPeriodBar data={byPeriod} />
             </ChartCard>
             <ChartCard
-              title="Estado operativo"
-              subtitle="Vencido / En curso / Futuro"
-              isEmpty={statusBreakdown.total === 0}
+              title="Cuellos de botella"
+              subtitle="Checks obligatorios pendientes (nº de líneas)"
+              isEmpty={bottlenecks.length === 0}
+              emptyLabel="Sin checks pendientes"
             >
-              <StatusPie breakdown={statusBreakdown} />
-            </ChartCard>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-6">
-            <ChartCard
-              title="Carga por periodo"
-              subtitle="Líneas por semana / catorcena"
-              isEmpty={periodLoad.length === 0}
-            >
-              <PeriodBar data={periodLoad} />
-            </ChartCard>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <ChartCard
-              title="Clientes por tipo de operación"
-              subtitle="Top 8 clientes, apilado por tipo"
-              isEmpty={clientTypeMatrix.rows.length === 0}
-            >
-              <ClientTypeStacked matrix={clientTypeMatrix} />
-            </ChartCard>
-            <ChartCard
-              title="Carga por cadena"
-              subtitle="Top 10 cadenas por líneas activas"
-              isEmpty={chainLoad.length === 0}
-            >
-              <ChainBar data={chainLoad} />
+              <CheckBottleneckBar data={bottlenecks} />
             </ChartCard>
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <section className="card overflow-hidden p-0 lg:col-span-2" aria-labelledby="attn-heading">
+            <section className="card overflow-hidden p-0 lg:col-span-2" aria-labelledby="detail-heading">
               <div className="border-b border-slate-100 p-5">
-                <h2 id="attn-heading" className="text-sm font-semibold text-slate-800">
-                  Atención requerida
+                <h2 id="detail-heading" className="text-sm font-semibold text-slate-800">
+                  Detalle de cumplimiento
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Líneas vencidas por cliente, periodo y tipo (pendientes de cierre)
+                  Por cliente · periodo · tipo (mayor riesgo primero)
                 </p>
               </div>
-              {attention.length === 0 ? (
-                <EmptyState title="Sin líneas vencidas" description="Nada pendiente de cierre en el filtro actual." />
+              {detail.length === 0 ? (
+                <EmptyState title="Sin líneas" description="No hay líneas para el filtro actual." />
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-sm">
+                  <table className="w-full min-w-[680px] text-sm">
                     <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                       <tr>
                         <th className="px-4 py-2 font-medium">Cliente</th>
                         <th className="px-4 py-2 font-medium">Periodo</th>
                         <th className="px-4 py-2 font-medium">Tipo</th>
-                        <th className="px-4 py-2 text-right font-medium">Vencidas</th>
-                        <th className="px-4 py-2 text-right font-medium">Piezas</th>
-                        <th className="px-4 py-2 font-medium">Estado</th>
+                        <th className="px-4 py-2 text-right font-medium">Total</th>
+                        <th className="px-4 py-2 text-right font-medium">Cumplidas</th>
+                        <th className="px-4 py-2 text-right font-medium">% Cumpl.</th>
+                        <th className="px-4 py-2 text-right font-medium">En riesgo</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {attention.slice(0, 12).map((r) => (
+                      {detail.slice(0, 14).map((r) => (
                         <tr key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="border-t border-slate-100">
                           <td className="max-w-52 truncate px-4 py-2 font-medium text-slate-700" title={r.cliente}>
                             {r.cliente}
                           </td>
                           <td className="px-4 py-2 text-slate-600">{r.periodo}</td>
                           <td className="px-4 py-2 text-slate-600">{r.tipo}</td>
-                          <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600">
-                            {r.expiredLines}
+                          <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.total}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.cumplidas}</td>
+                          <td className="px-4 py-2 text-right">
+                            <CompliancePct pct={r.cumplimientoPct} />
                           </td>
-                          <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.requiredPieces}</td>
-                          <td className="px-4 py-2">
-                            <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-600">
-                              Vencido
-                            </span>
+                          <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600">
+                            {r.enRiesgo || <span className="text-slate-300">—</span>}
                           </td>
                         </tr>
                       ))}
@@ -304,7 +273,7 @@ export function DashboardPage() {
             <div className="mt-6">
               <EmptyState
                 title="La base de datos está vacía"
-                description="Cuando se procese una importación, las métricas aparecerán aquí."
+                description="Cuando se procese una importación, el cumplimiento aparecerá aquí."
               />
             </div>
           )}
@@ -312,6 +281,12 @@ export function DashboardPage() {
       )}
     </AppLayout>
   );
+}
+
+function CompliancePct({ pct }: { pct: number }) {
+  const tone =
+    pct >= 90 ? 'bg-green-50 text-accent-green' : pct >= 60 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600';
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${tone}`}>{pct}%</span>;
 }
 
 function ChartCard({

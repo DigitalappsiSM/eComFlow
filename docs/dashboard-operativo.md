@@ -1,98 +1,96 @@
-# Dashboard Operativo 360
+# Dashboard de cumplimiento operativo
 
-El dashboard principal (`/`) da una visión 360 de la operación de retail media a
-partir de las líneas operativas de Firestore. **Todas las métricas se calculan en
-el cliente** sobre proyecciones `MetricLine` (funciones puras en
-`src/domain/dashboard-metrics.ts`); no hay agregaciones en servidor y no se lee
+El dashboard principal (`/`) muestra el **estatus real de operación** por cliente
+y por periodo: qué está **cumplido**, qué está **en riesgo** (venció sin
+completarse), qué está **en proceso** y dónde están los **cuellos de botella**.
+
+A diferencia de un panel de conteos, aquí el estado se basa en el **avance real
+de los checks** (correo, artes, validación, link, kevel, testigos), no solo en
+fechas. **Todas las métricas se calculan en el cliente** con funciones puras
+(`src/domain/dashboard-metrics.ts`); no hay agregaciones en servidor ni se lee
 ningún Excel.
 
 ## Flujo de datos
 
-1. `useDashboardData` → `fetchActiveLinesForDashboard` carga de Firestore las
-   líneas con `active == true` y `is_current == true` (límite por defecto 2000).
-2. `toMetricLine` proyecta cada `CampaignLine` a `MetricLine` (incluye
-   `periodoFin`, `tipoCampanaPeriodo`, `cancelled`).
-3. `DashboardPage` aplica los filtros en memoria y calcula todas las métricas con
-   funciones puras, sin re-consultar Firestore.
+1. `useDashboardData` → `fetchOperationalLinesForDashboard` carga de Firestore
+   las líneas `active == true` y `is_current == true` (tope 1500) y **une cada
+   línea con su operación** (`campaign_operations`, por `campaign_line_id`, en
+   lotes de 10 en paralelo).
+2. Cada línea se proyecta a `MetricLine` con su **avance real**: `progress`,
+   `complete`, `pendingChecks`, `completedAtIso` (fecha en que quedó completa) y
+   `responsable`.
+3. `DashboardPage` aplica los filtros en memoria y calcula el cumplimiento.
+
+## Checks obligatorios por tipo
+
+El conjunto de checks obligatorios depende del tipo de operación
+(`src/domain/operation-rules.ts`):
+
+- **DIGITAL SIGNAGE**: solo **Artes**.
+- **ECOMMERCE / TOMATURNOS / otros**: los **7** checks.
+
+Una línea está **cumplida** cuando **todos sus checks obligatorios** están
+completos.
+
+## Estados de cumplimiento
+
+`complianceStatusOf(line, hoy)` combina completitud y periodo operativo
+(`periodo_inicio/fin`, con reserva a las fechas de campaña):
+
+| Estado | Regla |
+|--------|-------|
+| **Cumplida** | Todos los checks obligatorios completos. |
+| **En riesgo** | Periodo **vencido** y la línea **incompleta** (SLA incumplido). |
+| **En proceso** | Periodo **en curso** y la línea incompleta. |
+| **Futura** | Periodo **futuro** y la línea incompleta. |
+
+**A tiempo** (`completedOnTime`): la línea está cumplida y se completó a más
+tardar al **fin de su periodo** (`completedAtIso <= periodo_fin`). Si no hay
+fecha de completado, se asume a tiempo. Las líneas **canceladas** se excluyen de
+todos los cálculos.
 
 ## KPIs
 
 | KPI | Qué mide |
 |-----|----------|
-| **Clientes activos** | Clientes distintos con al menos una línea vigente que cruza el periodo. |
-| **Campañas activas** | Campañas distintas (Cliente + Nº de campaña) activas. |
-| **Líneas operativas** | Líneas activas (una Creatividad ID en un espacio). |
-| **Piezas requeridas** | Suma de soportes/requisitos obligatorios de las líneas activas. |
-| **Tipos activos** | Nº de tipos de operación distintos presentes. |
-| **Periodos activos** | Nº de periodos (semana/catorcena) distintos presentes. |
-| **Líneas vencidas** | Líneas cuyo periodo operativo ya terminó (pendientes de cierre). |
-| **En curso** | Líneas cuyo periodo operativo incluye hoy. |
+| **% Cumplimiento** | Líneas cumplidas ÷ total (verde ≥90, ámbar ≥60, rojo <60). |
+| **% A tiempo** | Líneas completadas a tiempo ÷ líneas cuyo periodo ya venció. |
+| **En riesgo** | Líneas vencidas aún incompletas (pendientes de cierre). |
+| **Avance prom.** | Promedio del avance de checks (0–100 %). |
+| **Cumplidas** | Nº de líneas con todos sus checks obligatorios completos. |
+| **En proceso** | Líneas en curso todavía incompletas. |
+| **Clientes** | Clientes distintos en el filtro actual. |
+| **Periodos** | Periodos (semana/catorcena) distintos en el filtro actual. |
 
-### ¿Qué es un "cliente activo"?
+## Gráficos y tabla (Recharts)
 
-Un cliente con **al menos una línea activa y vigente** cuya ventana operativa
-cruza el periodo seleccionado (regla de cruce §37:
-`fecha_fijacion <= fin` y `fecha_retirada >= inicio`). Con el filtro amplio por
-defecto, equivale a los clientes con líneas activas cargadas.
-
-## Vencido / En curso / Futuro
-
-El estado operativo se calcula por línea contra **hoy** usando el **periodo
-operativo** (que vence antes que la campaña global):
-
-- `inicio = periodo_inicio ?? fecha_fijacion`
-- `fin = periodo_fin ?? fecha_retirada`
-
-Clasificación (`operationalStatusOf`):
-
-- **Vencido**: `fin < hoy`.
-- **Futuro**: `inicio > hoy`.
-- **En curso**: hoy cae dentro de `[inicio, fin]`.
-
-`computeOperationalStatusBreakdown` cuenta estas tres categorías y **excluye las
-líneas canceladas** (`cancelled == true`).
-
-## Agrupación por mes
-
-`computeMonthlyOperationTrend` agrupa las líneas por el **mes de su inicio
-operativo** (`(periodo_inicio ?? fecha_fijacion)` recortado a `YYYY-MM`) y ordena
-cronológicamente. Se pinta como área de evolución mensual.
-
-## Gráficos (Recharts)
-
-- **Principales clientes** — barras horizontales, top 8 por líneas.
-- **Tipos de operación** — dona con la distribución de líneas.
-- **Operación por mes** — área de evolución mensual.
-- **Estado operativo** — dona Vencido / En curso / Futuro.
-- **Carga por periodo** — barras por semana/catorcena (orden cronológico).
-- **Clientes por tipo de operación** — barras apiladas (top 8 clientes).
-- **Carga por cadena** — barras horizontales (top 10 cadenas).
-- **Atención requerida** — tabla de líneas vencidas por Cliente · Periodo · Tipo
-  con líneas vencidas, piezas y estado.
+- **Cumplimiento por cliente** — barras horizontales del % de cumplimiento,
+  **peor primero** (más riesgo / menor %), coloreadas por umbral.
+- **Semáforo de cumplimiento** — dona Cumplidas / En riesgo / En proceso / Futuras.
+- **Cumplimiento por periodo** — barras del % por semana/catorcena (cronológico).
+- **Cuellos de botella** — barras del nº de líneas con cada check obligatorio
+  pendiente (dónde se atora la operación).
+- **Detalle de cumplimiento** — tabla por Cliente · Periodo · Tipo con total,
+  cumplidas, % de cumplimiento y líneas en riesgo (mayor riesgo primero).
 
 ## Filtros
 
-Se derivan dinámicamente de los datos cargados y se aplican en memoria:
-
-- **Periodo** (semana/catorcena, orden cronológico)
-- **Mes** (`YYYY-MM`)
-- **Cadena**
-- **Tipo** de operación
-- **Cliente**
-- **Estado** operativo (Vencido / En curso / Futuro)
-- **Continuidad** (Fijación / Continua)
-
-El botón **Limpiar** restablece todos los filtros. El contador muestra
-"X de Y líneas".
+Se derivan de los datos y se aplican en memoria: **Periodo, Mes, Cadena, Tipo,
+Cliente, Cumplimiento** (Cumplida / En riesgo / En proceso / Futura), **Estado**
+operativo (Vencido / En curso / Futuro) y **Continuidad** (Fijación / Continua).
+El botón **Limpiar** restablece todo; el contador muestra "X de Y líneas".
 
 ## Validación en producción
 
 1. Abrir **https://digitalappsism.github.io/eComFlow/** (dashboard es la ruta `/`).
 2. Recargar fuerte con **Ctrl + Shift + R**.
-3. Verificar los **8 KPIs** y que los **gráficos** se pintan con datos.
-4. Probar los filtros (Periodo, Mes, Cadena, Tipo, Cliente, Estado, Continuidad)
-   y confirmar que KPIs, gráficos y la tabla de **Atención requerida** reaccionan.
-5. Confirmar que **Líneas vencidas** coincide con la sección Vencido de la dona
-   de estado, y que la tabla lista los clientes/periodos con líneas vencidas.
-6. Comprobar el comportamiento **responsive** (móvil: KPIs en 2 columnas, gráficos
-   apilados) y los **estados vacíos** cuando un filtro no devuelve líneas.
+3. Verificar que aparece **"Cumplimiento operativo"** y que los KPIs muestran
+   porcentajes (no solo conteos).
+4. Confirmar que **En riesgo** coincide con la sección roja del semáforo y con la
+   suma de la columna **En riesgo** de la tabla.
+5. Cruzar contra **Seguimiento operativo**: una línea con todos sus checks
+   marcados debe contar como **Cumplida**; una con periodo vencido y checks
+   pendientes debe salir **En riesgo**.
+6. Probar los filtros (sobre todo **Cumplimiento**, **Cliente** y **Periodo**) y
+   ver que KPIs, gráficos y tabla reaccionan.
+7. Comprobar el comportamiento **responsive** y los **estados vacíos**.
