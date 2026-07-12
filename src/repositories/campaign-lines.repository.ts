@@ -36,6 +36,9 @@ function toMetricLine(line: CampaignLine): MetricLine {
     cadena: line.cadena ?? null,
     periodoOriginal: line.periodo_original ?? null,
     periodoInicio: line.periodo_inicio ?? null,
+    periodoFin: line.periodo_fin ?? null,
+    tipoCampanaPeriodo: line.tipo_campana_periodo ?? null,
+    cancelled: line.cancelled ?? false,
   };
 }
 

@@ -4,7 +4,7 @@ interface KpiCardProps {
   label: string;
   value: number | string;
   icon: LucideIcon;
-  accent: 'blue' | 'green' | 'violet' | 'orange' | 'teal';
+  accent: 'blue' | 'green' | 'violet' | 'orange' | 'teal' | 'red';
 }
 
 const ACCENT: Record<KpiCardProps['accent'], string> = {
@@ -13,6 +13,7 @@ const ACCENT: Record<KpiCardProps['accent'], string> = {
   violet: 'bg-violet-50 text-accent-violet',
   orange: 'bg-orange-50 text-accent-orange',
   teal: 'bg-teal-50 text-accent-teal',
+  red: 'bg-red-50 text-red-600',
 };
 
 /** Tarjeta KPI del dashboard (§39). */

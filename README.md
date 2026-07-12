@@ -37,9 +37,14 @@ Además del alcance de la especificación, se adaptó a los **datos reales**:
   digitales (ECOMMERCE, DIGITAL SIGNAGE, TOMATURNOS).
 - **Filtros dinámicos** (Periodo, Cadena, Tipo, Cliente, Estado + búsqueda) en
   Dashboard y Seguimiento operativo.
+- **Dashboard Operativo 360**: KPIs (clientes/campañas/líneas/piezas/tipos/
+  periodos activos, líneas vencidas y en curso) y gráficos Recharts (top clientes,
+  tipos de operación, evolución mensual, carga por periodo/cadena, clientes por
+  tipo, estado vencido/en curso/futuro) más tabla de **atención requerida**. Ver
+  [`docs/dashboard-operativo.md`](docs/dashboard-operativo.md).
 - **Reinicio de datos de prueba** oculto y protegido por interruptor.
 
-Pruebas: **72** unitarias en verde. Lint, TypeScript y build de producción limpios.
+Pruebas: **91** unitarias en verde. Lint, TypeScript y build de producción limpios.
 
 ---
 
