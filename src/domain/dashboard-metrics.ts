@@ -17,6 +17,7 @@ export interface MetricLine {
   campaignSpaceId: string;
   campaignLineId: string;
   clienteKey: string;
+  clienteOriginal?: string;
   creatividadIdKey: string;
   placementId: string;
   fechaFijacion: IsoDate;

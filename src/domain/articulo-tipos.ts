@@ -19,6 +19,17 @@ export const DEFAULT_TIPOS: TipoOperacion[] = [
   'TOMATURNOS',
 ];
 
+/**
+ * Tipos "digitales" que SÍ se importan a la base. Las líneas cuyo tipo no esté
+ * aquí (p. ej. GRAFICA) se excluyen al importar (no se guardan). Configurable a
+ * futuro; hoy es el conjunto por defecto de operaciones digitales.
+ */
+export const DEFAULT_DIGITAL_TIPOS: TipoOperacion[] = [
+  'ECOMMERCE',
+  'DIGITAL SIGNAGE',
+  'TOMATURNOS',
+];
+
 /** Catálogo base Artículo → Tipo (texto original; se normaliza al construir). */
 export const DEFAULT_ARTICULO_TIPOS: ReadonlyArray<readonly [string, TipoOperacion]> = [
   ['ALARM-MEDIA', 'GRAFICA'],

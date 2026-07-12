@@ -15,6 +15,7 @@ const RESULT_LABELS: Record<ImportResult, string> = {
   unchanged: 'Sin cambios',
   creativity_change: 'Cambio de creatividad',
   possible_replacement: 'Posible sustitución',
+  excluded_by_type: 'Excluida (no digital)',
   rejected: 'Rechazada',
 };
 
@@ -27,6 +28,7 @@ const RESULT_STYLES: Record<ImportResult, string> = {
   unchanged: 'bg-slate-100 text-slate-500',
   creativity_change: 'bg-violet-50 text-accent-violet',
   possible_replacement: 'bg-violet-50 text-accent-violet',
+  excluded_by_type: 'bg-slate-100 text-slate-500',
   rejected: 'bg-red-50 text-red-600',
 };
 
@@ -138,7 +140,7 @@ export function NewImportPage() {
               <Stat label="Actualizados" value={state.plan.summary.updated} />
               <Stat label="Sin cambios" value={state.plan.summary.unchanged} />
               <Stat label="Rechazados" value={state.plan.summary.rejected} tone="danger" />
-              <Stat label="Cambios creat." value={state.plan.summary.creativity_changes} />
+              <Stat label="Excluidas (no digital)" value={state.plan.summary.excluded} />
             </div>
 
             {typeof state.plan.mergedRows === 'number' && state.plan.mergedRows > 0 && (

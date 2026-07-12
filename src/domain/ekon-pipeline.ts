@@ -11,7 +11,7 @@
 import { buildIdentity } from './identity';
 import { normalizeSlugKey } from './normalization';
 import { classifyRow } from './import-classification';
-import type { TipoClassifier } from './articulo-tipos';
+import { DEFAULT_DIGITAL_TIPOS, type TipoClassifier } from './articulo-tipos';
 import type {
   ImportPlan,
   ImportStoreLookup,
@@ -36,6 +36,7 @@ function emptySummary(total: number): ImportSummary {
     rejected: 0,
     creativity_changes: 0,
     possible_replacements: 0,
+    excluded: 0,
   };
 }
 
@@ -100,7 +101,10 @@ export async function buildEkonImportPlan(
   rawRows: readonly Record<string, string>[],
   store: ImportStoreLookup,
   classifier?: TipoClassifier,
+  /** Tipos que SÍ se importan; el resto (p. ej. GRÁFICA) se excluye. */
+  includedTipos: readonly string[] = DEFAULT_DIGITAL_TIPOS,
 ): Promise<ImportPlan> {
+  const included = new Set(includedTipos);
   const headerCheck = validateEkonHeaders(headers);
   if (!headerCheck.ok) {
     return {
@@ -141,6 +145,12 @@ export async function buildEkonImportPlan(
 
   // Clasificar cada línea distinta contra Firestore.
   for (const plan of byLineKey.values()) {
+    // Excluir por tipo de operación no incluido (p. ej. GRÁFICA): no se guarda.
+    const tipo = plan.extra?.tipoOperacion ?? null;
+    if (tipo !== null && !included.has(tipo)) {
+      plan.result = 'excluded_by_type';
+      continue;
+    }
     const id = plan.identity!;
     const groupId = await store.getGroupId(id.campaignGroupKey);
     const spaceId = groupId ? await store.getSpaceId(id.campaignSpaceKey) : null;
@@ -170,6 +180,9 @@ export async function buildEkonImportPlan(
     switch (r.result) {
       case 'rejected':
         summary.rejected++;
+        break;
+      case 'excluded_by_type':
+        summary.excluded++;
         break;
       case 'new_campaign':
         summary.valid++;

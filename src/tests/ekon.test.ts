@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildEkonImportPlan, ekonPlacementId } from '@/domain/ekon-pipeline';
 import { mapEkonRow, EKON_COLUMNS } from '@/schemas/ekon.schema';
+import { buildTipoClassifier } from '@/domain/articulo-tipos';
 import type { ImportStoreLookup } from '@/domain/import-pipeline';
 import type { ExistingLineRef } from '@/domain/import-classification';
 
@@ -90,6 +91,27 @@ describe('Ekon template (archivo operativo real)', () => {
     );
     expect(plan.summary.rejected).toBe(1);
     expect(plan.rows[0]!.errors[0]!.error_code).toBe('EMPTY_REQUIRED');
+  });
+
+  it('excluye por tipo no digital (GRÁFICA) al clasificar', async () => {
+    const classifier = buildTipoClassifier(); // ALARM-MEDIA → GRAFICA (catálogo base)
+    const plan = await buildEkonImportPlan(headers, [ekonRow()], new EmptyStore(), classifier);
+    // Por defecto sólo se importan tipos digitales → GRÁFICA queda excluida.
+    expect(plan.rows[0]!.result).toBe('excluded_by_type');
+    expect(plan.summary.excluded).toBe(1);
+    expect(plan.summary.valid).toBe(0);
+  });
+
+  it('importa un tipo digital (ECOMMERCE) normalmente', async () => {
+    const classifier = buildTipoClassifier(); // CATEGORY BANNER → ECOMMERCE
+    const plan = await buildEkonImportPlan(
+      headers,
+      [ekonRow({ [EKON_COLUMNS.articulo]: 'CATEGORY BANNER' })],
+      new EmptyStore(),
+      classifier,
+    );
+    expect(plan.rows[0]!.result).toBe('new_campaign');
+    expect(plan.summary.excluded).toBe(0);
   });
 
   it('rechazo estructural si faltan columnas obligatorias', async () => {

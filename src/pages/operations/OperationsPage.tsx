@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Search } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/States';
 import { StatusBadge } from '@/components/operations/StatusBadge';
 import { LineDetailDrawer } from '@/components/operations/LineDetailDrawer';
+import { FilterBar } from '@/components/filters/FilterBar';
 import { useOperations } from '@/features/operations/useOperations';
 import { usePermissions } from '@/hooks/usePermissions';
 import { computeStatus } from '@/domain/campaign-status';
@@ -22,7 +22,7 @@ const CHECK_LABELS: Record<CheckKey, string> = {
 };
 
 export function OperationsPage() {
-  const ops = useOperations();
+  const ops = useOperations(500);
   const { can } = usePermissions();
   const canWrite = can('operations.write');
   const [selected, setSelected] = useState<OperationRow | null>(null);
@@ -30,18 +30,21 @@ export function OperationsPage() {
 
   return (
     <AppLayout title="Seguimiento operativo" description="Estado y avance de cada línea operativa">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" aria-hidden="true" />
-          <input
-            value={ops.search}
-            onChange={(e) => ops.setSearch(e.target.value)}
-            placeholder="Buscar cliente, campaña, creatividad, responsable…"
-            className="focus-ring w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm"
-            aria-label="Buscar en las líneas cargadas"
-          />
-        </div>
-        <span className="text-xs text-slate-400">{ops.totalLoaded} líneas cargadas</span>
+      <div className="flex items-start justify-between gap-3">
+        <FilterBar
+          fields={ops.filterFields}
+          values={ops.filters}
+          onChange={ops.setFilter}
+          onClear={ops.clearFilters}
+          search={{
+            value: ops.search,
+            onChange: ops.setSearch,
+            placeholder: 'Buscar cliente, campaña, creatividad…',
+          }}
+        />
+        <span className="whitespace-nowrap pt-1 text-xs text-slate-400">
+          {ops.rows.length} de {ops.totalLoaded} líneas
+        </span>
       </div>
 
       {ops.status === 'loading' && <LoadingState label="Cargando líneas operativas…" />}

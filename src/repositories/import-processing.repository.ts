@@ -280,7 +280,13 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
       },
     });
 
-    if (row.result === 'rejected' || row.result === 'unchanged' || !row.identity || !row.normalized) {
+    if (
+      row.result === 'rejected' ||
+      row.result === 'excluded_by_type' ||
+      row.result === 'unchanged' ||
+      !row.identity ||
+      !row.normalized
+    ) {
       continue;
     }
 

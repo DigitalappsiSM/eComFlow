@@ -72,6 +72,8 @@ export interface ImportSummary {
   rejected: number;
   creativity_changes: number;
   possible_replacements: number;
+  /** Líneas excluidas por tipo de operación no digital (p. ej. GRÁFICA). */
+  excluded: number;
 }
 
 export interface ImportPlan {
@@ -102,6 +104,7 @@ function emptySummary(total: number): ImportSummary {
     rejected: 0,
     creativity_changes: 0,
     possible_replacements: 0,
+    excluded: 0,
   };
 }
 

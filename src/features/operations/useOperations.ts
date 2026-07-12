@@ -8,6 +8,9 @@ import {
   type OperationRow,
 } from '@/repositories/operations.repository';
 import type { CheckKey } from '@/domain/progress';
+import { computeStatus, STATUS_LABELS } from '@/domain/campaign-status';
+import { todayIso } from '@/lib/dates';
+import { distinctOptions, type FilterValues } from '@/components/filters/filter-utils';
 
 type Status = 'loading' | 'error' | 'ready';
 
@@ -18,6 +21,7 @@ export function useOperations(pageSize = 50) {
   const [rows, setRows] = useState<OperationRow[]>([]);
   const [cursor, setCursor] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [filters, setFilters] = useState<FilterValues>({});
   const [search, setSearch] = useState('');
 
   const actor = useMemo(
@@ -84,23 +88,54 @@ export function useOperations(pageSize = 50) {
     [actor],
   );
 
+  const today = todayIso();
+  const statusLabelOf = useCallback(
+    (r: OperationRow) =>
+      STATUS_LABELS[
+        computeStatus({
+          fechaFijacion: r.line.fecha_fijacion,
+          fechaRetirada: r.line.fecha_retirada,
+          checks: r.checks,
+          cancelled: r.line.cancelled,
+          today,
+        })
+      ],
+    [today],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (q === '') return rows;
-    return rows.filter((r) =>
-      [
-        r.line.cliente_original,
-        r.line.numero_campaña_original,
-        r.line.placement_name_snapshot,
-        r.line.creatividad_titulo_original,
-        r.line.creatividad_id_original,
-        r.responsable ?? '',
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [rows, search]);
+    return rows.filter((r) => {
+      if (filters.cadena && (r.line.cadena ?? '') !== filters.cadena) return false;
+      if (filters.tipo && (r.line.tipo_operacion ?? '') !== filters.tipo) return false;
+      if (filters.cliente && (r.line.cliente_original ?? '') !== filters.cliente) return false;
+      if (filters.estado && statusLabelOf(r) !== filters.estado) return false;
+      if (q !== '') {
+        const hay = [
+          r.line.cliente_original,
+          r.line.numero_campaña_original,
+          r.line.placement_name_snapshot,
+          r.line.creatividad_titulo_original,
+          r.line.creatividad_id_original,
+          r.responsable ?? '',
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, search, filters, statusLabelOf]);
+
+  const filterFields = useMemo(
+    () => [
+      { key: 'cadena', label: 'Cadena', options: distinctOptions(rows, (r) => r.line.cadena) },
+      { key: 'tipo', label: 'Tipo', options: distinctOptions(rows, (r) => r.line.tipo_operacion) },
+      { key: 'cliente', label: 'Cliente', options: distinctOptions(rows, (r) => r.line.cliente_original) },
+      { key: 'estado', label: 'Estado', options: distinctOptions(rows, statusLabelOf) },
+    ],
+    [rows, statusLabelOf],
+  );
 
   return {
     status,
@@ -112,6 +147,13 @@ export function useOperations(pageSize = 50) {
     reload: () => void load(true),
     search,
     setSearch,
+    filters,
+    filterFields,
+    setFilter: (key: string, value: string) => setFilters((f) => ({ ...f, [key]: value })),
+    clearFilters: () => {
+      setFilters({});
+      setSearch('');
+    },
     toggleCheck,
     setResponsable,
   };

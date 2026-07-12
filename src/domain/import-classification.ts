@@ -25,6 +25,7 @@ export type ImportResult =
   | 'unchanged'
   | 'creativity_change'
   | 'possible_replacement'
+  | 'excluded_by_type'
   | 'rejected';
 
 /** Línea ya existente en Firestore, proyectada a lo mínimo necesario. */

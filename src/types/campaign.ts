@@ -76,6 +76,9 @@ export interface CampaignLine extends AuditFields {
   numero_campaña_original: string;
   placement_id: string;
   placement_name_snapshot: string;
+  cadena: string | null;
+  tipo_operacion: string | null;
+  linea_campana?: string | null;
   fecha_fijacion: IsoDate;
   fecha_retirada: IsoDate;
   creatividad_titulo_original: string;

@@ -24,6 +24,7 @@ function toMetricLine(line: CampaignLine): MetricLine {
     campaignSpaceId: line.campaign_space_id,
     campaignLineId: line.campaign_line_id,
     clienteKey: line.cliente_key,
+    clienteOriginal: line.cliente_original,
     creatividadIdKey: line.creatividad_id_key,
     placementId: line.placement_id,
     fechaFijacion: line.fecha_fijacion,
