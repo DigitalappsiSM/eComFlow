@@ -11,6 +11,7 @@ import {
   buildEmailHtml,
   buildEmailRows,
   buildEmailText,
+  buildTrackingSubjects,
   computeEmailContext,
   descripcionOf,
   emailRowCells,
@@ -72,6 +73,7 @@ export function CampaignsListPage() {
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
+  const [copiedSubject, setCopiedSubject] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -101,6 +103,7 @@ export function CampaignsListPage() {
   );
   const rows = useMemo(() => buildEmailRows(filtered), [filtered]);
   const ctx = useMemo(() => computeEmailContext(rows), [rows]);
+  const subjects = useMemo(() => buildTrackingSubjects(filtered), [filtered]);
 
   const campaignRef = useMemo(() => {
     const set = new Set<string>();
@@ -155,6 +158,16 @@ export function CampaignsListPage() {
       setCopyStatus('error');
     }
     window.setTimeout(() => setCopyStatus('idle'), 2500);
+  }
+
+  async function handleCopySubject(subject: string) {
+    try {
+      await navigator.clipboard.writeText(subject);
+      setCopiedSubject(subject);
+    } catch {
+      setCopiedSubject(null);
+    }
+    window.setTimeout(() => setCopiedSubject(null), 2500);
   }
 
   return (
@@ -248,6 +261,39 @@ export function CampaignsListPage() {
                   }
                 />
               ) : (
+                <>
+                <div className="card p-5">
+                  <h3 className="text-sm font-semibold text-slate-800">Título del correo (tracking)</h3>
+                  <p className="mb-3 text-xs text-slate-400">
+                    Un título por cliente · formato <span className="font-mono"># campaña | cliente | Campañas Soriana.com</span>
+                  </p>
+                  <ul className="space-y-2">
+                    {subjects.map((s) => (
+                      <li
+                        key={s.cliente}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                      >
+                        <span className="font-mono text-xs text-slate-700">{s.subject}</span>
+                        <button
+                          type="button"
+                          onClick={() => void handleCopySubject(s.subject)}
+                          className="focus-ring inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          {copiedSubject === s.subject ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-accent-green" aria-hidden="true" /> Copiado
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3.5 w-3.5" aria-hidden="true" /> Copiar título
+                            </>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
                 <div className="card p-5">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -291,6 +337,7 @@ export function CampaignsListPage() {
 
                   <EmailPreview recipient={recipient} campaignRef={campaignRef} rows={rows} ctx={ctx} />
                 </div>
+                </>
               )}
             </>
           )}

@@ -15,6 +15,7 @@ import { lookupMeasures, type ArtMeasures } from './ecommerceMeasures';
 export interface EmailSourceLine {
   cadena?: string | null;
   cliente_original?: string | null;
+  numero_campaña_original?: string | null;
   anunciante?: string | null;
   periodo_codigo?: string | null;
   periodo_original?: string | null;
@@ -148,7 +149,7 @@ export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
     const nivel = nivelOf(line);
     const descripcion = descripcionOf(line);
     const creatividadId = (line.creatividad_id_original ?? '').trim();
-    const key = [cadena, articulo, creatividadId, nivel, descripcion].join('||');
+    const key = [cliente, cadena, articulo, creatividadId, nivel, descripcion].join('||');
 
     const fijacion = (line.fecha_fijacion ?? '').trim();
     const retirada = (line.fecha_retirada ?? '').trim();
@@ -176,14 +177,45 @@ export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
     });
   }
 
+  // Orden: por cliente y luego por periodo (cronológico, por la fijación más
+  // temprana de la fila); desempate por cadena/artículo/nivel.
   return [...groups.values()]
     .map(({ _periods, ...row }) => ({ ...row, periodos: sortPeriods(_periods) }))
     .sort(
       (a, b) =>
+        a.cliente.localeCompare(b.cliente, 'es') ||
+        a.fijacionIso.localeCompare(b.fijacionIso) ||
         a.cadena.localeCompare(b.cadena, 'es') ||
         a.articulo.localeCompare(b.articulo, 'es') ||
         a.nivel.localeCompare(b.nivel, 'es'),
     );
+}
+
+/** Título de correo para tracking, por cliente. */
+export interface TrackingSubject {
+  cliente: string;
+  subject: string;
+}
+
+/**
+ * Un título por cliente con el formato:
+ * `# de campaña(s) | cliente | Campañas Soriana.com`.
+ * Une los números de campaña del cliente (sin duplicados) con comas.
+ */
+export function buildTrackingSubjects(lines: readonly EmailSourceLine[]): TrackingSubject[] {
+  const byClient = new Map<string, Set<string>>();
+  for (const line of lines) {
+    const cliente = (line.cliente_original ?? '').trim() || EM_DASH;
+    if (!byClient.has(cliente)) byClient.set(cliente, new Set());
+    const numero = (line.numero_campaña_original ?? '').trim();
+    if (numero) byClient.get(cliente)!.add(numero);
+  }
+  return [...byClient.entries()]
+    .map(([cliente, nums]) => {
+      const campanas = [...nums].sort((a, b) => a.localeCompare(b, 'es')).join(', ') || EM_DASH;
+      return { cliente, subject: `${campanas} | ${cliente} | Campañas Soriana.com` };
+    })
+    .sort((a, b) => a.cliente.localeCompare(b.cliente, 'es'));
 }
 
 /** Columnas EXACTAS de la tabla del correo. */

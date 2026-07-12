@@ -12,9 +12,24 @@ campañas.
    `is_current == true` de todas las campañas.
 2. Se filtran en cliente a **operativa Ecommerce** (`tipo_operacion == 'ECOMMERCE'`).
 3. El usuario acota con filtros; el correo y la tabla reflejan solo lo filtrado.
-4. Las líneas se agrupan por creatividad (cadena · artículo · id · nivel ·
-   descripción), uniendo periodos (p. ej. `S29, S30`) y tomando la mínima
+4. Las líneas se agrupan por creatividad (cliente · cadena · artículo · id ·
+   nivel · descripción), uniendo periodos (p. ej. `S29, S30`) y tomando la mínima
    fijación y la máxima retirada.
+5. Las filas se ordenan por **cliente** y luego por **periodo** (cronológico, por
+   la fijación más temprana de la fila).
+
+## Título para tracking
+
+Encima de la vista previa se muestra **un título por cliente** para copiar, con
+el formato:
+
+```
+# de campaña(s) | cliente | Campañas Soriana.com
+```
+
+Ejemplo: `24490, 24491 | PROXIMO NATAL | Campañas Soriana.com`. Une los números
+de campaña del cliente (sin duplicados) con comas; cada título tiene su botón
+**Copiar título**.
 
 ## Filtros
 

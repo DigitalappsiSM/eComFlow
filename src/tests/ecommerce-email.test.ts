@@ -10,6 +10,7 @@ import {
   buildEmailHtml,
   buildEmailRows,
   buildEmailText,
+  buildTrackingSubjects,
   computeEmailContext,
   descripcionOf,
   formatDateLong,
@@ -160,6 +161,31 @@ describe('ecommerceEmail · agrupación y correo', () => {
 
   it('saludo sin nombre usa "Hola,"', () => {
     expect(buildEmailText('', '1', buildEmailRows([srcLine()]))).toContain('Hola,\n');
+  });
+
+  it('ordena las filas por cliente y luego por fecha de fijación', () => {
+    const rows = buildEmailRows([
+      srcLine({ cliente_original: 'ZETA', creatividad_id_original: 'z', fecha_fijacion: '2026-07-10' }),
+      srcLine({ cliente_original: 'ALFA', creatividad_id_original: 'a2', fecha_fijacion: '2026-07-24' }),
+      srcLine({ cliente_original: 'ALFA', creatividad_id_original: 'a1', fecha_fijacion: '2026-07-10' }),
+    ]);
+    expect(rows.map((r) => [r.cliente, r.fijacionIso])).toEqual([
+      ['ALFA', '2026-07-10'],
+      ['ALFA', '2026-07-24'],
+      ['ZETA', '2026-07-10'],
+    ]);
+  });
+
+  it('buildTrackingSubjects arma un título por cliente con sus campañas', () => {
+    const subjects = buildTrackingSubjects([
+      srcLine({ cliente_original: 'PROXIMO NATAL', numero_campaña_original: '24490', creatividad_id_original: '1' }),
+      srcLine({ cliente_original: 'PROXIMO NATAL', numero_campaña_original: '24491', creatividad_id_original: '2' }),
+      srcLine({ cliente_original: 'CORONA', numero_campaña_original: '30010', creatividad_id_original: '3' }),
+    ]);
+    expect(subjects).toEqual([
+      { cliente: 'CORONA', subject: '30010 | CORONA | Campañas Soriana.com' },
+      { cliente: 'PROXIMO NATAL', subject: '24490, 24491 | PROXIMO NATAL | Campañas Soriana.com' },
+    ]);
   });
 
   it('buildEmailHtml genera tabla HTML estilizada con las columnas y escapado', () => {
