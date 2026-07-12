@@ -4,7 +4,7 @@ import {
   Upload,
   GitCompareArrows,
   History,
-  FileText,
+  Mail,
   Package,
   Settings,
   Users,
@@ -12,22 +12,55 @@ import {
 } from 'lucide-react';
 import type { Permission } from '@/types/user';
 
+/** Contadores dinámicos que una entrada de navegación puede mostrar como badge. */
+export type NavBadge = 'pendingChanges';
+
 export interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
   permission: Permission;
+  /** Badge con dato real (nunca simulado). */
+  badge?: NavBadge;
 }
 
-/** Navegación lateral (§34). El acceso real está protegido por rutas y reglas. */
-export const NAV_ITEMS: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
-  { to: '/operacion', label: 'Seguimiento operativo', icon: ClipboardList, permission: 'operations' },
-  { to: '/nueva-carga', label: 'Nueva carga', icon: Upload, permission: 'imports' },
-  { to: '/cambios', label: 'Cambios detectados', icon: GitCompareArrows, permission: 'changes' },
-  { to: '/historial', label: 'Historial de cargas', icon: History, permission: 'history' },
-  { to: '/campanas', label: 'Detalle de campaña', icon: FileText, permission: 'campaigns' },
-  { to: '/catalogo', label: 'Catálogo de artículos', icon: Package, permission: 'catalog' },
-  { to: '/configuracion', label: 'Configuración', icon: Settings, permission: 'settings' },
-  { to: '/usuarios', label: 'Administración de usuarios', icon: Users, permission: 'users' },
+export interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+/**
+ * Navegación lateral agrupada por área (§34). El acceso real está protegido por
+ * rutas y reglas; aquí solo se ordena y agrupa para el escaneo del usuario.
+ */
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    label: 'Operación',
+    items: [
+      { to: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
+      { to: '/operacion', label: 'Seguimiento operativo', icon: ClipboardList, permission: 'operations' },
+    ],
+  },
+  {
+    label: 'Cargas',
+    items: [
+      { to: '/nueva-carga', label: 'Nueva carga', icon: Upload, permission: 'imports' },
+      { to: '/cambios', label: 'Cambios detectados', icon: GitCompareArrows, permission: 'changes', badge: 'pendingChanges' },
+      { to: '/historial', label: 'Historial de cargas', icon: History, permission: 'history' },
+    ],
+  },
+  {
+    label: 'Herramientas',
+    items: [
+      { to: '/campanas', label: 'Correo Ecommerce', icon: Mail, permission: 'campaigns' },
+      { to: '/catalogo', label: 'Catálogo de artículos', icon: Package, permission: 'catalog' },
+    ],
+  },
+  {
+    label: 'Administración',
+    items: [
+      { to: '/configuracion', label: 'Configuración', icon: Settings, permission: 'settings' },
+      { to: '/usuarios', label: 'Administración de usuarios', icon: Users, permission: 'users' },
+    ],
+  },
 ];

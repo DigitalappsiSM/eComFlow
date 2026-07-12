@@ -2,6 +2,20 @@
 
 Registro de cambios relevantes de eComFlow Next. Fechas en formato ISO.
 
+## 2026-07-12 (iteración 3)
+
+### Navegación (UX)
+- **Menú agrupado** por área: Operación · Cargas · Herramientas · Administración.
+- **Sidebar colapsable** en escritorio (rail de iconos con tooltips), con la
+  preferencia recordada en `localStorage`.
+- **Navegación móvil**: el sidebar se vuelve un **drawer** con hamburguesa en el
+  header y fondo oscurecido; se cierra al navegar o tocar fuera.
+- **Renombrado**: "Detalle de campaña" → **"Correo Ecommerce"** (coincide con su
+  función).
+- **Badge y campana con datos reales**: contador de **cambios detectados
+  pendientes** (consulta a Firestore, sin datos simulados) en el menú y en la
+  campana del header, que ahora enlaza a `/cambios`.
+
 ## 2026-07-12 (iteración 2)
 
 ### Dashboard: gráficas siempre visibles (rediseño)

@@ -47,9 +47,13 @@ Además del alcance de la especificación, se adaptó a los **datos reales**:
   **filtro-primero** que agrega líneas Ecommerce de varias campañas (por cliente,
   periodo o fechas) y arma un correo en **HTML para Outlook** (y texto plano) con
   medidas de un catálogo fijo. Ver [`docs/correo-ecommerce.md`](docs/correo-ecommerce.md).
+- **Navegación agrupada, colapsable y móvil**: menú por áreas (Operación /
+  Cargas / Herramientas / Administración), sidebar colapsable a rail de iconos
+  (preferencia recordada) y drawer con hamburguesa en pantallas chicas. Badge y
+  campana con el conteo real de cambios detectados pendientes.
 - **Reinicio de datos de prueba** oculto y protegido por interruptor.
 
-Pruebas: **115** unitarias en verde. Lint, TypeScript y build de producción limpios.
+Pruebas: **117** unitarias en verde. Lint, TypeScript y build de producción limpios.
 
 ---
 
