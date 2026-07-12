@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   Flag,
   LayoutGrid,
@@ -24,7 +25,8 @@ const DEFINITIONS: { term: string; detail: string }[] = [
 ];
 
 export function DashboardPage() {
-  const period = getWeekRange(todayIso());
+  // Memorizado para evitar recrear el objeto en cada render (bucle de recargas).
+  const period = useMemo(() => getWeekRange(todayIso()), []);
   const { state, reload } = useDashboardData(period);
 
   return (

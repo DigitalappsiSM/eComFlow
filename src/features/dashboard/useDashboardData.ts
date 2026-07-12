@@ -31,16 +31,21 @@ type State =
 export function useDashboardData(period: DateRange = getWeekRange(todayIso())) {
   const [state, setState] = useState<State>({ status: 'loading' });
 
+  // Depende de los valores primitivos del periodo, no de la identidad del
+  // objeto, para no re-disparar la consulta en cada render (evita el bucle).
+  const { start, end } = period;
+
   const load = useCallback(async () => {
     setState({ status: 'loading' });
+    const range = { start, end };
     try {
       const lines: MetricLine[] = await fetchActiveLinesForDashboard();
       setState({
         status: 'ready',
-        metrics: computeDashboardMetrics(lines, period),
-        distribution: computePlacementDistribution(lines, period),
-        byTipo: computeLineBreakdown(lines, period, (l) => l.tipoOperacion ?? '(sin clasificar)'),
-        byCadena: computeLineBreakdown(lines, period, (l) => l.cadena ?? '(sin cadena)'),
+        metrics: computeDashboardMetrics(lines, range),
+        distribution: computePlacementDistribution(lines, range),
+        byTipo: computeLineBreakdown(lines, range, (l) => l.tipoOperacion ?? '(sin clasificar)'),
+        byCadena: computeLineBreakdown(lines, range, (l) => l.cadena ?? '(sin cadena)'),
         lineCount: lines.length,
         fromCache: false,
       });
@@ -50,7 +55,7 @@ export function useDashboardData(period: DateRange = getWeekRange(todayIso())) {
         message: err instanceof Error ? err.message : 'Error desconocido.',
       });
     }
-  }, [period]);
+  }, [start, end]);
 
   useEffect(() => {
     void load();
