@@ -152,8 +152,9 @@ El export real trae 39 columnas. Mapeo (`src/schemas/ekon.schema.ts`):
   con la misma Fecha de Fijación en `S28` y `S29` se mantiene como **líneas
   distintas** (no se fusionan). Ver
   [`docs/operations-period-tracking.md`](docs/operations-period-tracking.md).
-- En Seguimiento operativo existe el control **"Marcar todos los checks del
-  periodo vencido"** (solo líneas filtradas cuyo `periodo_fin` ya venció).
+- En Seguimiento operativo, **cada línea** con periodo vencido y checks
+  pendientes tiene su propio botón **"Marcar todos"** (por línea, no global) que
+  completa todos sus checks obligatorios de una vez.
 
 ---
 

@@ -73,33 +73,6 @@ export function OperationsPage() {
           />
         ) : (
           <>
-            <div className="mb-3 flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between">
-              <label
-                className={`flex items-center gap-3 font-medium ${
-                  canWrite && ops.expiredPendingCount > 0
-                    ? 'cursor-pointer text-slate-800'
-                    : 'cursor-not-allowed text-slate-400'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={false}
-                  disabled={!canWrite || ops.expiredPendingCount === 0 || ops.bulkExpiredStatus === 'saving'}
-                  onChange={() => void ops.markExpiredChecks()}
-                  className="h-4 w-4 rounded border-slate-300 text-accent-blue focus:ring-accent-blue disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Marcar todos los checks del periodo vencido"
-                />
-                <span>
-                  {ops.bulkExpiredStatus === 'saving'
-                    ? 'Marcando checks del periodo vencido…'
-                    : `Marcar todos los checks del periodo vencido (${ops.expiredPendingCount})`}
-                </span>
-              </label>
-              <p className="text-xs text-slate-500">
-                Solo aplica a líneas filtradas cuyo periodo ya venció; lo futuro o en curso se mantiene manual check
-                por check.
-              </p>
-            </div>
             <div className="card overflow-x-auto">
               <table className="w-full min-w-[1450px] text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50">
@@ -121,14 +94,18 @@ export function OperationsPage() {
                 </thead>
                 <tbody>
                   {ops.rows.map((row) => {
+                    const required = requiredChecksForLine(row.line);
                     const status = computeStatus({
                       fechaFijacion: row.line.fecha_fijacion,
                       fechaRetirada: row.line.fecha_retirada,
                       checks: row.checks,
                       cancelled: row.line.cancelled,
                       today,
-                      requiredChecks: requiredChecksForLine(row.line),
+                      requiredChecks: required,
                     });
+                    const hasPendingChecks = required.some((k) => !row.checks[k]);
+                    const canMarkAll = canWrite && ops.isLineExpired(row) && hasPendingChecks;
+                    const savingLine = ops.savingLineId === row.line.campaign_line_id;
                     return (
                       <tr key={row.line.campaign_line_id} className="border-t border-slate-100 hover:bg-slate-50">
                         <td className="sticky left-0 bg-white px-3 py-2">
@@ -211,14 +188,27 @@ export function OperationsPage() {
                           />
                         </td>
                         <td className="px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-16 rounded-full bg-slate-100">
-                              <div
-                                className="h-1.5 rounded-full bg-accent-blue"
-                                style={{ width: `${row.progress}%` }}
-                              />
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <div className="h-1.5 w-16 rounded-full bg-slate-100">
+                                <div
+                                  className="h-1.5 rounded-full bg-accent-blue"
+                                  style={{ width: `${row.progress}%` }}
+                                />
+                              </div>
+                              <span className="text-xs tabular-nums text-slate-500">{row.progress}%</span>
                             </div>
-                            <span className="text-xs tabular-nums text-slate-500">{row.progress}%</span>
+                            {canMarkAll && (
+                              <button
+                                type="button"
+                                disabled={savingLine}
+                                onClick={() => void ops.markLineChecks(row)}
+                                className="focus-ring w-fit rounded border border-accent-blue px-2 py-0.5 text-[11px] font-medium text-accent-blue hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                title="Marcar todos los checks obligatorios de esta línea (periodo vencido)"
+                              >
+                                {savingLine ? 'Marcando…' : 'Marcar todos'}
+                              </button>
+                            )}
                           </div>
                         </td>
                         <td className="px-3 py-2">
