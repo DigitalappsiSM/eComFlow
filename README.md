@@ -148,6 +148,12 @@ El export real trae 39 columnas. Mapeo (`src/schemas/ekon.schema.ts`):
   rechazan como duplicados).
 - El **Periodo** se parsea a código (`C16`/`S29`), tipo (**catorcena**/**semana**)
   y fechas de inicio/fin, y se guarda en cada línea.
+- La **identidad operativa se separa por periodo**: una misma campaña/creatividad
+  con la misma Fecha de Fijación en `S28` y `S29` se mantiene como **líneas
+  distintas** (no se fusionan). Ver
+  [`docs/operations-period-tracking.md`](docs/operations-period-tracking.md).
+- En Seguimiento operativo existe el control **"Marcar todos los checks del
+  periodo vencido"** (solo líneas filtradas cuyo `periodo_fin` ya venció).
 
 ---
 

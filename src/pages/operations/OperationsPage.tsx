@@ -73,6 +73,33 @@ export function OperationsPage() {
           />
         ) : (
           <>
+            <div className="mb-3 flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between">
+              <label
+                className={`flex items-center gap-3 font-medium ${
+                  canWrite && ops.expiredPendingCount > 0
+                    ? 'cursor-pointer text-slate-800'
+                    : 'cursor-not-allowed text-slate-400'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={false}
+                  disabled={!canWrite || ops.expiredPendingCount === 0 || ops.bulkExpiredStatus === 'saving'}
+                  onChange={() => void ops.markExpiredChecks()}
+                  className="h-4 w-4 rounded border-slate-300 text-accent-blue focus:ring-accent-blue disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Marcar todos los checks del periodo vencido"
+                />
+                <span>
+                  {ops.bulkExpiredStatus === 'saving'
+                    ? 'Marcando checks del periodo vencido…'
+                    : `Marcar todos los checks del periodo vencido (${ops.expiredPendingCount})`}
+                </span>
+              </label>
+              <p className="text-xs text-slate-500">
+                Solo aplica a líneas filtradas cuyo periodo ya venció; lo futuro o en curso se mantiene manual check
+                por check.
+              </p>
+            </div>
             <div className="card overflow-x-auto">
               <table className="w-full min-w-[1450px] text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50">
@@ -128,7 +155,8 @@ export function OperationsPage() {
                             <span className="font-medium text-slate-700">{row.line.periodo_codigo || row.line.periodo_original || '—'}</span>
                             <ContinuityBadge value={row.line.tipo_campana_periodo} />
                             <span className="text-[11px] text-slate-400">
-                              {row.line.fecha_fijacion} → {row.line.fecha_retirada}
+                              {row.line.periodo_inicio ?? row.line.fecha_fijacion} →{' '}
+                              {row.line.periodo_fin ?? row.line.fecha_retirada}
                             </span>
                           </div>
                         </td>

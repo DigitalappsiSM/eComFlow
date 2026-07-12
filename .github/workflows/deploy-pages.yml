@@ -16,7 +16,6 @@ on:
   push:
     branches:
       - main
-      - claude/ecomflow-next-db-first-4vw81b
   workflow_dispatch:
 
 permissions:
