@@ -92,6 +92,11 @@ function buildRowPlan(
       lineaCampana: n.lineaCampana,
       requiredPieces: n.numSoportes,
       tipoOperacion: classifier ? classifier.resolve(n.articulo) : null,
+      periodoOriginal: n.periodo.original,
+      periodoCodigo: n.periodo.codigo,
+      periodoTipo: n.periodo.tipo,
+      periodoInicio: n.periodo.inicioIso,
+      periodoFin: n.periodo.finIso,
     },
   };
 }

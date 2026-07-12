@@ -29,6 +29,8 @@ export interface MetricLine {
   /** Dimensiones de retail media (plantilla Ekon). */
   tipoOperacion?: string | null;
   cadena?: string | null;
+  periodoOriginal?: string | null;
+  periodoInicio?: string | null;
 }
 
 export interface DashboardMetrics {

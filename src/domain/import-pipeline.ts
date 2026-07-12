@@ -58,6 +58,11 @@ export interface RowPlan {
     lineaCampana?: string;
     requiredPieces?: number;
     tipoOperacion?: string | null;
+    periodoOriginal?: string;
+    periodoCodigo?: string;
+    periodoTipo?: string;
+    periodoInicio?: string;
+    periodoFin?: string;
   };
 }
 

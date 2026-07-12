@@ -306,6 +306,13 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
     const cadena = row.extra?.cadena ?? null;
     const lineaCampana = row.extra?.lineaCampana ?? null;
     const tipoOperacion = row.extra?.tipoOperacion ?? null;
+    const periodo = {
+      periodo_original: row.extra?.periodoOriginal ?? null,
+      periodo_codigo: row.extra?.periodoCodigo ?? null,
+      periodo_tipo: row.extra?.periodoTipo ?? null,
+      periodo_inicio: row.extra?.periodoInicio ?? null,
+      periodo_fin: row.extra?.periodoFin ?? null,
+    };
 
     const createsGroup = row.result === 'new_campaign';
     const createsSpace = row.result === 'new_campaign' || row.result === 'new_space';
@@ -410,6 +417,7 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
           cadena,
           tipo_operacion: tipoOperacion,
           linea_campana: lineaCampana,
+          ...periodo,
           fecha_fijacion: n.fechaFijacionIso,
           fecha_retirada: n.fechaRetiradaIso,
           creatividad_titulo_original: n.creatividadTitulo,

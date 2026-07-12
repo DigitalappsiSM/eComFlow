@@ -4,7 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { KpiCard } from '@/components/dashboard/KpiCard';
 import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/States';
 import { FilterBar } from '@/components/filters/FilterBar';
-import { distinctOptions, type FilterValues } from '@/components/filters/filter-utils';
+import { distinctOptions, sortedOptions, type FilterValues } from '@/components/filters/filter-utils';
 import { useDashboardData } from '@/features/dashboard/useDashboardData';
 import {
   computeDashboardMetrics,
@@ -13,7 +13,11 @@ import {
   type BreakdownItem,
   type MetricLine,
 } from '@/domain/dashboard-metrics';
-import { getWeekRange, todayIso } from '@/lib/dates';
+import type { DateRange } from '@/lib/dates';
+
+// Rango amplio: el "cruce de vigencia" no debe vaciar el dashboard. El alcance
+// temporal se maneja con el filtro de Periodo (semana/catorcena del archivo).
+const WIDE_PERIOD: DateRange = { start: '0001-01-01', end: '9999-12-31' };
 
 const DEFINITIONS: { term: string; detail: string }[] = [
   { term: 'Campaña', detail: 'Agrupación por Cliente + Número de campaña.' },
@@ -27,6 +31,7 @@ const DEFINITIONS: { term: string; detail: string }[] = [
 function applyFilters(lines: readonly MetricLine[], f: FilterValues): MetricLine[] {
   return lines.filter(
     (l) =>
+      (!f.periodo || (l.periodoOriginal ?? '') === f.periodo) &&
       (!f.cadena || (l.cadena ?? '') === f.cadena) &&
       (!f.tipo || (l.tipoOperacion ?? '') === f.tipo) &&
       (!f.cliente || (l.clienteOriginal ?? '') === f.cliente),
@@ -34,7 +39,7 @@ function applyFilters(lines: readonly MetricLine[], f: FilterValues): MetricLine
 }
 
 export function DashboardPage() {
-  const period = useMemo(() => getWeekRange(todayIso()), []);
+  const period = WIDE_PERIOD;
   const { state, reload } = useDashboardData();
   const [filters, setFilters] = useState<FilterValues>({});
 
@@ -59,6 +64,11 @@ export function DashboardPage() {
   );
 
   const fields = [
+    {
+      key: 'periodo',
+      label: 'Periodo',
+      options: sortedOptions(lines, (l) => l.periodoOriginal, (l) => l.periodoInicio),
+    },
     { key: 'cadena', label: 'Cadena', options: distinctOptions(lines, (l) => l.cadena) },
     { key: 'tipo', label: 'Tipo', options: distinctOptions(lines, (l) => l.tipoOperacion) },
     { key: 'cliente', label: 'Cliente', options: distinctOptions(lines, (l) => l.clienteOriginal) },
@@ -66,11 +76,6 @@ export function DashboardPage() {
 
   return (
     <AppLayout title="Dashboard" description="Resumen general de campañas y operación">
-      <div className="mb-3 text-xs text-slate-500">
-        Periodo (semana viernes→jueves): <strong>{period.start}</strong> a{' '}
-        <strong>{period.end}</strong>
-      </div>
-
       {state.status === 'loading' && <LoadingState label="Cargando métricas…" />}
       {state.status === 'error' && <ErrorState description={state.message} onRetry={() => void reload()} />}
 
@@ -81,6 +86,7 @@ export function DashboardPage() {
             values={filters}
             onChange={(key, value) => setFilters((f) => ({ ...f, [key]: value }))}
             onClear={() => setFilters({})}
+            meta={`${filtered.length} de ${lines.length} líneas`}
           />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">

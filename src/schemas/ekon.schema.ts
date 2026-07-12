@@ -31,7 +31,37 @@ export const EKON_COLUMNS = {
   creatividadTitulo: 'Creativitad Título',
   creatividadDesc: 'Creatividad Desc.',
   numSoportes: 'Nº Soportes',
+  periodo: 'Periodo',
+  periodoId: 'Periodo Id',
 } as const;
+
+export interface ParsedPeriodo {
+  original: string;
+  codigo: string; // "C16", "S29" o ""
+  tipo: 'catorcena' | 'semana' | 'otro' | '';
+  inicioIso: string; // ISO o ""
+  finIso: string;
+}
+
+/** Interpreta "C16 - 28/07/2026 a 10/08/2026" → código, tipo y fechas. */
+export function parsePeriodo(raw: string): ParsedPeriodo {
+  const value = (raw ?? '').trim();
+  const empty: ParsedPeriodo = { original: value, codigo: '', tipo: '', inicioIso: '', finIso: '' };
+  if (value === '') return empty;
+  const m = /^(?:([A-Za-z]\d+)\s*-\s*)?(\d{2}\/\d{2}\/\d{4})\s+a\s+(\d{2}\/\d{2}\/\d{4})$/.exec(value);
+  if (!m) return empty;
+  const codigo = (m[1] ?? '').toUpperCase();
+  const ini = parseStrictDate(m[2]!);
+  const fin = parseStrictDate(m[3]!);
+  const tipo = codigo.startsWith('C') ? 'catorcena' : codigo.startsWith('S') ? 'semana' : 'otro';
+  return {
+    original: value,
+    codigo,
+    tipo,
+    inicioIso: ini.ok ? ini.value : '',
+    finIso: fin.ok ? fin.value : '',
+  };
+}
 
 /** Columnas que DEBEN existir como encabezado (rechazo estructural si faltan). */
 export const EKON_REQUIRED_COLUMNS: readonly string[] = [
@@ -58,6 +88,7 @@ export interface EkonNormalizedRow {
   creatividadTitulo: string;
   creatividadDescripcion: string;
   numSoportes: number;
+  periodo: ParsedPeriodo;
 }
 
 export type EkonRowResult =
@@ -148,6 +179,7 @@ export function mapEkonRow(row: Record<string, string>): EkonRowResult {
       creatividadTitulo: val(EKON_COLUMNS.creatividadTitulo),
       creatividadDescripcion: val(EKON_COLUMNS.creatividadDesc),
       numSoportes: toInt(val(EKON_COLUMNS.numSoportes)),
+      periodo: parsePeriodo(val(EKON_COLUMNS.periodo)),
     },
   };
 }

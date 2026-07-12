@@ -30,22 +30,18 @@ export function OperationsPage() {
 
   return (
     <AppLayout title="Seguimiento operativo" description="Estado y avance de cada línea operativa">
-      <div className="flex items-start justify-between gap-3">
-        <FilterBar
-          fields={ops.filterFields}
-          values={ops.filters}
-          onChange={ops.setFilter}
-          onClear={ops.clearFilters}
-          search={{
-            value: ops.search,
-            onChange: ops.setSearch,
-            placeholder: 'Buscar cliente, campaña, creatividad…',
-          }}
-        />
-        <span className="whitespace-nowrap pt-1 text-xs text-slate-400">
-          {ops.rows.length} de {ops.totalLoaded} líneas
-        </span>
-      </div>
+      <FilterBar
+        fields={ops.filterFields}
+        values={ops.filters}
+        onChange={ops.setFilter}
+        onClear={ops.clearFilters}
+        search={{
+          value: ops.search,
+          onChange: ops.setSearch,
+          placeholder: 'Buscar cliente, campaña, creatividad…',
+        }}
+        meta={`${ops.rows.length} de ${ops.totalLoaded} líneas`}
+      />
 
       {ops.status === 'loading' && <LoadingState label="Cargando líneas operativas…" />}
       {ops.status === 'error' && <ErrorState description={ops.message ?? undefined} onRetry={ops.reload} />}

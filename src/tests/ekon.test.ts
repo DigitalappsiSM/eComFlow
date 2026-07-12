@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildEkonImportPlan, ekonPlacementId } from '@/domain/ekon-pipeline';
-import { mapEkonRow, EKON_COLUMNS } from '@/schemas/ekon.schema';
+import { mapEkonRow, parsePeriodo, EKON_COLUMNS } from '@/schemas/ekon.schema';
 import { buildTipoClassifier } from '@/domain/articulo-tipos';
 import type { ImportStoreLookup } from '@/domain/import-pipeline';
 import type { ExistingLineRef } from '@/domain/import-classification';
@@ -112,6 +112,18 @@ describe('Ekon template (archivo operativo real)', () => {
     );
     expect(plan.rows[0]!.result).toBe('new_campaign');
     expect(plan.summary.excluded).toBe(0);
+  });
+
+  it('parsea el Periodo (catorcena y semana) del archivo', () => {
+    const c = parsePeriodo('C16 - 28/07/2026 a 10/08/2026');
+    expect(c).toMatchObject({ codigo: 'C16', tipo: 'catorcena', inicioIso: '2026-07-28', finIso: '2026-08-10' });
+    const s = parsePeriodo('S29 - 17/07/2026 a 23/07/2026');
+    expect(s).toMatchObject({ codigo: 'S29', tipo: 'semana', inicioIso: '2026-07-17', finIso: '2026-07-23' });
+    // Caso sin código (mensual)
+    const m = parsePeriodo('01/08/2026 a 31/08/2026');
+    expect(m).toMatchObject({ codigo: '', tipo: 'otro', inicioIso: '2026-08-01', finIso: '2026-08-31' });
+    // Vacío / no reconocido
+    expect(parsePeriodo('').codigo).toBe('');
   });
 
   it('rechazo estructural si faltan columnas obligatorias', async () => {

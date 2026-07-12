@@ -10,7 +10,7 @@ import {
 import type { CheckKey } from '@/domain/progress';
 import { computeStatus, STATUS_LABELS } from '@/domain/campaign-status';
 import { todayIso } from '@/lib/dates';
-import { distinctOptions, type FilterValues } from '@/components/filters/filter-utils';
+import { distinctOptions, sortedOptions, type FilterValues } from '@/components/filters/filter-utils';
 
 type Status = 'loading' | 'error' | 'ready';
 
@@ -106,6 +106,7 @@ export function useOperations(pageSize = 50) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
+      if (filters.periodo && (r.line.periodo_original ?? '') !== filters.periodo) return false;
       if (filters.cadena && (r.line.cadena ?? '') !== filters.cadena) return false;
       if (filters.tipo && (r.line.tipo_operacion ?? '') !== filters.tipo) return false;
       if (filters.cliente && (r.line.cliente_original ?? '') !== filters.cliente) return false;
@@ -129,6 +130,11 @@ export function useOperations(pageSize = 50) {
 
   const filterFields = useMemo(
     () => [
+      {
+        key: 'periodo',
+        label: 'Periodo',
+        options: sortedOptions(rows, (r) => r.line.periodo_original, (r) => r.line.periodo_inicio),
+      },
       { key: 'cadena', label: 'Cadena', options: distinctOptions(rows, (r) => r.line.cadena) },
       { key: 'tipo', label: 'Tipo', options: distinctOptions(rows, (r) => r.line.tipo_operacion) },
       { key: 'cliente', label: 'Cliente', options: distinctOptions(rows, (r) => r.line.cliente_original) },
