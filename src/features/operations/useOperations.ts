@@ -9,6 +9,7 @@ import {
 } from '@/repositories/operations.repository';
 import type { CheckKey } from '@/domain/progress';
 import { computeStatus, STATUS_LABELS } from '@/domain/campaign-status';
+import { requiredChecksForLine } from '@/domain/operation-rules';
 import { todayIso } from '@/lib/dates';
 import { distinctOptions, sortedOptions, type FilterValues } from '@/components/filters/filter-utils';
 
@@ -62,7 +63,14 @@ export function useOperations(pageSize = 50) {
     async (row: OperationRow, key: CheckKey) => {
       if (!actor) return;
       const next = !row.checks[key];
-      const progress = await updateCheck(idsOf(row), row.checks, key, next, actor);
+      const progress = await updateCheck(
+        idsOf(row),
+        row.checks,
+        key,
+        next,
+        actor,
+        requiredChecksForLine(row.line),
+      );
       setRows((prev) =>
         prev.map((r) =>
           r.line.campaign_line_id === row.line.campaign_line_id
@@ -98,6 +106,7 @@ export function useOperations(pageSize = 50) {
           checks: r.checks,
           cancelled: r.line.cancelled,
           today,
+          requiredChecks: requiredChecksForLine(r.line),
         })
       ],
     [today],
@@ -109,6 +118,7 @@ export function useOperations(pageSize = 50) {
       if (filters.periodo && (r.line.periodo_original ?? '') !== filters.periodo) return false;
       if (filters.cadena && (r.line.cadena ?? '') !== filters.cadena) return false;
       if (filters.tipo && (r.line.tipo_operacion ?? '') !== filters.tipo) return false;
+      if (filters.continuidad && (r.line.tipo_campana_periodo ?? '') !== filters.continuidad) return false;
       if (filters.cliente && (r.line.cliente_original ?? '') !== filters.cliente) return false;
       if (filters.estado && statusLabelOf(r) !== filters.estado) return false;
       if (q !== '') {
@@ -118,6 +128,10 @@ export function useOperations(pageSize = 50) {
           r.line.placement_name_snapshot,
           r.line.creatividad_titulo_original,
           r.line.creatividad_id_original,
+          r.line.periodo_original ?? '',
+          r.line.tipo_campana_periodo ?? '',
+          r.line.tipo_operacion ?? '',
+          r.line.cadena ?? '',
           r.responsable ?? '',
         ]
           .join(' ')
@@ -137,6 +151,11 @@ export function useOperations(pageSize = 50) {
       },
       { key: 'cadena', label: 'Cadena', options: distinctOptions(rows, (r) => r.line.cadena) },
       { key: 'tipo', label: 'Tipo', options: distinctOptions(rows, (r) => r.line.tipo_operacion) },
+      {
+        key: 'continuidad',
+        label: 'Fijación/continua',
+        options: distinctOptions(rows, (r) => r.line.tipo_campana_periodo),
+      },
       { key: 'cliente', label: 'Cliente', options: distinctOptions(rows, (r) => r.line.cliente_original) },
       { key: 'estado', label: 'Estado', options: distinctOptions(rows, statusLabelOf) },
     ],

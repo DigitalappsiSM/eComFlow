@@ -9,7 +9,7 @@
  */
 
 import { buildIdentity } from './identity';
-import { normalizeSlugKey } from './normalization';
+import { normalizeKey, normalizeSlugKey } from './normalization';
 import { classifyRow } from './import-classification';
 import { DEFAULT_DIGITAL_TIPOS, type TipoClassifier } from './articulo-tipos';
 import type {
@@ -23,6 +23,48 @@ import {
   validateEkonHeaders,
   type EkonNormalizedRow,
 } from '@/schemas/ekon.schema';
+
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function addDays(iso: string, days: number): string {
+  const base = new Date(`${iso}T00:00:00Z`).getTime();
+  return new Date(base + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+function periodStart(plan: RowPlan): string {
+  return plan.extra?.periodoInicio || plan.normalized?.fechaFijacionIso || '';
+}
+
+function periodEnd(plan: RowPlan): string {
+  return plan.extra?.periodoFin || plan.normalized?.fechaRetiradaIso || '';
+}
+
+function continuityKey(plan: RowPlan): string {
+  return [
+    plan.identity?.clienteKey ?? '',
+    plan.identity?.numeroCampanaKey ?? '',
+    plan.placementId ?? '',
+    plan.identity?.creatividadIdKey ?? '',
+    plan.identity?.creatividadDescripcionKey ?? normalizeKey(plan.normalized?.creatividadDescripcion ?? ''),
+  ].join('|');
+}
+
+function classifyPeriodContinuity(plans: Iterable<RowPlan>): void {
+  const ordered = [...plans].sort((a, b) => periodStart(a).localeCompare(periodStart(b)));
+  const previousByKey = new Map<string, RowPlan>();
+
+  for (const plan of ordered) {
+    const key = continuityKey(plan);
+    const previous = previousByKey.get(key);
+    const isImmediateContinuation = previous ? addDays(periodEnd(previous), 1) === periodStart(plan) : false;
+    plan.extra = {
+      ...plan.extra,
+      tipoCampanaPeriodo: isImmediateContinuation ? 'continua' : 'fijacion',
+    };
+    previousByKey.set(key, plan);
+  }
+}
 
 function emptySummary(total: number): ImportSummary {
   return {
@@ -141,12 +183,22 @@ export async function buildEkonImportPlan(
     }
     const plan = buildRowPlan(rowNumber, raw, mapped.normalized, classifier);
     const key = plan.identity!.campaignLineKey;
-    if (byLineKey.has(key)) {
+    const existing = byLineKey.get(key);
+    if (existing) {
       mergedRows += 1; // material adicional de una línea ya vista
+      existing.extra = {
+        ...existing.extra,
+        requiredPieces:
+          (existing.extra?.requiredPieces ?? 0) + (plan.extra?.requiredPieces ?? 0),
+      };
       return;
     }
     byLineKey.set(key, plan);
   });
+
+  // Una campaña es continua si el periodo inmediato anterior tiene la misma
+  // campaña/artículo/creatividad/descripción; si no, es una fijación.
+  classifyPeriodContinuity(byLineKey.values());
 
   // Clasificar cada línea distinta contra Firestore.
   for (const plan of byLineKey.values()) {

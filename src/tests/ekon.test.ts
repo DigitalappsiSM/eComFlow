@@ -56,19 +56,22 @@ describe('Ekon template (archivo operativo real)', () => {
     }
   });
 
-  it('agrupa filas de material de la misma Creatividad Id en una sola línea', async () => {
+  it('agrupa filas de material de la misma Creatividad Id y suma Nº Soportes', async () => {
     const plan = await buildEkonImportPlan(
       headers,
       [
-        ekonRow(), // material 1
-        ekonRow(), // material 2 (misma creatividad → se agrupa)
-        ekonRow({ [EKON_COLUMNS.creatividadId]: '65226' }), // otra creatividad
+        ekonRow({ [EKON_COLUMNS.numSoportes]: '28' }), // material 1
+        ekonRow({ [EKON_COLUMNS.numSoportes]: '12' }), // material 2 (misma creatividad → se agrupa)
+        ekonRow({ [EKON_COLUMNS.creatividadId]: '65226', [EKON_COLUMNS.numSoportes]: '5' }), // otra creatividad
       ],
       new EmptyStore(),
     );
     expect(plan.generalRejection).toBeNull();
     expect(plan.mergedRows).toBe(1);
-    expect(plan.rows.filter((r) => r.result !== 'rejected')).toHaveLength(2);
+    const importedRows = plan.rows.filter((r) => r.result !== 'rejected');
+    expect(importedRows).toHaveLength(2);
+    expect(importedRows[0]!.extra?.requiredPieces).toBe(40);
+    expect(importedRows[1]!.extra?.requiredPieces).toBe(5);
     expect(plan.summary.new_campaigns).toBe(2); // base vacía: cada línea nueva
   });
 
@@ -112,6 +115,59 @@ describe('Ekon template (archivo operativo real)', () => {
     );
     expect(plan.rows[0]!.result).toBe('new_campaign');
     expect(plan.summary.excluded).toBe(0);
+  });
+
+
+  it('marca continua si el periodo inmediato anterior tiene la misma campaña, artículo, creatividad y descripción', async () => {
+    const plan = await buildEkonImportPlan(
+      headers,
+      [
+        ekonRow({
+          [EKON_COLUMNS.articulo]: 'CATEGORY BANNER',
+          [EKON_COLUMNS.fechaFijacion]: '2026-07-17',
+          [EKON_COLUMNS.fechaRetirada]: '2026-07-23',
+          [EKON_COLUMNS.periodo]: 'S29 - 17/07/2026 a 23/07/2026',
+        }),
+        ekonRow({
+          [EKON_COLUMNS.articulo]: 'CATEGORY BANNER',
+          [EKON_COLUMNS.fechaFijacion]: '2026-07-24',
+          [EKON_COLUMNS.fechaRetirada]: '2026-07-30',
+          [EKON_COLUMNS.periodo]: 'S30 - 24/07/2026 a 30/07/2026',
+        }),
+      ],
+      new EmptyStore(),
+      buildTipoClassifier(),
+    );
+
+    expect(plan.rows[0]!.extra?.tipoCampanaPeriodo).toBe('fijacion');
+    expect(plan.rows[1]!.extra?.tipoCampanaPeriodo).toBe('continua');
+  });
+
+  it('marca fijación si cambia la creatividad entre periodos inmediatos', async () => {
+    const plan = await buildEkonImportPlan(
+      headers,
+      [
+        ekonRow({
+          [EKON_COLUMNS.articulo]: 'VIDEOWALL',
+          [EKON_COLUMNS.fechaFijacion]: '2026-07-28',
+          [EKON_COLUMNS.fechaRetirada]: '2026-08-10',
+          [EKON_COLUMNS.periodo]: 'C16 - 28/07/2026 a 10/08/2026',
+          [EKON_COLUMNS.creatividadId]: '65227',
+        }),
+        ekonRow({
+          [EKON_COLUMNS.articulo]: 'VIDEOWALL',
+          [EKON_COLUMNS.fechaFijacion]: '2026-08-11',
+          [EKON_COLUMNS.fechaRetirada]: '2026-08-24',
+          [EKON_COLUMNS.periodo]: 'C17 - 11/08/2026 a 24/08/2026',
+          [EKON_COLUMNS.creatividadId]: '99999',
+        }),
+      ],
+      new EmptyStore(),
+      buildTipoClassifier(),
+    );
+
+    expect(plan.rows[0]!.extra?.tipoCampanaPeriodo).toBe('fijacion');
+    expect(plan.rows[1]!.extra?.tipoCampanaPeriodo).toBe('fijacion');
   });
 
   it('parsea el Periodo (catorcena y semana) del archivo', () => {
