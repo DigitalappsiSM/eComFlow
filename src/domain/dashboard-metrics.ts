@@ -31,6 +31,42 @@ export interface MetricLine {
   cadena?: string | null;
   periodoOriginal?: string | null;
   periodoInicio?: string | null;
+  /** Fin del periodo operativo (semana/catorcena). Vence antes que la campaña. */
+  periodoFin?: string | null;
+  /** Continuidad respecto al periodo inmediato anterior. */
+  tipoCampanaPeriodo?: 'fijacion' | 'continua' | null;
+  /** Baja lógica de la línea (cancelada). */
+  cancelled?: boolean;
+}
+
+/** Estado operativo de una línea respecto a hoy (por periodo operativo). */
+export type OperationalStatus = 'vencido' | 'en_curso' | 'futuro';
+
+/** Inicio operativo de la línea: periodo si existe; si no, la campaña. */
+export function lineStart(line: MetricLine): IsoDate {
+  return line.periodoInicio ?? line.fechaFijacion;
+}
+
+/** Fin operativo de la línea: periodo si existe; si no, la campaña. */
+export function lineEnd(line: MetricLine): IsoDate {
+  return line.periodoFin ?? line.fechaRetirada;
+}
+
+/**
+ * Clasifica una línea contra `today` usando su **periodo operativo**:
+ * - `vencido`: el periodo ya terminó (fin < hoy).
+ * - `futuro`: el periodo aún no empieza (inicio > hoy).
+ * - `en_curso`: hoy cae dentro del periodo.
+ */
+export function operationalStatusOf(line: MetricLine, today: IsoDate): OperationalStatus {
+  if (lineEnd(line) < today) return 'vencido';
+  if (lineStart(line) > today) return 'futuro';
+  return 'en_curso';
+}
+
+/** Mes (YYYY-MM) al que pertenece la línea, por su inicio operativo. */
+export function lineMonthKey(line: MetricLine): string {
+  return lineStart(line).slice(0, 7);
 }
 
 export interface DashboardMetrics {
@@ -178,4 +214,269 @@ export function computeWorkedCampaigns(
     }
   }
   return worked.size;
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard Operativo 360 — métricas visuales (funciones puras y testables).
+// Todas operan sobre proyecciones `MetricLine` ya cargadas de Firestore.
+// ---------------------------------------------------------------------------
+
+const NO_CLIENT = '(sin cliente)';
+const NO_TIPO = '(sin tipo)';
+const NO_CHAIN = '(sin cadena)';
+const NO_PERIOD = '(sin periodo)';
+
+function clienteLabel(l: MetricLine): string {
+  return (l.clienteOriginal ?? '').trim() || NO_CLIENT;
+}
+
+/** Nº de clientes distintos activos que cruzan el periodo. */
+export function computeActiveClients(
+  lines: readonly MetricLine[],
+  period: DateRange,
+): number {
+  const clientes = new Set<string>();
+  for (const l of filterActiveInPeriod(lines, period)) clientes.add(l.clienteKey);
+  return clientes.size;
+}
+
+/** Principales clientes por nº de líneas activas (orden descendente). */
+export interface ClientLoadItem {
+  cliente: string;
+  lines: number;
+  requiredPieces: number;
+}
+
+export function computeTopClients(
+  lines: readonly MetricLine[],
+  period: DateRange,
+): ClientLoadItem[] {
+  const active = filterActiveInPeriod(lines, period);
+  const byClient = new Map<string, ClientLoadItem>();
+  for (const l of active) {
+    const cliente = clienteLabel(l);
+    const cur = byClient.get(cliente) ?? { cliente, lines: 0, requiredPieces: 0 };
+    cur.lines += 1;
+    cur.requiredPieces += l.requiredPieces;
+    byClient.set(cliente, cur);
+  }
+  return [...byClient.values()].sort(
+    (a, b) => b.lines - a.lines || a.cliente.localeCompare(b.cliente, 'es'),
+  );
+}
+
+/** Distribución por tipo de operación (líneas activas). */
+export interface TipoDistributionItem {
+  tipo: string;
+  lines: number;
+  requiredPieces: number;
+  percentage: number;
+}
+
+export function computeTipoOperationDistribution(
+  lines: readonly MetricLine[],
+  period: DateRange,
+): TipoDistributionItem[] {
+  const active = filterActiveInPeriod(lines, period);
+  const byTipo = new Map<string, { lines: number; pieces: number }>();
+  for (const l of active) {
+    const tipo = (l.tipoOperacion ?? '').trim() || NO_TIPO;
+    const cur = byTipo.get(tipo) ?? { lines: 0, pieces: 0 };
+    cur.lines += 1;
+    cur.pieces += l.requiredPieces;
+    byTipo.set(tipo, cur);
+  }
+  const total = active.length;
+  return [...byTipo.entries()]
+    .map(([tipo, v]) => ({
+      tipo,
+      lines: v.lines,
+      requiredPieces: v.pieces,
+      percentage: total === 0 ? 0 : Math.round((v.lines / total) * 100),
+    }))
+    .sort((a, b) => b.lines - a.lines || a.tipo.localeCompare(b.tipo, 'es'));
+}
+
+/** Evolución mensual (por inicio operativo). Ordenada cronológicamente. */
+export interface MonthlyTrendItem {
+  month: string;
+  lines: number;
+  requiredPieces: number;
+}
+
+export function computeMonthlyOperationTrend(
+  lines: readonly MetricLine[],
+): MonthlyTrendItem[] {
+  const byMonth = new Map<string, { lines: number; pieces: number }>();
+  for (const l of lines) {
+    const month = lineMonthKey(l);
+    if (!month) continue;
+    const cur = byMonth.get(month) ?? { lines: 0, pieces: 0 };
+    cur.lines += 1;
+    cur.pieces += l.requiredPieces;
+    byMonth.set(month, cur);
+  }
+  return [...byMonth.entries()]
+    .map(([month, v]) => ({ month, lines: v.lines, requiredPieces: v.pieces }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+}
+
+/** Carga por periodo (semana/catorcena). Ordenada por inicio del periodo. */
+export interface PeriodLoadItem {
+  periodo: string;
+  sortKey: string;
+  lines: number;
+  requiredPieces: number;
+}
+
+export function computePeriodLoad(lines: readonly MetricLine[]): PeriodLoadItem[] {
+  const byPeriod = new Map<string, PeriodLoadItem>();
+  for (const l of lines) {
+    const periodo = (l.periodoOriginal ?? '').trim() || NO_PERIOD;
+    const cur =
+      byPeriod.get(periodo) ??
+      { periodo, sortKey: l.periodoInicio ?? l.fechaFijacion ?? '', lines: 0, requiredPieces: 0 };
+    cur.lines += 1;
+    cur.requiredPieces += l.requiredPieces;
+    byPeriod.set(periodo, cur);
+  }
+  return [...byPeriod.values()].sort(
+    (a, b) => a.sortKey.localeCompare(b.sortKey) || a.periodo.localeCompare(b.periodo, 'es'),
+  );
+}
+
+/** Carga por cadena (líneas activas). */
+export interface ChainLoadItem {
+  cadena: string;
+  lines: number;
+  requiredPieces: number;
+}
+
+export function computeChainLoad(
+  lines: readonly MetricLine[],
+  period: DateRange,
+): ChainLoadItem[] {
+  const active = filterActiveInPeriod(lines, period);
+  const byChain = new Map<string, ChainLoadItem>();
+  for (const l of active) {
+    const cadena = (l.cadena ?? '').trim() || NO_CHAIN;
+    const cur = byChain.get(cadena) ?? { cadena, lines: 0, requiredPieces: 0 };
+    cur.lines += 1;
+    cur.requiredPieces += l.requiredPieces;
+    byChain.set(cadena, cur);
+  }
+  return [...byChain.values()].sort(
+    (a, b) => b.lines - a.lines || a.cadena.localeCompare(b.cadena, 'es'),
+  );
+}
+
+/** Desglose vencido / en curso / futuro (excluye canceladas). */
+export interface OperationalStatusBreakdown {
+  vencido: number;
+  enCurso: number;
+  futuro: number;
+  total: number;
+}
+
+export function computeOperationalStatusBreakdown(
+  lines: readonly MetricLine[],
+  today: IsoDate,
+): OperationalStatusBreakdown {
+  const out: OperationalStatusBreakdown = { vencido: 0, enCurso: 0, futuro: 0, total: 0 };
+  for (const l of lines) {
+    if (l.cancelled) continue;
+    out.total += 1;
+    switch (operationalStatusOf(l, today)) {
+      case 'vencido':
+        out.vencido += 1;
+        break;
+      case 'en_curso':
+        out.enCurso += 1;
+        break;
+      case 'futuro':
+        out.futuro += 1;
+        break;
+    }
+  }
+  return out;
+}
+
+/**
+ * Matriz cliente × tipo de operación (para barras apiladas). Devuelve la lista
+ * de tipos presentes y una fila por cliente con un contador por tipo, ordenadas
+ * por total descendente.
+ */
+export interface ClientTypeMatrix {
+  tipos: string[];
+  rows: Array<{ cliente: string; total: number } & Record<string, number | string>>;
+}
+
+export function computeClientTypeMatrix(
+  lines: readonly MetricLine[],
+  period: DateRange,
+): ClientTypeMatrix {
+  const active = filterActiveInPeriod(lines, period);
+  const tipos = new Set<string>();
+  const byClient = new Map<string, Map<string, number>>();
+  for (const l of active) {
+    const cliente = clienteLabel(l);
+    const tipo = (l.tipoOperacion ?? '').trim() || NO_TIPO;
+    tipos.add(tipo);
+    if (!byClient.has(cliente)) byClient.set(cliente, new Map());
+    const m = byClient.get(cliente)!;
+    m.set(tipo, (m.get(tipo) ?? 0) + 1);
+  }
+  const tipoList = [...tipos].sort((a, b) => a.localeCompare(b, 'es'));
+  const rows = [...byClient.entries()]
+    .map(([cliente, m]) => {
+      const row: { cliente: string; total: number } & Record<string, number | string> = {
+        cliente,
+        total: 0,
+      };
+      for (const t of tipoList) {
+        const n = m.get(t) ?? 0;
+        row[t] = n;
+        row.total += n;
+      }
+      return row;
+    })
+    .sort((a, b) => b.total - a.total || a.cliente.localeCompare(b.cliente, 'es'));
+  return { tipos: tipoList, rows };
+}
+
+/**
+ * Atención requerida: líneas VENCIDAS agrupadas por cliente + periodo + tipo,
+ * con su conteo de líneas y piezas. Ordenadas por líneas vencidas (desc).
+ */
+export interface AttentionRow {
+  cliente: string;
+  periodo: string;
+  tipo: string;
+  expiredLines: number;
+  requiredPieces: number;
+}
+
+export function computeAttentionByClient(
+  lines: readonly MetricLine[],
+  today: IsoDate,
+): AttentionRow[] {
+  const byKey = new Map<string, AttentionRow>();
+  for (const l of lines) {
+    if (l.cancelled) continue;
+    if (operationalStatusOf(l, today) !== 'vencido') continue;
+    const cliente = clienteLabel(l);
+    const periodo = (l.periodoOriginal ?? '').trim() || NO_PERIOD;
+    const tipo = (l.tipoOperacion ?? '').trim() || NO_TIPO;
+    const key = `${cliente}||${periodo}||${tipo}`;
+    const cur = byKey.get(key) ?? { cliente, periodo, tipo, expiredLines: 0, requiredPieces: 0 };
+    cur.expiredLines += 1;
+    cur.requiredPieces += l.requiredPieces;
+    byKey.set(key, cur);
+  }
+  return [...byKey.values()].sort(
+    (a, b) =>
+      b.expiredLines - a.expiredLines ||
+      a.cliente.localeCompare(b.cliente, 'es') ||
+      a.periodo.localeCompare(b.periodo, 'es'),
+  );
 }
