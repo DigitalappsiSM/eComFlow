@@ -1,267 +1,295 @@
 # eComFlow Next — DB First
 
-Herramienta interna **database-first** para gestionar la operación de campañas
-eCommerce. **Cloud Firestore es la única fuente de verdad**: el dashboard y el
-seguimiento operativo consultan exclusivamente Firestore. Los archivos Excel/CSV
-son solo un medio de entrada; una vez procesados, ninguna vista vuelve a leer el
-archivo. Los datos históricos se conservan (toda baja es lógica).
+Herramienta interna **database-first** para gestionar la operación de campañas de
+retail media / eCommerce. **Cloud Firestore es la única fuente de verdad**: todas
+las vistas consultan exclusivamente Firestore. Los archivos Excel/CSV son solo un
+medio de entrada; una vez procesados, ninguna vista vuelve a leer el archivo. Los
+datos se conservan (bajas lógicas) salvo la herramienta de reinicio de pruebas.
 
-La aplicación es una **SPA local** (React + Vite) que corre en el navegador del
-usuario en `http://localhost:5173`. **No hay servidor propio, ni Firebase Admin
-SDK, ni Service Accounts, ni Cloud Functions.** Toda escritura se realiza con el
-**Firebase Web SDK** desde el navegador, protegida por Firestore Security Rules.
+Es una **SPA** (React + Vite + TypeScript) que corre en el navegador. **No hay
+servidor propio, ni Firebase Admin SDK, ni Service Accounts, ni Cloud Functions.**
+Toda escritura se realiza con el **Firebase Web SDK** desde el navegador,
+protegida por Firestore Security Rules.
 
-> Esta entrega corresponde al **alcance inicial (§58)** de la especificación:
-> base técnica, dominio + pruebas de identidad, autenticación, layout, dashboard
-> conectado a Firestore, catálogo básico y reglas/índices iniciales. Las vistas
-> de importación, operación, cambios y administración tienen sus **contratos
-> (tipos, esquemas, repositorios) preparados** y una pantalla que declara
-> explícitamente que se implementan en fases posteriores — **no se muestran
-> datos simulados como reales**.
+- **App publicada:** https://digitalappsism.github.io/eComFlow/
+- **Repositorio:** `DigitalappsiSM/eComFlow`
+- **Proyecto Firebase:** `ecomflowv3`
+
+---
+
+## Estado actual (resumen)
+
+Todos los módulos del menú están implementados: **Dashboard, Seguimiento
+operativo, Nueva carga, Cambios detectados, Historial de cargas, Detalle de
+campaña, Catálogo de artículos, Configuración, Administración de usuarios**, más
+una herramienta **oculta** de reinicio de datos de prueba.
+
+Además del alcance de la especificación, se adaptó a los **datos reales**:
+
+- **Importador con detección de plantilla**: reconoce la plantilla del ejemplo de
+  la especificación (§11) o el **export real "Ekon"** (39 columnas).
+- **Plantilla Ekon**: mapea columnas reales, agrupa las filas de "material" de una
+  misma creatividad en una sola línea, y captura el **Periodo** (semana/catorcena).
+- **Tipos de operación** por artículo (GRÁFICA, ECOMMERCE, DIGITAL SIGNAGE,
+  TOMATURNOS, extensibles) con **gate de clasificación**: si aparece un artículo
+  nuevo, la app pide clasificarlo antes de procesar.
+- **Solo digital**: al importar se **excluye GRÁFICA**; solo se guardan tipos
+  digitales (ECOMMERCE, DIGITAL SIGNAGE, TOMATURNOS).
+- **Filtros dinámicos** (Periodo, Cadena, Tipo, Cliente, Estado + búsqueda) en
+  Dashboard y Seguimiento operativo.
+- **Reinicio de datos de prueba** oculto y protegido por interruptor.
+
+Pruebas: **72** unitarias en verde. Lint, TypeScript y build de producción limpios.
 
 ---
 
 ## Requisitos
 
-- Node.js ≥ 20 (probado con Node 22) y npm.
-- Un proyecto de Firebase con **Authentication (correo/contraseña)** y
-  **Cloud Firestore** habilitados.
-- (Opcional) Firebase CLI para emuladores, reglas e índices:
-  `npm i -g firebase-tools`.
+- Node.js ≥ 20 y npm (solo para desarrollo local; el uso final es por navegador).
+- Un proyecto de Firebase con **Authentication (correo/contraseña)** y **Cloud
+  Firestore**.
+- (Opcional) Firebase CLI para desplegar reglas/índices o correr emuladores.
 
-## Instalación
+## Ejecución local (opcional)
 
 ```bash
 npm install
+cp .env.example .env   # completa la config Web de Firebase
+npm run dev            # http://localhost:5173
 ```
 
-## Variables de entorno
+## Scripts
 
-Copie `.env.example` a `.env` y complete con los datos de su app Web de Firebase
-(Consola de Firebase → *Configuración del proyecto* → *Tus apps* → *Web*):
-
-```text
-VITE_FIREBASE_API_KEY
-VITE_FIREBASE_AUTH_DOMAIN
-VITE_FIREBASE_PROJECT_ID
-VITE_FIREBASE_STORAGE_BUCKET
-VITE_FIREBASE_MESSAGING_SENDER_ID
-VITE_FIREBASE_APP_ID
-VITE_USE_FIREBASE_EMULATORS   # "true" para usar el Emulator Suite
+```bash
+npm run dev         # servidor de desarrollo Vite
+npm run build       # tsc -b && vite build
+npm run lint        # ESLint (0 warnings)
+npm run typecheck   # TypeScript estricto (tsc -b)
+npm run test        # Vitest (unitarias)
+npm run test:e2e    # Playwright (flujo crítico)
 ```
 
-Son **claves públicas de cliente**. Nunca coloque aquí credenciales
-administrativas, Service Accounts ni archivos JSON secretos. Si faltan
-variables, la app muestra un mensaje de configuración claro en el login en lugar
-de fallar de forma opaca.
+---
 
-## Configuración de Firebase (desde la Consola)
+## Despliegue (GitHub Pages + Firebase en la nube)
 
-Como no hay backend propio, todo se configura en la **Consola de Firebase**:
+La app se publica automáticamente en **GitHub Pages** vía GitHub Actions:
 
-1. **Authentication** → habilitar *Correo electrónico/contraseña*.
+- Workflow: `.github/workflows/deploy-pages.yml` (build de Vite con base
+  `/eComFlow/`, fallback SPA `404.html`, y `configure-pages` con `enablement`).
+- **Fuente de Pages:** *Settings → Pages → Source = GitHub Actions*.
+- La config **pública** de Firebase (claves de cliente) está incrustada en el
+  workflow. Son claves públicas por diseño; la seguridad la dan las reglas.
+- Cada push a `main` re-despliega. URL: `https://digitalappsism.github.io/eComFlow/`.
+
+### Configuración de Firebase (Consola)
+
+1. **Authentication** → habilitar *Correo/contraseña*.
 2. **Firestore** → crear la base de datos (modo producción).
-3. Registrar una **app Web** y copiar la config al `.env`.
+3. Publicar `firestore.rules` (ver más abajo) y crear índices (ver §Índices).
 
-### Creación del primer usuario (§27)
+### Primer usuario (§27)
 
-La app **no crea administradores desde el navegador**. Cree el usuario
-manualmente:
+La app **no crea usuarios**. Créalos en la Consola:
 
-1. **Authentication → Usuarios → Agregar usuario** (correo + contraseña). Copie
-   el `UID`.
-2. En **Firestore**, cree el documento `users/{UID}` con:
+1. **Authentication → Users → Agregar usuario** (correo + contraseña). Copia el `UID`.
+2. En **Firestore** crea `users/{UID}` con:
 
 ```jsonc
 {
   "user_id": "<UID>",
-  "name": "Nombre Apellido",
+  "name": "Nombre",
   "email": "correo@dominio.com",
-  "role": "admin",          // admin | manager | operator | viewer
-  "active": true,
-  "permissions": []
+  "role": "admin",     // admin | manager | operator | viewer
+  "active": true       // ¡BOOLEAN, no string!
 }
 ```
 
-Un usuario **sin** documento `users/{uid}` o con `active: false` **no obtiene
-datos**: la app se lo indica explícitamente.
+3. **Authentication → Settings → Authorized domains** → agrega
+   `digitalappsism.github.io`.
 
-## Ejecución local
+> El `UID` del documento debe coincidir EXACTAMENTE con el de Authentication, y
+> `active` debe ser **boolean** `true`. Si es texto `"true"`, la app te deja
+> entrar (JS lo ve como verdadero) pero las reglas deniegan las lecturas.
 
-```bash
-npm run dev
+---
+
+## Modelo de datos e identidad
+
+Jerarquía: **Cliente → Campaña → Espacio → Línea → (piezas)**.
+
+- **Campaña** = Cliente + Número de campaña.
+- **Espacio** = grupo + placement + fecha de fijación + creatividad (título/desc).
+- **Línea** = una Creatividad ID dentro de un espacio.
+
+Las claves son deterministas (hash de una forma canónica), lo que hace las
+escrituras **idempotentes** (reimportar no duplica). Los identificadores se
+guardan como **texto** (conservan ceros a la izquierda). La normalización técnica
+solo recorta/colapsa espacios, normaliza Unicode y compara sin distinguir
+mayúsculas; nunca corrige ortografía ni relaciona nombres parecidos.
+
+### Plantilla Ekon (archivo operativo real)
+
+El export real trae 39 columnas. Mapeo (`src/schemas/ekon.schema.ts`):
+
+| Concepto | Columna Ekon |
+|---|---|
+| Cliente (agrupación) | `Cliente` (empresa anunciante) |
+| Número de campaña | `Campaña` |
+| Placement / espacio | **`Cadena` + `Artículo`** (p. ej. `CHEDRAUI / ALARM-MEDIA`) |
+| Anunciante | `Anunciante` |
+| Fechas | `Fecha Fijación`, `Fecha Retirada` (ISO o DD/MM/YYYY) |
+| Creatividad | `Creatividad Id`, `Creativitad Título` (opcional), `Creatividad Desc.` (opcional) |
+| Piezas/soportes | `Nº Soportes` |
+| Periodo | `Periodo` (`C16 - 28/07/2026 a 10/08/2026`) |
+
+- La **línea operativa** se identifica por **Creatividad Id**; las múltiples filas
+  de *material* de una misma creatividad se **agrupan** en una sola línea (no se
+  rechazan como duplicados).
+- El **Periodo** se parsea a código (`C16`/`S29`), tipo (**catorcena**/**semana**)
+  y fechas de inicio/fin, y se guarda en cada línea.
+
+---
+
+## Tipos de operación y "solo digital"
+
+- Catálogo base Artículo→tipo en `src/domain/articulo-tipos.ts` (40 artículos
+  conocidos). Las clasificaciones adicionales se guardan en
+  `app_settings.articulo_tipos` (tienen prioridad).
+- Tipos: **GRÁFICA, ECOMMERCE, DIGITAL SIGNAGE, TOMATURNOS** (extensibles).
+- **Gate de clasificación**: si el archivo trae un artículo no catalogado, la
+  importación se detiene y pide clasificarlo antes de continuar (se guarda para
+  futuras cargas).
+- **Exclusión de gráfica**: al importar solo se guardan tipos **digitales**
+  (ECOMMERCE, DIGITAL SIGNAGE, TOMATURNOS). Las líneas GRÁFICA se marcan como
+  *excluidas* en la vista previa y **no se escriben**.
+
+---
+
+## Filtros dinámicos
+
+Barra reutilizable (`src/components/filters/`) con opciones derivadas de los datos:
+
+- **Periodo** (semana/catorcena, orden cronológico), **Cadena**, **Tipo de
+  operación**, **Cliente**, **Estado**, y **búsqueda** combinable.
+- Chips de filtros activos removibles + "Limpiar" + contador de resultados.
+- Aplicados hoy en **Dashboard** (recalcula KPIs/desgloses) y **Seguimiento
+  operativo** (filtra las líneas cargadas). El Dashboard usa el filtro de Periodo
+  como control temporal (no la semana de calendario).
+
+---
+
+## Importación (flujo)
+
+Todo ocurre en el navegador; el archivo nunca se sube a Storage:
+
+```text
+Seleccionar → leer en memoria (hash) → validar estructura → validar filas →
+clasificar artículos (gate) → construir identidad → agrupar material →
+excluir no digital → comparar con Firestore → vista previa → confirmar →
+escribir por lotes → actualizar dashboard
 ```
 
-Abra `http://localhost:5173`.
+- Escritura por lotes con `writeBatch` + `serverTimestamp`, IDs deterministas
+  (idempotencia), **deduplicación** de grupos/espacios y bloqueo por `file_hash`.
+- Reporte de errores descargable en CSV.
+- Historial de cargas en `/historial`.
 
-## Emulator Suite
+---
 
-Con Firebase CLI instalado:
+## Seguridad (Firestore Rules)
 
-```bash
-firebase emulators:start          # Auth :9099, Firestore :8080, UI :4000
-```
+`firestore.rules`:
 
-Ponga `VITE_USE_FIREBASE_EMULATORS=true` en `.env` para que la app se conecte a
-los emuladores. Cree en el emulador el usuario de Auth y su documento
-`users/{uid}` igual que en producción.
+- Autenticación obligatoria; autorización por rol (`users/{uid}` activo).
+- Sin borrados físicos en producción; toda baja es lógica (`active: false`).
+- `created_at`/`created_by` inmutables; `updated_by`/`created_by` deben coincidir
+  con el usuario; nadie cambia su propio rol; default deny para colecciones no
+  declaradas.
+- **Interruptor de reinicio de pruebas** (`canResetData()`): permite `delete` en
+  colecciones operativas **solo** si eres admin **y** `app_settings.dev_reset_enabled == true`.
+  Por defecto está apagado → borrado bloqueado.
 
-Datos de demostración (solo emulador, requiere confirmación y un admin creado
-en el emulador):
+Publicar reglas: `firebase deploy --only firestore:rules` o pegarlas en
+*Firestore → Reglas → Publicar*.
 
-```bash
-SEED_CONFIRM=yes ADMIN_EMAIL=admin@demo.mx ADMIN_PASSWORD=secret123 npm run seed:dev
-```
+## Reinicio de datos de prueba (oculto)
 
-> **Guía de prueba end-to-end paso a paso** (con archivo CSV de ejemplo y
-> resultados esperados): [`docs/PRUEBA-EMULATOR.md`](docs/PRUEBA-EMULATOR.md).
+Ruta **oculta** (fuera del menú), solo admin: **`/reiniciar-datos`**.
 
-## Despliegue de reglas e índices
+1. Publica las reglas actualizadas (una vez).
+2. En `/reiniciar-datos`, **Paso 1**: enciende el interruptor "Habilitar borrado".
+3. **Paso 2**: escribe `BORRAR TODO` y confirma → borra por lotes las colecciones
+   operativas (no toca `users`, `app_settings` ni `placements`).
+4. **Apaga el interruptor** al terminar.
 
-```bash
-firebase deploy --only firestore:rules
-firebase deploy --only firestore:indexes
-```
+---
 
-Las reglas están en `firestore.rules` y los índices en `firestore.indexes.json`.
-Se recomienda **probar las reglas con el Emulator Suite** antes de desplegar.
+## Índices de Firestore
 
-## Pruebas
+`firestore.indexes.json` incluye los índices compuestos usados (líneas por
+active/is_current/fecha, comentarios por línea, historial por línea, etc.).
+Despliégalos de una vez con `firebase deploy --only firestore:indexes`, o crea
+cada uno con el enlace de "crear índice" que aparece la primera vez que una vista
+lo necesita.
 
-```bash
-npm run lint         # ESLint (0 warnings)
-npm run typecheck    # TypeScript estricto
-npm run test         # Vitest (unitarias de dominio)
-npm run test:e2e     # Playwright (flujo crítico; levanta el dev server)
-```
-
-Las pruebas unitarias cubren las **pruebas obligatorias de identidad (§51)** y de
-**dashboard (§52)**: normalización, claves canónicas, estados calculados,
-clasificación de importación y métricas.
+---
 
 ## Estructura del proyecto
 
 ```text
 src/
-  app/            App.tsx, router.tsx
+  app/            App.tsx, router.tsx (incluye ruta oculta /reiniciar-datos)
   pages/          auth, dashboard, operations, imports, changes, campaigns,
-                  placements, settings, users
-  components/     layout, dashboard, feedback
-  features/       auth (contexto/provider/guarda), dashboard (hook de datos)
+                  placements, settings, users, admin (ResetDataPage)
+  components/     layout, dashboard, operations, feedback, filters
+  features/       auth, dashboard, operations, imports
   hooks/          useAuth, usePermissions, useConnectivity
-  lib/            firebase.ts, env.ts, hashing.ts, dates.ts, connectivity.ts, collections.ts
+  lib/            firebase, env, hashing, dates, excel, file-reader, connectivity,
+                  error-report, collections
   domain/         normalization, identity, campaign-status, dashboard-metrics,
-                  import-classification, progress   (lógica pura, testeable)
-  repositories/   acceso a Firestore por colección
-  schemas/        validación Zod (import.schema.ts)
-  types/          modelos de datos
+                  progress, import-classification, import-pipeline, ekon-pipeline,
+                  placement-index, articulo-tipos
+  repositories/   campaign-lines, campaigns, operations, imports, placements,
+                  users, history, settings, detected-changes,
+                  import-processing, maintenance
+  schemas/        import.schema, ekon.schema
+  types/          campaign, import, placement, user, operations, audit
   tests/          suites Vitest
-scripts/          seed-dev.ts (solo emulador)
-e2e/              pruebas Playwright
 firestore.rules  firestore.indexes.json  firebase.json  .env.example
-docs/mockup.html  (referencia visual del diseño)
+.github/workflows/deploy-pages.yml
+docs/             PRUEBA-EMULATOR.md, ejemplo-importacion.csv, mockup.html
 ```
 
-## Definiciones de campaña, espacio y línea
+## Emulator Suite (opcional, para probar reglas localmente)
 
-```text
-Cliente → Campaña → Espacio operativo → Línea operativa → Piezas requeridas
+Ver **[`docs/PRUEBA-EMULATOR.md`](docs/PRUEBA-EMULATOR.md)** — guía paso a paso con
+CSV de ejemplo y datos de catálogo. Datos de demostración:
+
+```bash
+SEED_CONFIRM=yes ADMIN_EMAIL=admin@demo.mx ADMIN_PASSWORD=secret123 npm run seed:dev
 ```
 
-- **Campaña**: agrupación por `Cliente + Número de campaña`.
-- **Espacio**: identidad = grupo + placement + fecha de fijación + título +
-  descripción de creatividad. Cambiar *Panadería* por *Refrescos* crea **otro**
-  espacio. La **fecha de retirada NO forma parte de la identidad**.
-- **Línea**: una `Creatividad ID` dentro de un espacio. La misma Creatividad ID
-  en dos espacios = **1 creatividad única, 2 espacios, 2 líneas**.
-
-Los identificadores (número de campaña, Creatividad ID) se guardan como **texto**
-y conservan ceros a la izquierda (`000125` no se convierte en `125`). La
-normalización técnica solo recorta/colapsa espacios, normaliza Unicode y compara
-sin distinguir mayúsculas: **nunca corrige ortografía ni relaciona nombres
-parecidos**.
-
-## Proceso de importación (Fase 6 — implementado)
-
-Flujo completo, todo en el navegador; el archivo nunca se sube a Storage:
-
-```text
-Seleccionar archivo → leer en memoria (hash SHA-256) → validar estructura →
-validar filas → resolver placement (exacto/alias) → construir identidad →
-detectar duplicados → comparar con Firestore → vista previa con cambios
-proyectados → confirmar → escribir por lotes → actualizar dashboard
-```
-
-Implementado y en la vista **«Nueva carga»** (`/nueva-carga`):
-
-- Lectura local con SheetJS (`lib/excel.ts`, `lib/file-reader.ts`); rechazo
-  estructural estricto (una sola hoja, encabezados exactos, sin adivinar).
-- Validación por fila con motivo exacto y acción sugerida
-  (`schemas/import.schema.ts`); resolución de artículo → placement por
-  coincidencia exacta/alias, sin fuzzy (`domain/placement-index.ts`).
-- Detección de duplicados en el archivo, claves/`content_hash`
-  (`domain/identity.ts`) y clasificación contra Firestore
-  (`domain/import-pipeline.ts`): `new_campaign`/`new_space`/`new_line`/
-  `updated_line`/`unchanged`/`creativity_change`.
-- Vista previa con conteos proyectados y **confirmación previa** obligatoria.
-- Escritura por lotes con `writeBatch` + `serverTimestamp`, **progreso visible**,
-  IDs deterministas (idempotencia) y bloqueo por `file_hash`
-  (`repositories/import-processing.repository.ts`). Crea grupos, espacios,
-  líneas, operación inicial (checks en false), snapshots de requisitos,
-  `change_history`, `import_rows`, `detected_changes` y el registro de `imports`.
-- Reporte de errores descargable en CSV, generado localmente (`lib/error-report.ts`).
-- Historial de cargas en `/historial`.
-
-Una nueva Creatividad ID en un espacio existente **no** sobrescribe la anterior:
-crea una nueva línea y registra un cambio detectado `pending_review` (posible
-sustitución) para revisión manual.
+---
 
 ## Limitaciones conocidas
 
-- **Todas las vistas del sidebar implementadas** (Fases 5–8 además del alcance
-  inicial §58): dashboard, seguimiento operativo, nueva carga, cambios
-  detectados, historial de cargas, detalle de campaña, catálogo, configuración
-  y administración de usuarios.
-- **Cambios detectados** (`/cambios`): revisión de las nuevas creatividades y
-  posibles sustituciones que genera el importador. El usuario confirma si una
-  creatividad SUSTITUYE a una anterior (relaciona ambas y retira la previa),
-  es ADICIONAL, o rechaza el cambio — con auditoría (§9, §43).
-- **Configuración** (`/configuracion`, solo admin): `app_settings` editable
-  (risk_days, semana, checks obligatorios, plantilla, extensiones, paginación)
-  con historial (§47). **Administración de usuarios** (`/usuarios`, solo admin):
-  gestión de rol y estado; los usuarios se crean en la Consola de Firebase y
-  nadie puede cambiar su propio rol (§27).
-- **Seguimiento operativo** (`/operacion`): tabla paginada con edición de checks
-  (cada check con value/updated_at/updated_by), recálculo automático de avance,
-  responsable, comentarios (colección independiente, baja lógica) e historial
-  por línea — todo transaccional con auditoría (§12, §13, §24, §41). El detalle
-  de campaña (`/campanas`) muestra la jerarquía espacios/líneas (§42). La
-  búsqueda opera sobre las líneas ya cargadas (paginadas), no sobre toda la base.
-- El importador escribe con IDs deterministas y bloqueo por `file_hash`, lo que
-  evita duplicar entidades al reintentar; la **reanudación fina desde el último
-  lote confirmado** queda como limitación conocida (§25).
-- El dashboard agrega en cliente sobre líneas actuales/activas (con `limit`).
-  Para volúmenes grandes se prevén **agregados precalculados** (§54) — no se
-  introducen de forma prematura.
-- El bundle supera 500 kB (Firebase + Recharts); se puede optimizar con
-  *code-splitting* cuando sea necesario. No afecta el uso local.
-- Las Cloud Functions quedan **fuera** de la primera versión por diseño.
+- **Piezas/soportes**: la etiqueta de "piezas" se retiró de los desgloses por no
+  aportar; el dato `Nº Soportes` sigue guardado por línea.
+- Filtros aplicados hoy en Dashboard y Seguimiento operativo; falta extenderlos a
+  Detalle de campaña, Cambios detectados e Historial.
+- El Seguimiento operativo carga hasta ~500 líneas y filtra en cliente; para
+  volúmenes grandes se prevé paginación/consulta server-side.
+- La reanudación fina desde el último lote confirmado queda pendiente (los IDs
+  deterministas + bloqueo por `file_hash` evitan duplicar al reintentar).
+- El reinicio de datos hace borrado físico; es una herramienta **solo para
+  pruebas**, apagada por defecto.
+- Persistencia de filtros en URL: pendiente.
 
-## Seguridad
+## Seguridad y respaldo
 
-- Autenticación obligatoria; autorización por rol respaldada por
-  **Firestore Security Rules** (no solo por ocultar botones).
-- **Sin eliminaciones físicas**: no existe ninguna regla `allow delete`; toda
-  baja es lógica (`active: false`).
-- `created_at` / `created_by` son inmutables; `updated_by` / `created_by` deben
-  coincidir con el usuario autenticado; un usuario no puede cambiar su propio
-  rol; las colecciones no declaradas se rechazan (default deny).
 - No se instala `firebase-admin`; no hay Service Accounts ni credenciales
-  administrativas en el repositorio.
-
-## Respaldo recomendado
-
-Al ser Firestore la única fuente de verdad, programe **exportaciones
-periódicas** de Firestore (Consola de Firebase → *Firestore* → *Importar/Exportar*,
-o `gcloud firestore export`) a un bucket de respaldo. Conserve además copias de
-`firestore.rules` e `firestore.indexes.json` versionadas en este repositorio.
+  administrativas en el repositorio (las claves Web de Firebase son públicas).
+- Programa **exportaciones periódicas** de Firestore (Consola → Importar/Exportar
+  o `gcloud firestore export`) y conserva `firestore.rules` / `firestore.indexes.json`
+  versionados.
