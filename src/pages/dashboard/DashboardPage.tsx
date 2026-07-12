@@ -175,7 +175,7 @@ function BreakdownCard({ title, items, color }: { title: string; items: Breakdow
                 <div className={`h-2 rounded-full ${color}`} style={{ width: `${d.percentage}%` }} />
               </div>
               <span className="w-24 text-right tabular-nums text-slate-500">
-                {d.lines} · {d.requiredPieces} pz
+                {d.lines} líneas
               </span>
             </li>
           ))}
