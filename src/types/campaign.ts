@@ -84,6 +84,7 @@ export interface CampaignLine extends AuditFields {
   periodo_tipo?: string | null;
   periodo_inicio?: IsoDate | null;
   periodo_fin?: IsoDate | null;
+  tipo_campana_periodo?: 'fijacion' | 'continua' | null;
   fecha_fijacion: IsoDate;
   fecha_retirada: IsoDate;
   creatividad_titulo_original: string;

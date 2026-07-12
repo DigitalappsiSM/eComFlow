@@ -8,6 +8,7 @@ import { useOperations } from '@/features/operations/useOperations';
 import { usePermissions } from '@/hooks/usePermissions';
 import { computeStatus } from '@/domain/campaign-status';
 import { CHECK_KEYS, type CheckKey } from '@/domain/progress';
+import { isCheckRequiredForLine, requiredChecksForLine } from '@/domain/operation-rules';
 import { todayIso } from '@/lib/dates';
 import type { OperationRow } from '@/repositories/operations.repository';
 
@@ -20,6 +21,24 @@ const CHECK_LABELS: Record<CheckKey, string> = {
   testigos_app: 'T. App',
   testigos_web: 'T. Web',
 };
+
+
+const CONTINUITY_LABELS: Record<string, string> = {
+  fijacion: 'Fijación',
+  continua: 'Continua',
+};
+
+function OperationBadge({ value }: { value: string | null | undefined }) {
+  const label = value || 'Sin tipo';
+  const tone = label === 'DIGITAL SIGNAGE' ? 'bg-violet-50 text-accent-violet' : 'bg-blue-50 text-accent-blue';
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{label}</span>;
+}
+
+function ContinuityBadge({ value }: { value: string | null | undefined }) {
+  const label = value ? CONTINUITY_LABELS[value] ?? value : 'Sin clasificar';
+  const tone = value === 'continua' ? 'bg-green-50 text-accent-green' : 'bg-amber-50 text-amber-700';
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{label}</span>;
+}
 
 export function OperationsPage() {
   const ops = useOperations(500);
@@ -55,12 +74,14 @@ export function OperationsPage() {
         ) : (
           <>
             <div className="card overflow-x-auto">
-              <table className="w-full min-w-[1100px] text-sm">
+              <table className="w-full min-w-[1450px] text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50">
                   <tr className="text-left text-xs uppercase text-slate-500">
                     <th className="sticky left-0 bg-slate-50 px-3 py-2 font-medium">Cliente / Campaña</th>
+                    <th className="px-3 py-2 font-medium">Operación</th>
+                    <th className="px-3 py-2 font-medium">Periodo</th>
                     <th className="px-3 py-2 font-medium">Artículo</th>
-                    <th className="px-3 py-2 font-medium">Creat. ID</th>
+                    <th className="px-3 py-2 font-medium">Creatividad</th>
                     {CHECK_KEYS.map((k) => (
                       <th key={k} className="px-2 py-2 text-center font-medium">
                         {CHECK_LABELS[k]}
@@ -79,6 +100,7 @@ export function OperationsPage() {
                       checks: row.checks,
                       cancelled: row.line.cancelled,
                       today,
+                      requiredChecks: requiredChecksForLine(row.line),
                     });
                     return (
                       <tr key={row.line.campaign_line_id} className="border-t border-slate-100 hover:bg-slate-50">
@@ -95,28 +117,57 @@ export function OperationsPage() {
                             </span>
                           </button>
                         </td>
-                        <td className="px-3 py-2 text-slate-600">{row.line.placement_name_snapshot}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-slate-600">
-                          {row.line.creatividad_id_original}
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-1">
+                            <OperationBadge value={row.line.tipo_operacion} />
+                            <span className="text-xs text-slate-400">{row.line.cadena ?? 'Sin cadena'}</span>
+                          </div>
                         </td>
-                        {CHECK_KEYS.map((k) => (
-                          <td key={k} className="px-2 py-2 text-center">
-                            <button
-                              type="button"
-                              disabled={!canWrite}
-                              onClick={() => void ops.toggleCheck(row, k)}
-                              aria-pressed={row.checks[k]}
-                              aria-label={`${CHECK_LABELS[k]} ${row.checks[k] ? 'completado' : 'pendiente'}`}
-                              className={`focus-ring h-5 w-5 rounded border ${
-                                row.checks[k]
-                                  ? 'border-accent-green bg-accent-green text-white'
-                                  : 'border-slate-300 bg-white text-transparent'
-                              } ${canWrite ? 'cursor-pointer' : 'cursor-default'}`}
-                            >
-                              ✓
-                            </button>
-                          </td>
-                        ))}
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium text-slate-700">{row.line.periodo_codigo || row.line.periodo_original || '—'}</span>
+                            <ContinuityBadge value={row.line.tipo_campana_periodo} />
+                            <span className="text-[11px] text-slate-400">
+                              {row.line.fecha_fijacion} → {row.line.fecha_retirada}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-600">{row.line.placement_name_snapshot}</td>
+                        <td className="px-3 py-2">
+                          <span className="block font-mono text-xs text-slate-600">
+                            {row.line.creatividad_id_original}
+                          </span>
+                          <span className="block max-w-44 truncate text-xs text-slate-400">
+                            {row.line.creatividad_descripcion_original || row.line.creatividad_titulo_original || 'Sin descripción'}
+                          </span>
+                        </td>
+                        {CHECK_KEYS.map((k) => {
+                          const required = isCheckRequiredForLine(row.line, k);
+                          return (
+                            <td key={k} className="px-2 py-2 text-center">
+                              {required ? (
+                                <button
+                                  type="button"
+                                  disabled={!canWrite}
+                                  onClick={() => void ops.toggleCheck(row, k)}
+                                  aria-pressed={row.checks[k]}
+                                  aria-label={`${CHECK_LABELS[k]} ${row.checks[k] ? 'completado' : 'pendiente'}`}
+                                  className={`focus-ring h-5 w-5 rounded border ${
+                                    row.checks[k]
+                                      ? 'border-accent-green bg-accent-green text-white'
+                                      : 'border-slate-300 bg-white text-transparent'
+                                  } ${canWrite ? 'cursor-pointer' : 'cursor-default'}`}
+                                >
+                                  ✓
+                                </button>
+                              ) : (
+                                <span className="text-xs text-slate-300" title="No aplica">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
                         <td className="px-3 py-2">
                           <input
                             defaultValue={row.responsable ?? ''}

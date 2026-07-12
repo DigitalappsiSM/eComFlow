@@ -63,6 +63,8 @@ export interface RowPlan {
     periodoTipo?: string;
     periodoInicio?: string;
     periodoFin?: string;
+    /** Clasificación operativa del periodo: nueva fijación o continuidad inmediata. */
+    tipoCampanaPeriodo?: 'fijacion' | 'continua';
   };
 }
 

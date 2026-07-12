@@ -28,6 +28,7 @@ import {
   type CheckKey,
   type CheckValues,
 } from '@/domain/progress';
+import { requiredChecksForLine } from '@/domain/operation-rules';
 import type { CampaignLine } from '@/types/campaign';
 import type { CampaignComment, CampaignOperation } from '@/types/operations';
 import type { ChangeHistoryEntry } from '@/types/audit';
@@ -102,7 +103,7 @@ export async function fetchOperationsPage(
       operationId: line.campaign_line_id,
       checks,
       responsable: op?.responsable_operativo ?? null,
-      progress: op?.porcentaje_avance ?? computeProgress(checks),
+      progress: computeProgress(checks, requiredChecksForLine(line)),
       comentarios: op?.comentarios ?? '',
     };
   });
