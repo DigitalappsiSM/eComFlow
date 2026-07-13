@@ -62,15 +62,16 @@ conteo real de cambios detectados pendientes.
 
 ## Cómo restaurar este respaldo
 
-Este estado está etiquetado en Git. Para descargar u obtener el código exacto:
+Este estado quedó fijado en la rama de respaldo **`backup-2026-07-13`**. Para
+descargar u obtener el código exacto:
 
-- **ZIP del código:** `https://github.com/DigitalappsiSM/eComFlow/archive/refs/tags/v0.2.0.zip`
+- **ZIP del código:** `https://github.com/DigitalappsiSM/eComFlow/archive/refs/heads/backup-2026-07-13.zip`
 - **Restaurar a este punto localmente:**
   ```bash
-  git fetch --tags
-  git checkout v0.2.0            # inspeccionar el snapshot
-  # o crear una rama desde el respaldo:
-  git checkout -b restore-v0.2.0 v0.2.0
+  git fetch origin backup-2026-07-13
+  git checkout backup-2026-07-13            # inspeccionar el snapshot
+  # o crear una rama de trabajo desde el respaldo:
+  git checkout -b restore-2026-07-13 origin/backup-2026-07-13
   ```
 - **Datos (Firestore):** el código no respalda los datos. Para respaldar datos,
   exportar la base desde Firebase Console (Firestore → Export) o `gcloud
