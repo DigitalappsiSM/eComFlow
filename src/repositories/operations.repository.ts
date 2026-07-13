@@ -200,6 +200,25 @@ export async function assignResponsable(
   await batch.commit();
 }
 
+/** Actualiza la nota/comentario operativo de la línea (campo en la operación) + auditoría. */
+export async function updateOperationComment(
+  ids: EntityIds,
+  previous: string,
+  comment: string,
+  actor: AuditActor,
+): Promise<void> {
+  const db = requireDb();
+  const batch = writeBatch(db);
+  batch.update(doc(db, COLLECTIONS.campaignOperations, ids.campaign_line_id), {
+    comentarios: comment,
+    updated_at: serverTimestamp(),
+    updated_by: actor.uid,
+  });
+  const hist = historyData(db, ids, actor, 'comment_edited', 'comment', 'comentarios', previous, comment);
+  batch.set(hist.ref, hist.data);
+  await batch.commit();
+}
+
 /** Agrega un comentario (colección independiente, sin sobrescribir) y audita (§13). */
 export async function addComment(
   ids: EntityIds,

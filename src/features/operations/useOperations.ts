@@ -5,6 +5,7 @@ import {
   assignResponsable,
   fetchOperationsPage,
   updateCheck,
+  updateOperationComment,
   type OperationRow,
 } from '@/repositories/operations.repository';
 import { computeProgress, type CheckKey } from '@/domain/progress';
@@ -25,6 +26,7 @@ export function useOperations(pageSize = 50) {
   const [filters, setFilters] = useState<FilterValues>({});
   const [search, setSearch] = useState('');
   const [savingLineId, setSavingLineId] = useState<string | null>(null);
+  const [bulkStatus, setBulkStatus] = useState<'idle' | 'saving'>('idle');
 
   const actor = useMemo(
     () =>
@@ -97,6 +99,21 @@ export function useOperations(pageSize = 50) {
     [actor],
   );
 
+  const setComment = useCallback(
+    async (row: OperationRow, value: string) => {
+      if (!actor) return;
+      const comentarios = value.trim();
+      if (comentarios === (row.comentarios ?? '')) return;
+      await updateOperationComment(idsOf(row), row.comentarios ?? '', comentarios, actor);
+      setRows((prev) =>
+        prev.map((r) =>
+          r.line.campaign_line_id === row.line.campaign_line_id ? { ...r, comentarios } : r,
+        ),
+      );
+    },
+    [actor],
+  );
+
   const today = todayIso();
   const statusLabelOf = useCallback(
     (r: OperationRow) =>
@@ -134,6 +151,7 @@ export function useOperations(pageSize = 50) {
           r.line.tipo_operacion ?? '',
           r.line.cadena ?? '',
           r.responsable ?? '',
+          r.comentarios ?? '',
         ]
           .join(' ')
           .toLowerCase();
@@ -181,6 +199,43 @@ export function useOperations(pageSize = 50) {
     [actor, savingLineId],
   );
 
+  // Líneas filtradas (visibles) que aún tienen checks obligatorios pendientes.
+  const visibleRowsWithPending = useMemo(
+    () => filtered.filter((r) => requiredChecksForLine(r.line).some((key) => !r.checks[key])),
+    [filtered],
+  );
+
+  // Rellena de una vez todos los checks obligatorios pendientes de TODAS las
+  // líneas filtradas/visibles. Cada check se persiste con auditoría.
+  const markAllVisibleChecks = useCallback(async () => {
+    if (!actor || bulkStatus === 'saving' || visibleRowsWithPending.length === 0) return;
+    setBulkStatus('saving');
+    const updated = new Map<string, Pick<OperationRow, 'checks' | 'progress'>>();
+    try {
+      for (const row of visibleRowsWithPending) {
+        const requiredChecks = requiredChecksForLine(row.line);
+        const nextChecks = { ...row.checks };
+        for (const key of requiredChecks) {
+          if (nextChecks[key]) continue;
+          await updateCheck(idsOf(row), nextChecks, key, true, actor, requiredChecks);
+          nextChecks[key] = true;
+        }
+        updated.set(row.line.campaign_line_id, {
+          checks: nextChecks,
+          progress: computeProgress(nextChecks, requiredChecks),
+        });
+      }
+      setRows((prev) =>
+        prev.map((r) => {
+          const u = updated.get(r.line.campaign_line_id);
+          return u ? { ...r, ...u } : r;
+        }),
+      );
+    } finally {
+      setBulkStatus('idle');
+    }
+  }, [actor, bulkStatus, visibleRowsWithPending]);
+
   const filterFields = useMemo(
     () => [
       {
@@ -221,7 +276,11 @@ export function useOperations(pageSize = 50) {
     isLineExpired,
     savingLineId,
     markLineChecks,
+    visiblePendingCount: visibleRowsWithPending.length,
+    bulkStatus,
+    markAllVisibleChecks,
     toggleCheck,
     setResponsable,
+    setComment,
   };
 }

@@ -73,6 +73,23 @@ export function OperationsPage() {
           />
         ) : (
           <>
+            {canWrite && ops.visiblePendingCount > 0 && (
+              <div className="mb-3 flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-slate-600">
+                  Hay <strong>{ops.visiblePendingCount}</strong> línea(s) filtrada(s) con checks pendientes.
+                </p>
+                <button
+                  type="button"
+                  disabled={ops.bulkStatus === 'saving'}
+                  onClick={() => void ops.markAllVisibleChecks()}
+                  className="focus-ring inline-flex w-fit items-center gap-1.5 rounded-lg bg-accent-blue px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-blue/90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {ops.bulkStatus === 'saving'
+                    ? 'Rellenando…'
+                    : `Rellenar todo lo filtrado (${ops.visiblePendingCount})`}
+                </button>
+              </div>
+            )}
             <div className="card overflow-x-auto">
               <table className="w-full min-w-[1450px] text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50">
@@ -87,7 +104,7 @@ export function OperationsPage() {
                         {CHECK_LABELS[k]}
                       </th>
                     ))}
-                    <th className="px-3 py-2 font-medium">Responsable</th>
+                    <th className="px-3 py-2 font-medium">Comentarios</th>
                     <th className="px-3 py-2 font-medium">Avance</th>
                     <th className="px-3 py-2 font-medium">Estado</th>
                   </tr>
@@ -104,7 +121,7 @@ export function OperationsPage() {
                       requiredChecks: required,
                     });
                     const hasPendingChecks = required.some((k) => !row.checks[k]);
-                    const canMarkAll = canWrite && ops.isLineExpired(row) && hasPendingChecks;
+                    const canMarkAll = canWrite && hasPendingChecks;
                     const savingLine = ops.savingLineId === row.line.campaign_line_id;
                     return (
                       <tr key={row.line.campaign_line_id} className="border-t border-slate-100 hover:bg-slate-50">
@@ -174,17 +191,19 @@ export function OperationsPage() {
                           );
                         })}
                         <td className="px-3 py-2">
-                          <input
-                            defaultValue={row.responsable ?? ''}
+                          <textarea
+                            key={row.comentarios ?? ''}
+                            defaultValue={row.comentarios ?? ''}
                             disabled={!canWrite}
+                            rows={2}
                             onBlur={(e) => {
-                              if (e.target.value.trim() !== (row.responsable ?? '')) {
-                                void ops.setResponsable(row, e.target.value);
+                              if (e.target.value.trim() !== (row.comentarios ?? '')) {
+                                void ops.setComment(row, e.target.value);
                               }
                             }}
-                            placeholder="—"
-                            className="focus-ring w-28 rounded border border-transparent px-1.5 py-1 text-sm hover:border-slate-300 disabled:bg-transparent"
-                            aria-label="Responsable operativo"
+                            placeholder="Agregar nota…"
+                            className="focus-ring w-48 resize-y rounded border border-transparent px-1.5 py-1 text-sm hover:border-slate-300 focus:border-slate-300 disabled:bg-transparent"
+                            aria-label="Comentarios de la línea"
                           />
                         </td>
                         <td className="px-3 py-2">
@@ -204,9 +223,9 @@ export function OperationsPage() {
                                 disabled={savingLine}
                                 onClick={() => void ops.markLineChecks(row)}
                                 className="focus-ring w-fit rounded border border-accent-blue px-2 py-0.5 text-[11px] font-medium text-accent-blue hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                                title="Marcar todos los checks obligatorios de esta línea (periodo vencido)"
+                                title="Rellenar todos los checks obligatorios de esta línea"
                               >
-                                {savingLine ? 'Marcando…' : 'Marcar todos'}
+                                {savingLine ? 'Rellenando…' : 'Rellenar todo'}
                               </button>
                             )}
                           </div>

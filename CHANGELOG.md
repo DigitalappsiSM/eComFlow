@@ -2,6 +2,20 @@
 
 Registro de cambios relevantes de eComFlow Next. Fechas en formato ISO.
 
+## 2026-07-13
+
+### Respaldo
+- Snapshot del estado en la rama **`backup-2026-07-13`** (ZIP descargable) y doc
+  [`docs/estado-actual.md`](docs/estado-actual.md).
+
+### Seguimiento operativo
+- **"Rellenar todo" por línea** ahora aparece en **cualquier** línea con checks
+  pendientes (no solo las vencidas), y se agregó un botón **global** "Rellenar
+  todo lo filtrado" que completa los checks de todas las líneas visibles.
+- La columna **"Responsable" pasó a "Comentarios"**: notas por línea que se
+  guardan en la operación (`campaign_operations.comentarios`) con auditoría y
+  quedan visibles de forma persistente.
+
 ## 2026-07-12 (iteración 3)
 
 ### Navegación (UX)

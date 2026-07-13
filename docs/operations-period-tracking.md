@@ -31,24 +31,32 @@ La continuidad entre periodos se marca en `tipo_campana_periodo`:
 `fijacion` (inicia en ese periodo) o `continua` (el periodo inmediatamente
 anterior tenía la misma campaña/artículo/creatividad/descripción).
 
-## 2. Botón por línea "Marcar todos"
+## 2. "Rellenar todo" (por línea y global)
 
-En **Seguimiento operativo** (`/operacion`), **cada línea operativa** cuyo
-**periodo ya venció** y que aún tenga checks obligatorios pendientes muestra, en
-la columna **Avance**, un botón **"Marcar todos"** que completa de una vez todos
-los checks obligatorios de **esa línea** (no de todas a la vez).
+En **Seguimiento operativo** (`/operacion`) hay dos formas de completar checks en
+bloque:
+
+- **Por línea**: cada línea con checks obligatorios **pendientes** muestra, en la
+  columna **Avance**, un botón **"Rellenar todo"** que completa los checks de
+  **esa** línea (aplica a líneas vencidas, en curso o futuras; no aparece si ya
+  está completa).
+- **Global**: encima de la tabla, cuando hay líneas filtradas con pendientes,
+  aparece **"Rellenar todo lo filtrado (N)"**, que completa los checks
+  obligatorios de **todas las líneas visibles/filtradas** de una vez.
 
 Reglas:
 
-- Es **por línea**, no global: solo afecta a la línea de su propio botón.
-- Aparece **solo cuando el periodo ya venció**: usa **`periodo_fin`** si existe
-  (el periodo operativo vence antes que la campaña global); si no, cae a
-  `fecha_retirada`.
-- **No aparece** en líneas futuras ni en curso (esas se marcan manualmente check
-  por check), ni en líneas que ya tienen todos sus checks completos.
-- Requiere **permiso de escritura** (`operations.write`).
-- Mientras guarda esa línea, su botón queda deshabilitado ("Marcando…").
+- Requieren **permiso de escritura** (`operations.write`).
+- El global respeta los **filtros activos**: solo toca lo que está visible.
+- Mientras guardan, los botones quedan deshabilitados ("Rellenando…").
 - Cada check se persiste con auditoría (mismo flujo que un check individual).
+
+## 2b. Columna "Comentarios"
+
+La columna antes llamada "Responsable" es ahora **"Comentarios"**: un campo de
+texto por línea donde el usuario escribe notas. Se guardan en la operación
+(`campaign_operations.comentarios`) con auditoría (`comment_edited`) y quedan
+visibles de forma persistente.
 
 ## 3. Validación en producción (después del merge)
 
