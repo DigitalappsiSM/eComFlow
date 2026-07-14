@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchResultsWeekly } from '@/repositories/results/results-weekly.repository';
 import { fetchActivePeriods } from '@/repositories/results/periods.repository';
+import { fetchApprovedAdjustedMap } from '@/repositories/results/results-adjustments.repository';
 import { buildResultsLines, type ResultsLine } from '@/domain/results/results-metrics';
 
 type State =
@@ -19,8 +20,12 @@ export function useResultsDashboard() {
   const load = useCallback(async () => {
     setState({ status: 'loading' });
     try {
-      const [weekly, periods] = await Promise.all([fetchResultsWeekly(), fetchActivePeriods()]);
-      setState({ status: 'ready', lines: buildResultsLines(weekly, periods) });
+      const [weekly, periods, adjusted] = await Promise.all([
+        fetchResultsWeekly(),
+        fetchActivePeriods(),
+        fetchApprovedAdjustedMap().catch(() => new Map()),
+      ]);
+      setState({ status: 'ready', lines: buildResultsLines(weekly, periods, adjusted) });
     } catch (err) {
       setState({ status: 'error', message: err instanceof Error ? err.message : 'Error desconocido.' });
     }

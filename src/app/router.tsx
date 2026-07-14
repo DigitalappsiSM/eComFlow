@@ -17,6 +17,7 @@ import { ResultsNewImportPage } from '@/pages/results/ResultsNewImportPage';
 import { ResultsImportHistoryPage } from '@/pages/results/ResultsImportHistoryPage';
 import { ResultsValidationsPage } from '@/pages/results/ResultsValidationsPage';
 import { ResultsPeriodsPage } from '@/pages/results/ResultsPeriodsPage';
+import { ResultsAdjustmentsPage } from '@/pages/results/ResultsAdjustmentsPage';
 
 function protectedElement(node: JSX.Element, permission?: Parameters<typeof ProtectedRoute>[0]['permission']) {
   return <ProtectedRoute permission={permission}>{node}</ProtectedRoute>;
@@ -42,6 +43,7 @@ export const router = createBrowserRouter(
   { path: '/resultados/historial', element: protectedElement(<ResultsImportHistoryPage />, 'results.read') },
   { path: '/resultados/validaciones', element: protectedElement(<ResultsValidationsPage />, 'results.read') },
   { path: '/resultados/periodos', element: protectedElement(<ResultsPeriodsPage />, 'results.read') },
+  { path: '/resultados/ajustes', element: protectedElement(<ResultsAdjustmentsPage />, 'results.adjustments.view') },
   // Ruta OCULTA (no está en el menú): reinicio de datos de prueba, solo admin.
   { path: '/reiniciar-datos', element: protectedElement(<ResetDataPage />, 'users') },
   { path: '*', element: <Navigate to="/" replace /> },
