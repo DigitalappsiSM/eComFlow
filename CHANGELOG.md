@@ -2,6 +2,28 @@
 
 Registro de cambios relevantes de eComFlow Next. Fechas en formato ISO.
 
+## 2026-07-14 — Módulo Resultados Ecommerce (Kevel)
+
+Módulo nuevo e **independiente** del operativo (dominio aislado, colecciones
+`results_*`, permisos `results.*`, reglas de Firestore separadas). Ver
+[`docs/resultados-ecommerce.md`](docs/resultados-ecommerce.md).
+
+### Fase 1 — Importación y consolidación
+- Importador CSV Kevel con **contrato de 42 columnas**, validación en el
+  navegador (Web Worker), incidencias bloqueantes/avisos con reporte
+  descargable, `file_hash` (SHA-256), detección de traslapes, claves diarias
+  agrupadas, `results_daily` inmutable y **consolidación semanal** (viernes→
+  jueves) con reconciliación. Catálogo `ecommerce_periods` con sembrado.
+- Ajustado al export real: fechas `DD/MM/YYYY` con hora, `Zone`/`ZoneId 0`
+  ignorados, rango declarado como aviso, device desde `Ad`, mes por el viernes,
+  fuera-de-catálogo sin bloquear, y **estimación de impresiones** (CTR de
+  CATEGORY BANNER sobre Unique Clicks) en campo separado.
+
+### Fase 2 — Dashboard de resultados
+- KPIs, **evolución por periodo con pico de clics**, **categorías/clientes/
+  campañas/artículos más visitados** por clics, distribución por dispositivo y
+  tabla consolidada, con **filtros dinámicos** y toggle **Real / Efectiva**.
+
 ## 2026-07-13
 
 ### Respaldo

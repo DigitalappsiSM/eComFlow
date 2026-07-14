@@ -12,6 +12,7 @@ import { DetectedChangesPage } from '@/pages/changes/DetectedChangesPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { UsersPage } from '@/pages/users/UsersPage';
 import { ResetDataPage } from '@/pages/admin/ResetDataPage';
+import { ResultsDashboardPage } from '@/pages/results/ResultsDashboardPage';
 import { ResultsNewImportPage } from '@/pages/results/ResultsNewImportPage';
 import { ResultsImportHistoryPage } from '@/pages/results/ResultsImportHistoryPage';
 import { ResultsValidationsPage } from '@/pages/results/ResultsValidationsPage';
@@ -35,7 +36,8 @@ export const router = createBrowserRouter(
   { path: '/configuracion', element: protectedElement(<SettingsPage />, 'settings') },
   { path: '/usuarios', element: protectedElement(<UsersPage />, 'users') },
   // --- Módulo Resultados Ecommerce (dominio independiente, §3) ---
-  { path: '/resultados', element: <Navigate to="/resultados/nueva-carga" replace /> },
+  { path: '/resultados', element: <Navigate to="/resultados/dashboard" replace /> },
+  { path: '/resultados/dashboard', element: protectedElement(<ResultsDashboardPage />, 'results.read') },
   { path: '/resultados/nueva-carga', element: protectedElement(<ResultsNewImportPage />, 'results.import') },
   { path: '/resultados/historial', element: protectedElement(<ResultsImportHistoryPage />, 'results.read') },
   { path: '/resultados/validaciones', element: protectedElement(<ResultsValidationsPage />, 'results.read') },

@@ -63,7 +63,8 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Resultados',
     items: [
-      { to: '/resultados/nueva-carga', label: 'Nueva carga Kevel', icon: BarChart3, permission: 'results.import' },
+      { to: '/resultados/dashboard', label: 'Dashboard', icon: BarChart3, permission: 'results.read' },
+      { to: '/resultados/nueva-carga', label: 'Nueva carga Kevel', icon: Upload, permission: 'results.import' },
       { to: '/resultados/historial', label: 'Historial de cargas', icon: FileClock, permission: 'results.read' },
       { to: '/resultados/validaciones', label: 'Validaciones', icon: ShieldCheck, permission: 'results.read' },
       { to: '/resultados/periodos', label: 'Periodos ecommerce', icon: CalendarRange, permission: 'results.read' },
