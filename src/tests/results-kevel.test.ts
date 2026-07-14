@@ -124,10 +124,34 @@ describe('results · validación del plan', () => {
     expect(plan.blocks).toBe(true);
   });
 
-  it('bloquea clave diaria duplicada dentro del archivo', () => {
+  it('agrupa (no bloquea) claves diarias repetidas sumando métricas', () => {
     const plan = buildKevelPlan(file([dataRow(), dataRow()]), PERIODS);
-    expect(plan.issues.some((i) => i.code === 'DUPLICATE_DAILY_KEY')).toBe(true);
-    expect(plan.blocks).toBe(true);
+    expect(plan.blocks).toBe(false);
+    expect(plan.mergedRows).toBe(1);
+    expect(plan.enriched).toHaveLength(1);
+    expect(plan.enriched[0]!.row.impressions).toBe(2000); // 1000 + 1000
+    expect(plan.enriched[0]!.row.clicks).toBe(20);
+    expect(plan.enriched[0]!.ctr).toBeCloseTo(20 / 2000, 10); // recalculado tras agrupar
+    expect(plan.issues.some((i) => i.code === 'DUPLICATE_DAILY_KEY_MERGED' && i.severity === 'warning')).toBe(true);
+  });
+
+  it('fecha de metadatos ilegible es AVISO (usa el rango real de los datos)', () => {
+    // "17/07/2026" no es M/D/YYYY válido (mes 17) → aviso, no bloqueo.
+    const plan = buildKevelPlan(file([dataRow()], '17/07/2026', '17/07/2026'), PERIODS);
+    expect(plan.issues.some((i) => i.code === 'INVALID_META_DATE' && i.severity === 'warning')).toBe(true);
+    expect(plan.errorCount).toBe(0);
+    expect(plan.actualStartDate).toBe('2026-07-17');
+  });
+
+  it('acepta fechas con componente de hora', () => {
+    expect(parseKevelDate('2026-07-17 12:00:00 AM')).toBe('2026-07-17');
+    expect(parseKevelDate('7/17/2026 00:00')).toBe('2026-07-17');
+  });
+
+  it('Zone vacío o ZoneId cero NO genera incidencia', () => {
+    const plan = buildKevelPlan(file([dataRow({ 10: '', 40: '0' })]), PERIODS);
+    expect(plan.issues.some((i) => i.code === 'ZONE_EMPTY')).toBe(false);
+    expect(plan.errorCount).toBe(0);
   });
 
   it('bloquea CTR que no coincide con clicks/impressions', () => {

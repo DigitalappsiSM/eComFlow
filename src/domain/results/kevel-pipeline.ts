@@ -28,6 +28,7 @@ export function buildKevelPlan(text: string, periods: readonly EcommercePeriod[]
       actualStartDate: '',
       actualEndDate: '',
       periodIds: [],
+      mergedRows: 0,
       enriched: [],
     };
   }

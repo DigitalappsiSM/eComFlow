@@ -142,10 +142,12 @@ function isRealDate(y: number, m: number, d: number): boolean {
 
 /**
  * Fecha Kevel → ISO `YYYY-MM-DD`. Acepta ISO y formato US `M/D/YYYY` (default de
- * export de Kevel). No adivina otros formatos: devuelve null si no coincide.
+ * export de Kevel), con o sin componente de hora (se descarta). No adivina
+ * otros formatos: devuelve null si no coincide.
  */
 export function parseKevelDate(raw: string): IsoDate | null {
-  const value = (raw ?? '').trim();
+  // Descarta la parte de hora ("2026-07-17 12:00:00 AM" → "2026-07-17").
+  const value = ((raw ?? '').trim().split(/[T ]/)[0] ?? '').trim();
   const iso = ISO_RE.exec(value);
   if (iso) {
     const [, y, m, d] = iso.map(Number) as [number, number, number, number];
@@ -244,21 +246,29 @@ export function validateKevelStructure(rows: string[][]): KevelStructure {
   } else {
     const s = parseKevelDate(meta[1] ?? '');
     const e = parseKevelDate(meta[3] ?? '');
+    // Fechas de metadatos ilegibles NO bloquean: el rango real se toma de los
+    // datos (columna Date). Solo se avisa.
     if (!s) {
       issues.push(
-        issue('INVALID_META_DATE', 'La fecha inicial declarada es inválida.', {
+        issue('INVALID_META_DATE', 'La fecha inicial declarada no se pudo interpretar; se usará el rango real de los datos.', {
           row_number: 1,
           field: 'Start Date',
           received_value: meta[1] ?? '',
+          severity: 'warning',
+          blocks_import: false,
+          suggested_action: 'Revise; la importación puede continuar.',
         }),
       );
     }
     if (!e) {
       issues.push(
-        issue('INVALID_META_DATE', 'La fecha final declarada es inválida.', {
+        issue('INVALID_META_DATE', 'La fecha final declarada no se pudo interpretar; se usará el rango real de los datos.', {
           row_number: 1,
           field: 'End Date',
           received_value: meta[3] ?? '',
+          severity: 'warning',
+          blocks_import: false,
+          suggested_action: 'Revise; la importación puede continuar.',
         }),
       );
     }

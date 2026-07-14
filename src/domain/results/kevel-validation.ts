@@ -25,7 +25,7 @@ const REQUIRED_ID_FIELDS: { key: keyof KevelNormalizedRow; label: string }[] = [
   { key: 'ad_id', label: 'AdId' },
 ];
 
-const ABSOLUTE_METRICS: (keyof KevelNormalizedRow)[] = [
+const ABSOLUTE_METRICS = [
   'impressions',
   'unfiltered_impressions',
   'invalid_ua_impressions',
@@ -37,7 +37,7 @@ const ABSOLUTE_METRICS: (keyof KevelNormalizedRow)[] = [
   'suspicious_clicks',
   'unique_clicks',
   'unfiltered_clicks',
-];
+] as const;
 
 function strongName(value: string): string {
   return value
@@ -99,6 +99,8 @@ export interface KevelValidationResult {
   actualStartDate: string;
   actualEndDate: string;
   periodIds: string[];
+  /** Filas agrupadas por clave diaria repetida (mismo cliente/soporte). */
+  mergedRows: number;
   enriched: EnrichedResultRow[];
 }
 
@@ -203,7 +205,8 @@ export function validateKevelImport(input: KevelValidationInput): KevelValidatio
   }
 
   // Validación por fila + clave diaria + periodo.
-  const seenDailyKeys = new Map<string, number>();
+  const enrichedByKey = new Map<string, EnrichedResultRow>();
+  let mergedRows = 0;
   for (const r of rows) {
     const rn = r.row_number;
     const rowWarnings: string[] = [];
@@ -312,10 +315,7 @@ export function validateKevelImport(input: KevelValidationInput): KevelValidatio
       rowWarnings.push('DATE_AFTER_FLIGHT');
       issues.push(warn('DATE_AFTER_FLIGHT', `La fecha ${r.date} es posterior al fin del Flight.`, { row_number: rn, field: 'Date' }));
     }
-    if (r.zone.trim() === '' || r.zone_id.trim() === '' || r.zone_id.trim() === '0') {
-      rowWarnings.push('ZONE_EMPTY');
-      issues.push(warn('ZONE_EMPTY', 'Zone vacío o ZoneId cero.', { row_number: rn, field: 'Zone' }));
-    }
+    // Zone vacío/ZoneId cero NO es incidencia: Soriana no siempre lo envía.
     if (r.device === 'unknown') {
       rowWarnings.push('DEVICE_UNKNOWN');
       issues.push(warn('DEVICE_UNKNOWN', 'No se pudo derivar el dispositivo (AdType/Site/Zone).', { row_number: rn, field: 'AdType' }));
@@ -331,29 +331,45 @@ export function validateKevelImport(input: KevelValidationInput): KevelValidatio
       rowWarnings.push('CAMPAIGN_MULTIPLE_NUMBERS');
     }
 
-    // Clave diaria duplicada dentro del archivo (§6, §8).
+    // Clave diaria repetida dentro del archivo: NO es error. Es el mismo
+    // cliente/soporte reportado en varias filas (material distinto u otro dato
+    // fuera de la clave) → se AGRUPA sumando las métricas (como el importador
+    // Ekon agrupa filas de material).
     const key = dailyKey(r);
-    const prev = seenDailyKeys.get(key.result_key_hash);
-    if (prev !== undefined) {
-      issues.push(
-        err('DUPLICATE_DAILY_KEY', 'Clave diaria duplicada dentro del archivo.', {
-          row_number: rn,
-          received_value: `${key.result_key_raw} (también fila ${prev})`,
-        }),
-      );
+    const existing = enrichedByKey.get(key.result_key_hash);
+    if (existing) {
+      mergedRows += 1;
+      for (const m of ABSOLUTE_METRICS) existing.row[m] += r[m];
+      existing.row.revenue = (existing.row.revenue ?? 0) + (r.revenue ?? 0);
+      existing.row.gmv = (existing.row.gmv ?? 0) + (r.gmv ?? 0);
+      for (const w of rowWarnings) if (!existing.warnings.includes(w)) existing.warnings.push(w);
     } else {
-      seenDailyKeys.set(key.result_key_hash, rn);
+      enrichedByKey.set(key.result_key_hash, {
+        row: r,
+        period_id: period?.period_id ?? '',
+        result_key_raw: key.result_key_raw,
+        result_key_hash: key.result_key_hash,
+        ctr,
+        unique_ctr: uctr,
+        warnings: rowWarnings,
+      });
     }
+  }
 
-    enriched.push({
-      row: r,
-      period_id: period?.period_id ?? '',
-      result_key_raw: key.result_key_raw,
-      result_key_hash: key.result_key_hash,
-      ctr,
-      unique_ctr: uctr,
-      warnings: rowWarnings,
-    });
+  // Cierre de agrupación: recalcular ratios sobre los totales agrupados.
+  for (const e of enrichedByKey.values()) {
+    e.ctr = recalcCtr(e.row.clicks, e.row.impressions);
+    e.unique_ctr = recalcCtr(e.row.unique_clicks, e.row.impressions);
+    enriched.push(e);
+  }
+  if (mergedRows > 0) {
+    issues.push(
+      warn(
+        'DUPLICATE_DAILY_KEY_MERGED',
+        `${mergedRows} fila(s) con la misma clave diaria se agruparon (métricas sumadas).`,
+        { received_value: String(mergedRows) },
+      ),
+    );
   }
 
   const errorCount = issues.filter((i) => i.severity === 'error').length;
@@ -368,6 +384,7 @@ export function validateKevelImport(input: KevelValidationInput): KevelValidatio
     actualStartDate: actualStart,
     actualEndDate: actualEnd,
     periodIds,
+    mergedRows,
     enriched,
   };
 }

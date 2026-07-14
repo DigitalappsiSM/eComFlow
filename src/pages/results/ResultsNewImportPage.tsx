@@ -91,7 +91,9 @@ export function ResultsNewImportPage() {
                   <div>
                     <h3 className="text-sm font-semibold text-slate-800">{state.fileName}</h3>
                     <p className="text-xs text-slate-500">
-                      {state.plan.enriched.length} filas · {state.plan.periodIds.length} periodo(s) ·{' '}
+                      {state.plan.enriched.length} líneas diarias
+                      {state.plan.mergedRows > 0 && ` (${state.plan.mergedRows} filas agrupadas)`} ·{' '}
+                      {state.plan.periodIds.length} periodo(s) ·{' '}
                       <span className="font-semibold text-red-600">{state.plan.errorCount} error(es)</span> ·{' '}
                       <span className="font-semibold text-amber-700">{state.plan.warningCount} aviso(s)</span>
                     </p>

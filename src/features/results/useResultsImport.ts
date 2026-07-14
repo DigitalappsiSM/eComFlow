@@ -47,6 +47,34 @@ function withExtraIssues(plan: KevelValidationResult, extra: ValidationIssue[]):
   return { ...plan, issues, errorCount, blocks: errorCount > 0 };
 }
 
+/**
+ * Compacta incidencias para persistencia: guarda hasta `perCode` ejemplos por
+ * código + un resumen con el total. El detalle completo siempre está en el
+ * reporte descargable de la validación.
+ */
+const MAX_ISSUES_PER_CODE = 20;
+function compressIssues(issues: ValidationIssue[], perCode = MAX_ISSUES_PER_CODE): ValidationIssue[] {
+  const byCode = new Map<string, ValidationIssue[]>();
+  for (const i of issues) {
+    const list = byCode.get(i.code) ?? [];
+    list.push(i);
+    byCode.set(i.code, list);
+  }
+  const out: ValidationIssue[] = [];
+  for (const [code, list] of byCode) {
+    out.push(...list.slice(0, perCode));
+    if (list.length > perCode) {
+      out.push({
+        ...list[0]!,
+        row_number: null,
+        received_value: String(list.length),
+        description: `… y ${list.length - perCode} incidencia(s) más con código ${code} (total ${list.length}).`,
+      });
+    }
+  }
+  return out;
+}
+
 export function useResultsImport() {
   const { firebaseUser, appUser } = useAuth();
   const [state, setState] = useState<ResultsImportState>({ status: 'idle' });
@@ -130,7 +158,7 @@ export function useResultsImport() {
         periodIds: plan.periodIds,
         enriched: plan.enriched,
         weekly,
-        issues: plan.issues.filter((i) => i.severity === 'warning'),
+        issues: compressIssues(plan.issues.filter((i) => i.severity === 'warning')),
         warningCount: plan.warningCount,
         actor,
         onProgress: (done, t) => setState({ status: 'writing', done, total: t }),
