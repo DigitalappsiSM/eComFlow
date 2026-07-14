@@ -115,6 +115,9 @@ function dailyDoc(e: EnrichedResultRow, importId: string, actor: Actor) {
     suspicious_clicks: r.suspicious_clicks,
     unique_clicks: r.unique_clicks,
     unfiltered_clicks: r.unfiltered_clicks,
+    // Impresiones estimadas (§14): separadas del dato real (impressions).
+    impressions_estimated: e.impressions_estimated,
+    impressions_is_estimated: e.impressions_is_estimated,
     revenue: r.revenue,
     gmv: r.gmv,
     price: r.price,

@@ -114,10 +114,10 @@ describe('results · validación del plan', () => {
     expect(plan.periodIds).toEqual(['p-2026-07-17']);
   });
 
-  it('bloquea si el rango declarado no coincide con las fechas reales', () => {
+  it('avisa (no bloquea) si el rango declarado no coincide con las fechas reales', () => {
     const plan = buildKevelPlan(file([dataRow()], '2026-07-18', '2026-07-18'), PERIODS);
-    expect(plan.blocks).toBe(true);
-    expect(plan.issues.some((i) => i.code === 'RANGE_START_MISMATCH')).toBe(true);
+    expect(plan.blocks).toBe(false);
+    expect(plan.issues.some((i) => i.code === 'RANGE_START_MISMATCH' && i.severity === 'warning')).toBe(true);
   });
 
   it('bloquea fecha sin periodo ecommerce', () => {
@@ -223,6 +223,36 @@ describe('results · consolidación semanal', () => {
     const { weekly } = consolidateWeekly(plan.enriched, 'imp1');
     expect(weekly).toHaveLength(2);
     expect(new Set(weekly.map((w) => w.period_id))).toEqual(new Set(['p-2026-07-17', 'p-2026-07-24']));
+  });
+});
+
+describe('results · proyección de impresiones (§14)', () => {
+  it('estima impresiones con el CTR de CATEGORY BANNER, conservando el real en 0', () => {
+    const plan = buildKevelPlan(
+      file(
+        [
+          // CATEGORY BANNER con impresiones reales → CTR de referencia 10/1000 = 0.01.
+          dataRow({ 8: 'CATEGORY BANNER', 41: 'AD1' }),
+          // Fila con clics y CERO impresiones → estimado = round(5 / 0.01) = 500.
+          dataRow({ 8: 'CATEGORY BANNER', 11: '0', 12: '0', 14: '5', 20: '0', 21: '5', 22: '0', 23: '0', 41: 'AD2' }),
+        ],
+        '2026-07-17',
+        '2026-07-17',
+      ),
+      PERIODS,
+    );
+    expect(plan.blocks).toBe(false);
+    const estimated = plan.enriched.find((e) => e.row.ad_id === 'AD2')!;
+    expect(estimated.row.impressions).toBe(0); // real intacto
+    expect(estimated.impressions_is_estimated).toBe(true);
+    expect(estimated.impressions_estimated).toBe(500);
+    expect(plan.issues.some((i) => i.code === 'IMPRESSIONS_ESTIMATED')).toBe(true);
+
+    const { weekly } = consolidateWeekly(plan.enriched, 'imp1');
+    const wEst = weekly.find((w) => w.ad_id === 'AD2')!;
+    expect(wEst.impressions).toBe(0);
+    expect(wEst.impressions_estimated).toBe(500);
+    expect(wEst.impressions_effective).toBe(500);
   });
 });
 

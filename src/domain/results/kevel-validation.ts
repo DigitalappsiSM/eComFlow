@@ -80,6 +80,10 @@ export interface EnrichedResultRow {
   result_key_hash: string;
   ctr: number;
   unique_ctr: number;
+  /** Impresiones estimadas cuando Kevel no las envía (0 = sin estimación). */
+  impressions_estimated: number;
+  /** true si `impressions_estimated` se calculó (impresiones reales = 0). */
+  impressions_is_estimated: boolean;
   warnings: string[];
 }
 
@@ -149,17 +153,18 @@ export function validateKevelImport(input: KevelValidationInput): KevelValidatio
   const actualStart = dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : '';
   const actualEnd = dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : '';
 
-  // Rango declarado vs real (§6).
+  // Rango declarado vs real: solo AVISO. La granularidad y el traslape se
+  // calculan con el rango REAL de los datos (columna Date), no con el declarado.
   if (meta.declaredStart && actualStart && meta.declaredStart !== actualStart) {
     issues.push(
-      err('RANGE_START_MISMATCH', 'El inicio declarado no coincide con la primera fecha de datos.', {
+      warn('RANGE_START_MISMATCH', 'El inicio declarado no coincide con la primera fecha de datos; se usa el rango real.', {
         received_value: `declarado ${meta.declaredStart} · real ${actualStart}`,
       }),
     );
   }
   if (meta.declaredEnd && actualEnd && meta.declaredEnd !== actualEnd) {
     issues.push(
-      err('RANGE_END_MISMATCH', 'El fin declarado no coincide con la última fecha de datos.', {
+      warn('RANGE_END_MISMATCH', 'El fin declarado no coincide con la última fecha de datos; se usa el rango real.', {
         received_value: `declarado ${meta.declaredEnd} · real ${actualEnd}`,
       }),
     );
@@ -351,6 +356,8 @@ export function validateKevelImport(input: KevelValidationInput): KevelValidatio
         result_key_hash: key.result_key_hash,
         ctr,
         unique_ctr: uctr,
+        impressions_estimated: 0,
+        impressions_is_estimated: false,
         warnings: rowWarnings,
       });
     }

@@ -50,6 +50,12 @@ export interface WeeklyResult {
   unique_ctr: number;
   filtered_clicks: number;
 
+  // Impresiones estimadas (§14): SEPARADAS de las reales. `effective` = real +
+  // estimado, para la vista de resultados; nunca sustituye el dato real Kevel.
+  impressions_estimated: number;
+  impressions_effective: number;
+  ctr_effective: number;
+
   revenue: number;
   gmv: number;
 
@@ -135,6 +141,9 @@ export function consolidateWeekly(
         ctr: 0,
         unique_ctr: 0,
         filtered_clicks: 0,
+        impressions_estimated: 0,
+        impressions_effective: 0,
+        ctr_effective: 0,
         revenue: 0,
         gmv: 0,
         delivery_days: 0,
@@ -148,6 +157,7 @@ export function consolidateWeekly(
     }
 
     for (const f of ABS_FIELDS) w[f] += r[f];
+    w.impressions_estimated += e.impressions_estimated;
     w.revenue += r.revenue ?? 0;
     w.gmv += r.gmv ?? 0;
     w.source_result_count += 1;
@@ -159,6 +169,8 @@ export function consolidateWeekly(
     w.ctr = w.impressions > 0 ? w.clicks / w.impressions : 0;
     w.unique_ctr = w.impressions > 0 ? w.unique_clicks / w.impressions : 0;
     w.filtered_clicks = w.unfiltered_clicks - w.clicks;
+    w.impressions_effective = w.impressions + w.impressions_estimated;
+    w.ctr_effective = w.impressions_effective > 0 ? w.clicks / w.impressions_effective : 0;
     const days = [...(deliveryDates.get(hash) ?? new Set<IsoDate>())].sort();
     w.delivery_days = days.length;
     w.first_delivery_date = days[0] ?? null;
