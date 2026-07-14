@@ -8,6 +8,10 @@ import {
   Package,
   Settings,
   Users,
+  BarChart3,
+  FileClock,
+  ShieldCheck,
+  CalendarRange,
   type LucideIcon,
 } from 'lucide-react';
 import type { Permission } from '@/types/user';
@@ -54,6 +58,15 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/campanas', label: 'Correo Ecommerce', icon: Mail, permission: 'campaigns' },
       { to: '/catalogo', label: 'Catálogo de artículos', icon: Package, permission: 'catalog' },
+    ],
+  },
+  {
+    label: 'Resultados',
+    items: [
+      { to: '/resultados/nueva-carga', label: 'Nueva carga Kevel', icon: BarChart3, permission: 'results.import' },
+      { to: '/resultados/historial', label: 'Historial de cargas', icon: FileClock, permission: 'results.read' },
+      { to: '/resultados/validaciones', label: 'Validaciones', icon: ShieldCheck, permission: 'results.read' },
+      { to: '/resultados/periodos', label: 'Periodos ecommerce', icon: CalendarRange, permission: 'results.read' },
     ],
   },
   {

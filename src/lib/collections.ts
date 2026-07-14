@@ -17,6 +17,24 @@ export const COLLECTIONS = {
   users: 'users',
   appSettings: 'app_settings',
   detectedChanges: 'detected_changes',
+
+  // --- Módulo Resultados Ecommerce (Kevel). Dominio independiente (§3). ---
+  // Catálogo compartido de periodos ecommerce (semanas viernes→jueves).
+  ecommercePeriods: 'ecommerce_periods',
+  // Exclusivas de Resultados (prefijo results_). Nunca se mezclan con operación.
+  resultsImports: 'results_imports',
+  resultsDaily: 'results_daily',
+  resultsWeekly: 'results_weekly',
+  resultsValidationIssues: 'results_validation_issues',
+  resultsCampaignLinks: 'results_campaign_links',
+  resultsAdvertiserMappings: 'results_advertiser_mappings',
+  resultsPlacementMappings: 'results_placement_mappings',
+  resultsDeviceMappings: 'results_device_mappings',
+  resultsAdjustmentSets: 'results_adjustment_sets',
+  resultsWeeklyAdjustments: 'results_weekly_adjustments',
+  resultsWeeklyAdjustmentAllocations: 'results_weekly_adjustment_allocations',
+  resultsAdjustmentHistory: 'results_adjustment_history',
+  resultsChangeHistory: 'results_change_history',
 } as const;
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];

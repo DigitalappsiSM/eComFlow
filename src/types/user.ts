@@ -27,7 +27,40 @@ export type Permission =
   | 'reports'
   | 'history'
   | 'settings'
-  | 'users';
+  | 'users'
+  // --- Módulo Resultados Ecommerce (dominio independiente, §3). ---
+  | 'results.read'
+  | 'results.import'
+  | 'results.export'
+  | 'results.manage_mappings'
+  | 'results.adjustments.view'
+  | 'results.adjustments.create'
+  | 'results.adjustments.review'
+  | 'results.adjustments.approve'
+  | 'results.adjustments.archive';
+
+/** Permisos de Resultados por rol (KAM = operator, §3/§17). Independientes de operación. */
+const RESULTS_ADMIN: readonly Permission[] = [
+  'results.read',
+  'results.import',
+  'results.export',
+  'results.manage_mappings',
+  'results.adjustments.view',
+  'results.adjustments.create',
+  'results.adjustments.review',
+  'results.adjustments.approve',
+  'results.adjustments.archive',
+];
+const RESULTS_MANAGER: readonly Permission[] = RESULTS_ADMIN;
+// El "KAM" (operator) crea y envía ajustes, pero NO aprueba los propios (§17).
+const RESULTS_OPERATOR: readonly Permission[] = [
+  'results.read',
+  'results.import',
+  'results.export',
+  'results.adjustments.view',
+  'results.adjustments.create',
+];
+const RESULTS_VIEWER: readonly Permission[] = ['results.read', 'results.adjustments.view'];
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   admin: [
@@ -44,6 +77,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'history',
     'settings',
     'users',
+    ...RESULTS_ADMIN,
   ],
   manager: [
     'dashboard',
@@ -57,6 +91,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'catalog.write',
     'reports',
     'history',
+    ...RESULTS_MANAGER,
   ],
   operator: [
     'dashboard',
@@ -65,8 +100,9 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'campaigns',
     'changes',
     'history',
+    ...RESULTS_OPERATOR,
   ],
-  viewer: ['dashboard', 'operations', 'campaigns', 'history'],
+  viewer: ['dashboard', 'operations', 'campaigns', 'history', ...RESULTS_VIEWER],
 };
 
 export function roleHasPermission(role: Role, permission: Permission): boolean {

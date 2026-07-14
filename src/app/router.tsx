@@ -12,6 +12,10 @@ import { DetectedChangesPage } from '@/pages/changes/DetectedChangesPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { UsersPage } from '@/pages/users/UsersPage';
 import { ResetDataPage } from '@/pages/admin/ResetDataPage';
+import { ResultsNewImportPage } from '@/pages/results/ResultsNewImportPage';
+import { ResultsImportHistoryPage } from '@/pages/results/ResultsImportHistoryPage';
+import { ResultsValidationsPage } from '@/pages/results/ResultsValidationsPage';
+import { ResultsPeriodsPage } from '@/pages/results/ResultsPeriodsPage';
 
 function protectedElement(node: JSX.Element, permission?: Parameters<typeof ProtectedRoute>[0]['permission']) {
   return <ProtectedRoute permission={permission}>{node}</ProtectedRoute>;
@@ -30,6 +34,12 @@ export const router = createBrowserRouter(
   { path: '/catalogo', element: protectedElement(<PlacementsPage />, 'catalog') },
   { path: '/configuracion', element: protectedElement(<SettingsPage />, 'settings') },
   { path: '/usuarios', element: protectedElement(<UsersPage />, 'users') },
+  // --- Módulo Resultados Ecommerce (dominio independiente, §3) ---
+  { path: '/resultados', element: <Navigate to="/resultados/nueva-carga" replace /> },
+  { path: '/resultados/nueva-carga', element: protectedElement(<ResultsNewImportPage />, 'results.import') },
+  { path: '/resultados/historial', element: protectedElement(<ResultsImportHistoryPage />, 'results.read') },
+  { path: '/resultados/validaciones', element: protectedElement(<ResultsValidationsPage />, 'results.read') },
+  { path: '/resultados/periodos', element: protectedElement(<ResultsPeriodsPage />, 'results.read') },
   // Ruta OCULTA (no está en el menú): reinicio de datos de prueba, solo admin.
   { path: '/reiniciar-datos', element: protectedElement(<ResetDataPage />, 'users') },
   { path: '*', element: <Navigate to="/" replace /> },

@@ -217,6 +217,149 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ====================================================================
+    // MÓDULO RESULTADOS ECOMMERCE (Kevel) — dominio independiente (§3, §27).
+    // Los permisos de Resultados NO otorgan acceso a Operación ni viceversa.
+    // Ninguna colección results_* acepta escrituras desde flujos operativos
+    // (los repos operativos no las referencian) y aquí se separan los roles.
+    // ====================================================================
+
+    // Importa resultados: admin/manager/operator (operator actúa como KAM).
+    function canWriteResults() {
+      return hasRole(['admin', 'manager', 'operator']);
+    }
+
+    // Mapeos/vínculos y catálogo de periodos: solo admin/manager.
+    function canManageResultsMappings() {
+      return hasRole(['admin', 'manager']);
+    }
+
+    // Aprobación de ajustes comerciales: solo admin/manager.
+    function canApproveAdjustments() {
+      return hasRole(['admin', 'manager']);
+    }
+
+    // Catálogo COMPARTIDO de periodos ecommerce (viernes→jueves). Resultados
+    // lo lee; solo admin/manager lo siembran. Nunca se borra.
+    match /ecommerce_periods/{id} {
+      allow read: if canRead();
+      allow create: if canManageResultsMappings() && createdByIsCaller();
+      allow update: if canManageResultsMappings() && updatedByIsCaller();
+      allow delete: if canResetData();
+    }
+
+    match /results_imports/{id} {
+      allow read: if canRead();
+      allow create: if canWriteResults() && createdByIsCaller();
+      // Solo transiciones de estado de la propia importación (reanudar/cerrar).
+      allow update: if canWriteResults() && updatedByIsCaller();
+      allow delete: if canResetData();
+    }
+
+    // Resultados diarios REALES: inmutables tras crearse (§9). Nunca update.
+    match /results_daily/{id} {
+      allow read: if canRead();
+      allow create: if canWriteResults() && createdByIsCaller();
+      allow update: if false;
+      allow delete: if canResetData();
+    }
+
+    // Consolidado semanal: lo reconstruye el importador (mismos IDs
+    // deterministas). No admite valores ajustados (viven en allocations).
+    match /results_weekly/{id} {
+      allow read: if canRead();
+      allow create: if canWriteResults() && createdByIsCaller();
+      allow update: if canWriteResults() && immutableCreation() && updatedByIsCaller();
+      allow delete: if canResetData();
+    }
+
+    match /results_validation_issues/{id} {
+      allow read: if canRead();
+      allow create: if canWriteResults() && createdByIsCaller();
+      allow update: if false;
+      allow delete: if canResetData();
+    }
+
+    // Colecciones puente (vínculos opcionales y reversibles, §13).
+    match /results_campaign_links/{id} {
+      allow read: if canRead();
+      allow create: if canManageResultsMappings() && createdByIsCaller();
+      allow update: if canManageResultsMappings() && immutableCreation() && updatedByIsCaller();
+      allow delete: if canResetData();
+    }
+    match /results_advertiser_mappings/{id} {
+      allow read: if canRead();
+      allow create: if canManageResultsMappings() && createdByIsCaller();
+      allow update: if canManageResultsMappings() && immutableCreation() && updatedByIsCaller();
+      allow delete: if canResetData();
+    }
+    match /results_placement_mappings/{id} {
+      allow read: if canRead();
+      allow create: if canManageResultsMappings() && createdByIsCaller();
+      allow update: if canManageResultsMappings() && immutableCreation() && updatedByIsCaller();
+      allow delete: if canResetData();
+    }
+    match /results_device_mappings/{id} {
+      allow read: if canRead();
+      allow create: if canManageResultsMappings() && createdByIsCaller();
+      allow update: if canManageResultsMappings() && immutableCreation() && updatedByIsCaller();
+      allow delete: if canResetData();
+    }
+
+    // Ajustes comerciales (§16–§22). Solo borradores editables; lo aprobado es
+    // inmutable; las métricas ajustables nunca son ratios (se valida en app y
+    // se endurecerá aquí en la fase de ajustes).
+    match /results_adjustment_sets/{id} {
+      allow read: if canRead();
+      allow create: if canWriteResults() && createdByIsCaller()
+        && request.resource.data.status == 'draft';
+      // Editar solo si sigue en borrador, o transición de estado por aprobador.
+      allow update: if immutableCreation() && updatedByIsCaller()
+        && (
+          (canWriteResults() && resource.data.status == 'draft')
+          || (canApproveAdjustments()
+              && resource.data.status in ['draft', 'pending_approval', 'approved'])
+        );
+      allow delete: if canResetData();
+    }
+
+    match /results_weekly_adjustments/{id} {
+      allow read: if canRead();
+      allow create: if canWriteResults() && createdByIsCaller()
+        && request.resource.data.status == 'draft'
+        && request.resource.data.metric in ['impressions', 'clicks', 'unique_clicks'];
+      allow update: if immutableCreation() && updatedByIsCaller()
+        && (
+          (canWriteResults() && resource.data.status == 'draft')
+          || (canApproveAdjustments()
+              && resource.data.status in ['draft', 'pending_approval'])
+        );
+      allow delete: if canResetData();
+    }
+
+    // Allocations: SOLO las materializa la aprobación (admin/manager). Nunca
+    // se editan a mano.
+    match /results_weekly_adjustment_allocations/{id} {
+      allow read: if canRead();
+      allow create: if canApproveAdjustments() && createdByIsCaller();
+      allow update: if false;
+      allow delete: if canResetData();
+    }
+
+    // Auditoría de Resultados: append-only, separada de change_history.
+    match /results_adjustment_history/{id} {
+      allow read: if canRead();
+      allow create: if canWriteResults() && createdByIsCaller();
+      allow update: if false;
+      allow delete: if canResetData();
+    }
+    match /results_change_history/{id} {
+      allow read: if canRead();
+      allow create: if canWriteResults() && createdByIsCaller();
+      allow update: if false;
+      allow delete: if canResetData();
+    }
+
     // ---------------------- default deny -------------------------------
     // Rechaza cualquier colección no declarada arriba.
     match /{document=**} {
