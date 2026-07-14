@@ -131,8 +131,9 @@ export function isBlankRow(cells: string[] | undefined): boolean {
   return !cells || cells.every((c) => c.trim() === '');
 }
 
-const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-const US_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+const ISO_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
+// Formato con año al final y separador / o -: A(sep)B(sep)YYYY.
+const DMY_RE = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/;
 
 function isRealDate(y: number, m: number, d: number): boolean {
   if (m < 1 || m > 12 || d < 1 || d > 31) return false;
@@ -140,26 +141,38 @@ function isRealDate(y: number, m: number, d: number): boolean {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
+function toIso(y: number, m: number, d: number): IsoDate | null {
+  if (!isRealDate(y, m, d)) return null;
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
 /**
- * Fecha Kevel → ISO `YYYY-MM-DD`. Acepta ISO y formato US `M/D/YYYY` (default de
- * export de Kevel), con o sin componente de hora (se descarta). No adivina
- * otros formatos: devuelve null si no coincide.
+ * Fecha Kevel → ISO `YYYY-MM-DD`. Acepta:
+ *  - ISO `YYYY-MM-DD`.
+ *  - `A/B/YYYY` o `A-B-YYYY`, **desambiguando** día/mes: si un componente es
+ *    > 12 es el día; si ambos son ≤ 12 se asume `DD/MM/YYYY` (contexto MX).
+ *  - Con o sin componente de hora (se descarta).
+ * Devuelve null si no coincide o la fecha no existe.
  */
 export function parseKevelDate(raw: string): IsoDate | null {
-  // Descarta la parte de hora ("2026-07-17 12:00:00 AM" → "2026-07-17").
   const value = ((raw ?? '').trim().split(/[T ]/)[0] ?? '').trim();
+  if (value === '') return null;
+
   const iso = ISO_RE.exec(value);
   if (iso) {
     const [, y, m, d] = iso.map(Number) as [number, number, number, number];
-    return isRealDate(y, m, d) ? value : null;
+    return toIso(y, m, d);
   }
-  const us = US_RE.exec(value);
-  if (us) {
-    const m = Number(us[1]);
-    const d = Number(us[2]);
-    const y = Number(us[3]);
-    if (!isRealDate(y, m, d)) return null;
-    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+  const g = DMY_RE.exec(value);
+  if (g) {
+    const a = Number(g[1]);
+    const b = Number(g[2]);
+    const y = Number(g[3]);
+    if (a > 12 && b <= 12) return toIso(y, b, a); // DD/MM
+    if (b > 12 && a <= 12) return toIso(y, a, b); // MM/DD
+    if (a <= 12 && b <= 12) return toIso(y, b, a); // ambiguo → DD/MM (MX)
+    return null; // ambos > 12: imposible
   }
   return null;
 }

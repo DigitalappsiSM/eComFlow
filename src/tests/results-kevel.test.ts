@@ -68,9 +68,11 @@ describe('results · CSV y contrato Kevel', () => {
     expect(rows[1]).toEqual(['1', '2', '3']);
   });
 
-  it('parsea fechas ISO y US, rechaza inválidas', () => {
+  it('parsea fechas ISO, DD/MM y MM/DD (desambigua), rechaza inválidas', () => {
     expect(parseKevelDate('2026-07-17')).toBe('2026-07-17');
-    expect(parseKevelDate('7/17/2026')).toBe('2026-07-17');
+    expect(parseKevelDate('17/07/2026')).toBe('2026-07-17'); // DD/MM (día 17 > 12)
+    expect(parseKevelDate('7/17/2026')).toBe('2026-07-17'); // MM/DD (día 17 > 12)
+    expect(parseKevelDate('07-08-2026')).toBe('2026-08-07'); // ambiguo → DD/MM (MX)
     expect(parseKevelDate('31/31/2026')).toBeNull();
   });
 
@@ -136,8 +138,8 @@ describe('results · validación del plan', () => {
   });
 
   it('fecha de metadatos ilegible es AVISO (usa el rango real de los datos)', () => {
-    // "17/07/2026" no es M/D/YYYY válido (mes 17) → aviso, no bloqueo.
-    const plan = buildKevelPlan(file([dataRow()], '17/07/2026', '17/07/2026'), PERIODS);
+    // "31/31/2026" es imposible → aviso, no bloqueo; el rango sale de los datos.
+    const plan = buildKevelPlan(file([dataRow()], '31/31/2026', '31/31/2026'), PERIODS);
     expect(plan.issues.some((i) => i.code === 'INVALID_META_DATE' && i.severity === 'warning')).toBe(true);
     expect(plan.errorCount).toBe(0);
     expect(plan.actualStartDate).toBe('2026-07-17');
