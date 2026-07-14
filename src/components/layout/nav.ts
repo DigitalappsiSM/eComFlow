@@ -12,6 +12,7 @@ import {
   FileClock,
   ShieldCheck,
   CalendarRange,
+  SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react';
 import type { Permission } from '@/types/user';
@@ -67,6 +68,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { to: '/resultados/nueva-carga', label: 'Nueva carga Kevel', icon: Upload, permission: 'results.import' },
       { to: '/resultados/historial', label: 'Historial de cargas', icon: FileClock, permission: 'results.read' },
       { to: '/resultados/validaciones', label: 'Validaciones', icon: ShieldCheck, permission: 'results.read' },
+      { to: '/resultados/ajustes', label: 'Ajustes comerciales', icon: SlidersHorizontal, permission: 'results.adjustments.view' },
       { to: '/resultados/periodos', label: 'Periodos ecommerce', icon: CalendarRange, permission: 'results.read' },
     ],
   },

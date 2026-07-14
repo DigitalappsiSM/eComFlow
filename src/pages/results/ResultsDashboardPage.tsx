@@ -9,14 +9,24 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useResultsDashboard } from '@/features/results/useResultsDashboard';
 import { ClicksRankBar, DeviceDonut, ResultsTrendChart } from '@/components/results/ResultsCharts';
 import {
+  clicksOf,
   computeByDevice,
   computePeriodTrend,
   computeResultsKpis,
+  impressionsOf,
   monthName,
   rankBy,
   type ResultsLine,
   type ResultsView,
 } from '@/domain/results/results-metrics';
+
+type DashView = ResultsView | 'compare';
+const VIEW_LABEL: Record<DashView, string> = {
+  real: 'Real Kevel',
+  effective: 'Efectiva (estimadas)',
+  adjusted: 'Ajustada',
+  compare: 'Comparar',
+};
 
 const DEVICE_LABEL: Record<string, string> = { app: 'App', mobile: 'Mobile', desktop: 'Desktop', unknown: 'Sin dispositivo' };
 const nf = new Intl.NumberFormat('es-MX');
@@ -45,11 +55,19 @@ export function ResultsDashboardPage() {
   const { can } = usePermissions();
   const { state, lines, reload } = useResultsDashboard();
   const [filters, setFilters] = useState<FilterValues>({});
-  const [view, setView] = useState<ResultsView>('real');
+  const [dashView, setDashView] = useState<DashView>('real');
   const [limit, setLimit] = useState(50);
+
+  // En "Comparar" las gráficas/tabla usan la vista ajustada; los KPIs muestran
+  // real vs ajustado lado a lado.
+  const view: ResultsView = dashView === 'compare' ? 'adjusted' : dashView;
+  const compare = dashView === 'compare';
 
   const filtered = useMemo(() => applyFilters(lines, filters), [lines, filters]);
   const kpis = useMemo(() => computeResultsKpis(filtered, view), [filtered, view]);
+  const kpisReal = useMemo(() => computeResultsKpis(filtered, 'real'), [filtered]);
+  const kpisAdjusted = useMemo(() => computeResultsKpis(filtered, 'adjusted'), [filtered]);
+  const adjustedCount = useMemo(() => filtered.filter((l) => l.has_adjustment).length, [filtered]);
   const trend = useMemo(() => computePeriodTrend(filtered, view), [filtered, view]);
   const byCategoria = useMemo(() => rankBy(filtered, (l) => l.categoria, view), [filtered, view]);
   const byCliente = useMemo(() => rankBy(filtered, (l) => l.cliente, view), [filtered, view]);
@@ -98,25 +116,32 @@ export function ResultsDashboardPage() {
         ) : (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
-                {(['real', 'effective'] as ResultsView[]).map((v) => (
+              <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
+                {(['real', 'effective', 'adjusted', 'compare'] as DashView[]).map((v) => (
                   <button
                     key={v}
                     type="button"
-                    onClick={() => setView(v)}
+                    onClick={() => setDashView(v)}
                     className={`focus-ring rounded-md px-3 py-1.5 font-medium ${
-                      view === v ? 'bg-accent-blue text-white' : 'text-slate-600 hover:bg-slate-50'
+                      dashView === v ? 'bg-accent-blue text-white' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    {v === 'real' ? 'Real Kevel' : 'Efectiva (con estimadas)'}
+                    {VIEW_LABEL[v]}
                   </button>
                 ))}
               </div>
-              {kpis.impressionsEstimated > 0 && (
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                  {nf.format(kpis.impressionsEstimated)} impresiones estimadas (Soriana no las envía)
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {adjustedCount > 0 && (dashView === 'adjusted' || compare) && (
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-accent-blue">
+                    {nf.format(adjustedCount)} fila(s) con ajuste aprobado
+                  </span>
+                )}
+                {kpis.impressionsEstimated > 0 && (
+                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                    {nf.format(kpis.impressionsEstimated)} impresiones estimadas
+                  </span>
+                )}
+              </div>
             </div>
 
             <FilterBar
@@ -128,16 +153,24 @@ export function ResultsDashboardPage() {
               meta={`${filtered.length} de ${lines.length} filas`}
             />
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-              <KpiCard label="Impresiones" value={nf.format(kpis.impressions)} icon={BarChart3} accent="blue" />
-              <KpiCard label="Clics (únicos)" value={nf.format(kpis.clicks)} icon={MousePointerClick} accent="violet" />
-              <KpiCard label="CTR" value={pct(kpis.ctr)} icon={Percent} accent="teal" />
-              <KpiCard label="Clientes" value={kpis.clientes} icon={Users} accent="green" />
-              <KpiCard label="Campañas" value={kpis.campanas} icon={Flag} accent="orange" />
-              <KpiCard label="Artículos" value={kpis.articulos} icon={Package} accent="blue" />
-              <KpiCard label="Categorías" value={kpis.categorias} icon={Tag} accent="violet" />
-              <KpiCard label="Periodos" value={kpis.periodos} icon={CalendarRange} accent="teal" />
-            </div>
+            {compare ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <CompareCard label="Impresiones" real={kpisReal.impressions} adjusted={kpisAdjusted.impressions} />
+                <CompareCard label="Clics (únicos)" real={kpisReal.clicks} adjusted={kpisAdjusted.clicks} />
+                <CompareCard label="CTR" real={kpisReal.ctr} adjusted={kpisAdjusted.ctr} isPct />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
+                <KpiCard label="Impresiones" value={nf.format(kpis.impressions)} icon={BarChart3} accent="blue" />
+                <KpiCard label="Clics (únicos)" value={nf.format(kpis.clicks)} icon={MousePointerClick} accent="violet" />
+                <KpiCard label="CTR" value={pct(kpis.ctr)} icon={Percent} accent="teal" />
+                <KpiCard label="Clientes" value={kpis.clientes} icon={Users} accent="green" />
+                <KpiCard label="Campañas" value={kpis.campanas} icon={Flag} accent="orange" />
+                <KpiCard label="Artículos" value={kpis.articulos} icon={Package} accent="blue" />
+                <KpiCard label="Categorías" value={kpis.categorias} icon={Tag} accent="violet" />
+                <KpiCard label="Periodos" value={kpis.periodos} icon={CalendarRange} accent="teal" />
+              </div>
+            )}
 
             <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
               <ChartCard title="Evolución por periodo" subtitle="Impresiones (área) y clics (línea); el pico de clics va marcado en rojo" className="lg:col-span-2" isEmpty={trend.length === 0}>
@@ -192,7 +225,8 @@ export function ResultsDashboardPage() {
                     </thead>
                     <tbody>
                       {tableRows.map((l, i) => {
-                        const imp = view === 'effective' ? l.impressions_effective : l.impressions;
+                        const imp = impressionsOf(l, view);
+                        const clk = clicksOf(l, view);
                         return (
                           <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
                             <td className="px-3 py-2 text-slate-500">{monthName(l.month)}</td>
@@ -207,9 +241,12 @@ export function ResultsDashboardPage() {
                               {view === 'effective' && l.impressions_estimated > 0 && (
                                 <span className="ml-1 text-[10px] text-amber-600">+est</span>
                               )}
+                              {view === 'adjusted' && l.has_adjustment && (
+                                <span className="ml-1 text-[10px] text-accent-blue">aj</span>
+                              )}
                             </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-slate-700">{nf.format(l.clicks)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-slate-500">{pct(imp > 0 ? l.clicks / imp : 0)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-slate-700">{nf.format(clk)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-slate-500">{pct(imp > 0 ? clk / imp : 0)}</td>
                           </tr>
                         );
                       })}
@@ -231,6 +268,32 @@ export function ResultsDashboardPage() {
           </>
         ))}
     </AppLayout>
+  );
+}
+
+function CompareCard({ label, real, adjusted, isPct = false }: { label: string; real: number; adjusted: number; isPct?: boolean }) {
+  const fmt = (v: number) => (isPct ? pct(v) : nf.format(v));
+  const diff = adjusted - real;
+  const diffPct = real !== 0 ? diff / real : 0;
+  const tone = diff > 0 ? 'text-accent-green' : diff < 0 ? 'text-red-600' : 'text-slate-400';
+  return (
+    <div className="card p-4">
+      <p className="text-sm text-slate-500">{label}</p>
+      <div className="mt-2 grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-slate-400">Real</p>
+          <p className="text-lg font-bold text-slate-900 tabular-nums">{fmt(real)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-slate-400">Ajustado</p>
+          <p className="text-lg font-bold text-slate-900 tabular-nums">{fmt(adjusted)}</p>
+        </div>
+      </div>
+      <p className={`mt-2 text-xs font-medium tabular-nums ${tone}`}>
+        {diff >= 0 ? '+' : ''}{isPct ? pct(diff) : nf.format(diff)}
+        {!isPct && real !== 0 && ` (${diff >= 0 ? '+' : ''}${(diffPct * 100).toFixed(1)}%)`}
+      </p>
+    </div>
   );
 }
 

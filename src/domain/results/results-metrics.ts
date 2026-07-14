@@ -8,10 +8,12 @@
  */
 
 import type { WeeklyResult } from './consolidation';
+import type { AdjustedMap } from './adjustments';
 import type { EcommercePeriod, ResultDevice } from '@/types/results';
 
 /** Línea de resultados lista para métricas (semanal + metadata de periodo). */
 export interface ResultsLine {
+  weekly_result_id: string;
   period_id: string;
   period_code: string;
   period_label: string;
@@ -37,6 +39,12 @@ export interface ResultsLine {
   raw_clicks: number; // Clicks (informativo)
   filtered_clicks: number;
   suspicious_clicks: number;
+
+  // Vista AJUSTADA (§23): valores ajustados por allocations aprobadas. Si no hay
+  // ajuste, son iguales al real (nunca se suma real + ajustado en la misma fila).
+  adjusted_impressions: number;
+  adjusted_clicks: number;
+  has_adjustment: boolean;
 }
 
 const MONTHS = [
@@ -60,13 +68,16 @@ export function parseFlight(flight: string): { articulo: string; categoria: stri
 export function buildResultsLines(
   weekly: readonly WeeklyResult[],
   periods: readonly EcommercePeriod[],
+  adjusted?: AdjustedMap,
 ): ResultsLine[] {
   const byId = new Map(periods.map((p) => [p.period_id, p]));
   const out: ResultsLine[] = [];
   for (const w of weekly) {
     const p = byId.get(w.period_id);
     const { articulo, categoria } = parseFlight(w.flight);
+    const adj = adjusted?.get(w.weekly_result_key_hash);
     out.push({
+      weekly_result_id: w.weekly_result_key_hash,
       period_id: w.period_id,
       period_code: p?.code ?? w.period_id,
       period_label: p ? `${p.code} · ${p.start_date}` : w.period_id,
@@ -90,15 +101,26 @@ export function buildResultsLines(
       raw_clicks: w.clicks,
       filtered_clicks: w.filtered_clicks,
       suspicious_clicks: w.suspicious_clicks,
+      adjusted_impressions: adj?.impressions ?? w.impressions,
+      adjusted_clicks: adj?.unique_clicks ?? w.unique_clicks,
+      has_adjustment: adj !== undefined,
     });
   }
   return out;
 }
 
-/** Impresiones según la vista (real vs efectiva). */
-export type ResultsView = 'real' | 'effective';
+/** Vista de resultados: real Kevel, efectiva (con estimadas) o ajustada (§16). */
+export type ResultsView = 'real' | 'effective' | 'adjusted';
+
 export function impressionsOf(line: ResultsLine, view: ResultsView): number {
-  return view === 'effective' ? line.impressions_effective : line.impressions;
+  if (view === 'effective') return line.impressions_effective;
+  if (view === 'adjusted') return line.adjusted_impressions;
+  return line.impressions;
+}
+
+/** Clics según la vista (ajustada usa los clics ajustados; el resto, únicos reales). */
+export function clicksOf(line: ResultsLine, view: ResultsView): number {
+  return view === 'adjusted' ? line.adjusted_clicks : line.clicks;
 }
 
 function ctr(clicks: number, impressions: number): number {
@@ -135,10 +157,10 @@ export function computeResultsKpis(lines: readonly ResultsLine[], view: ResultsV
     const imp = impressionsOf(l, view);
     impressions += imp;
     impressionsEstimated += l.impressions_estimated;
-    clicks += l.clicks;
+    clicks += clicksOf(l, view);
     filteredClicks += l.filtered_clicks;
     suspiciousClicks += l.suspicious_clicks;
-    if (imp > 0 || l.clicks > 0) {
+    if (imp > 0 || clicksOf(l, view) > 0) {
       clientes.add(l.cliente);
       campanas.add(l.campaign_id || l.campaign);
       articulos.add(l.articulo);
@@ -178,7 +200,7 @@ export function computePeriodTrend(lines: readonly ResultsLine[], view: ResultsV
   for (const l of lines) {
     const cur = byPeriod.get(l.period_id) ?? { code: l.period_code, sortKey: l.period_start || l.period_code, impressions: 0, clicks: 0 };
     cur.impressions += impressionsOf(l, view);
-    cur.clicks += l.clicks;
+    cur.clicks += clicksOf(l, view);
     byPeriod.set(l.period_id, cur);
   }
   const points = [...byPeriod.entries()]
@@ -221,7 +243,7 @@ export function rankBy(
     const k = keyOf(l) || '(sin dato)';
     const cur = byKey.get(k) ?? { impressions: 0, clicks: 0 };
     cur.impressions += impressionsOf(l, view);
-    cur.clicks += l.clicks;
+    cur.clicks += clicksOf(l, view);
     byKey.set(k, cur);
   }
   return [...byKey.entries()]
@@ -241,7 +263,7 @@ export function computeByDevice(lines: readonly ResultsLine[], view: ResultsView
   for (const l of lines) {
     const cur = byDev.get(l.device) ?? { device: l.device, impressions: 0, clicks: 0 };
     cur.impressions += impressionsOf(l, view);
-    cur.clicks += l.clicks;
+    cur.clicks += clicksOf(l, view);
     byDev.set(l.device, cur);
   }
   return [...byDev.values()].sort((a, b) => order.indexOf(a.device) - order.indexOf(b.device));
