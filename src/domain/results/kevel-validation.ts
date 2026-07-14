@@ -270,12 +270,15 @@ export function validateKevelImport(input: KevelValidationInput): KevelValidatio
     if (!r.date) {
       issues.push(err('INVALID_DATE', 'La fecha (Date) es inválida.', { row_number: rn, field: 'Date' }));
     } else if (!period) {
+      // Fuera de catálogo: NO bloquea. La fila se conserva en results_daily pero
+      // NO se consolida en la semana (para no romper el formato viernes→jueves),
+      // igual que la hoja "Fuera catalogo" del reporte real.
       issues.push(
-        err('DATE_WITHOUT_PERIOD', `La fecha ${r.date} no está cubierta por ningún periodo ecommerce.`, {
+        warn('DATE_WITHOUT_PERIOD', `La fecha ${r.date} no está en el catálogo de periodos: queda fuera de catálogo.`, {
           row_number: rn,
           field: 'Date',
           received_value: r.date,
-          suggested_action: 'Cargue el periodo faltante en ecommerce_periods o corrija la fecha.',
+          suggested_action: 'Si debe consolidarse, cargue el periodo faltante en ecommerce_periods.',
         }),
       );
     }

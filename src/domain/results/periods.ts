@@ -25,9 +25,13 @@ export function findPeriodForDate(
   return null;
 }
 
-/** Mes (1..12) y trimestre (1..4) del jueves operativo (fin del periodo) (§12). */
-export function periodMonthQuarter(endIso: IsoDate): { year: number; month: number; quarter: number } {
-  const [y, m] = endIso.split('-').map(Number) as [number, number, number];
+/**
+ * Mes (1..12) y trimestre (1..4) de una fecha del periodo. El reporte digerido
+ * real etiqueta cada semana por el mes de su **inicio (viernes)** — no del
+ * jueves —, así que se calcula sobre `start_date`.
+ */
+export function periodMonthQuarter(iso: IsoDate): { year: number; month: number; quarter: number } {
+  const [y, m] = iso.split('-').map(Number) as [number, number, number];
   return { year: y, month: m, quarter: Math.floor((m - 1) / 3) + 1 };
 }
 
@@ -52,7 +56,8 @@ export function generateEcommercePeriods(input: GeneratePeriodsInput): Ecommerce
     const start = addDays(anchorFriday, i * 7);
     const end = addDays(start, 6);
     const weekNumber = anchorWeekNumber + i;
-    const { year, month, quarter } = periodMonthQuarter(end);
+    // Mes/trimestre por el INICIO (viernes), como el reporte digerido real.
+    const { year, month, quarter } = periodMonthQuarter(start);
     const code = `S${weekNumber}`;
     periods.push({
       period_id: `p-${start}`,

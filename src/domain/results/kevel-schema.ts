@@ -195,14 +195,15 @@ export function parseKevelInt(raw: string): number | null {
 }
 
 /**
- * Deriva el dispositivo a partir de AdType / Site / Zone (heurística, §9).
- * Si no reconoce señales claras, devuelve `unknown` (nunca inventa).
+ * Deriva el dispositivo (§9). La señal más limpia del export es la columna
+ * **Ad** (APP / MOBILE / DESKTOP); si no, cae a AdType / Site (sufijos [App],
+ * [Mobile], [Desktop], "Web Mobile", etc.). `unknown` si no hay señal.
  */
-export function deriveDevice(adType: string, site: string, zone: string): ResultDevice {
-  const hay = `${adType} ${site} ${zone}`.toLowerCase();
+export function deriveDevice(ad: string, adType: string, site: string): ResultDevice {
+  const hay = `${ad} ${adType} ${site}`.toLowerCase();
   if (/\bapp\b|aplicaci|in-app|android|ios/.test(hay)) return 'app';
   if (/mobile|móvil|movil|celular|smartphone/.test(hay)) return 'mobile';
-  if (/desktop|escritorio|web\b|pc\b/.test(hay)) return 'desktop';
+  if (/desktop|escritorio|\bweb\b|\bpc\b/.test(hay)) return 'desktop';
   return 'unknown';
 }
 
@@ -383,6 +384,7 @@ export function mapKevelRow(cells: string[], rowNumber: number): KevelNormalized
   const adType = s('AdType');
   const site = s('Site');
   const zone = s('Zone');
+  const adValue = s('Ad');
 
   return {
     row_number: rowNumber,
@@ -428,6 +430,6 @@ export function mapKevelRow(cells: string[], rowNumber: number): KevelNormalized
     site_id: s('SiteId'),
     zone_id: s('ZoneId'),
     ad_id: s('AdId'),
-    device: deriveDevice(adType, site, zone),
+    device: deriveDevice(adValue, adType, site),
   };
 }
