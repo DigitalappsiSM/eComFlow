@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/States';
 import { StatusBadge } from '@/components/operations/StatusBadge';
@@ -6,11 +6,83 @@ import { LineDetailDrawer } from '@/components/operations/LineDetailDrawer';
 import { FilterBar } from '@/components/filters/FilterBar';
 import { useOperations } from '@/features/operations/useOperations';
 import { usePermissions } from '@/hooks/usePermissions';
-import { computeStatus } from '@/domain/campaign-status';
+import { computeStatus, type CampaignStatus } from '@/domain/campaign-status';
 import { CHECK_KEYS, type CheckKey } from '@/domain/progress';
 import { isCheckRequiredForLine, requiredChecksForLine } from '@/domain/operation-rules';
 import { todayIso } from '@/lib/dates';
 import type { OperationRow } from '@/repositories/operations.repository';
+
+/** Columnas ordenables de la tabla operativa. */
+type SortKey = 'cliente' | 'operacion' | 'periodo' | 'articulo' | 'avance' | 'estado';
+type SortState = { key: SortKey | null; dir: 'asc' | 'desc' };
+
+// Orden de severidad para la columna Estado (problemas primero).
+const STATUS_SORT: Record<CampaignStatus, number> = {
+  at_risk: 0,
+  incomplete: 1,
+  pending: 2,
+  live: 3,
+  upcoming: 4,
+  completed: 5,
+  cancelled: 6,
+};
+
+function sortValue(row: OperationRow, key: SortKey, today: string): string | number {
+  switch (key) {
+    case 'cliente':
+      return `${row.line.cliente_original ?? ''} ${row.line.numero_campaña_original ?? ''}`.toLowerCase();
+    case 'operacion':
+      return `${row.line.tipo_operacion ?? ''} ${row.line.cadena ?? ''}`.toLowerCase();
+    case 'periodo':
+      return row.line.periodo_inicio ?? row.line.fecha_fijacion ?? '';
+    case 'articulo':
+      return (row.line.placement_name_snapshot ?? '').toLowerCase();
+    case 'avance':
+      return row.progress;
+    case 'estado':
+      return STATUS_SORT[
+        computeStatus({
+          fechaFijacion: row.line.fecha_fijacion,
+          fechaRetirada: row.line.fecha_retirada,
+          checks: row.checks,
+          cancelled: row.line.cancelled,
+          today,
+          requiredChecks: requiredChecksForLine(row.line),
+        })
+      ];
+  }
+}
+
+function SortHeader({
+  label,
+  col,
+  sort,
+  onSort,
+  className,
+}: {
+  label: string;
+  col: SortKey;
+  sort: SortState;
+  onSort: (col: SortKey) => void;
+  className?: string;
+}) {
+  const active = sort.key === col;
+  return (
+    <th className={`px-3 py-2 font-medium ${className ?? ''}`}>
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        className="focus-ring inline-flex items-center gap-1 uppercase hover:text-slate-700"
+        aria-label={`Ordenar por ${label}`}
+      >
+        {label}
+        <span className={`text-[10px] ${active ? 'text-accent-blue' : 'text-slate-300'}`}>
+          {active ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
+  );
+}
 
 const CHECK_LABELS: Record<CheckKey, string> = {
   correo_enviado: 'Correo',
@@ -45,7 +117,28 @@ export function OperationsPage() {
   const { can } = usePermissions();
   const canWrite = can('operations.write');
   const [selected, setSelected] = useState<OperationRow | null>(null);
+  const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
   const today = todayIso();
+
+  const handleSort = (col: SortKey) =>
+    setSort((prev) => (prev.key === col ? { key: col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key: col, dir: 'asc' }));
+
+  // Orden en cliente sobre las filas ya filtradas. Sin orden activo, respeta el
+  // orden de carga. Empate estable por id de línea para evitar saltos.
+  const sortedRows = useMemo(() => {
+    if (!sort.key) return ops.rows;
+    const key = sort.key;
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...ops.rows].sort((a, b) => {
+      const va = sortValue(a, key, today);
+      const vb = sortValue(b, key, today);
+      const cmp =
+        typeof va === 'number' && typeof vb === 'number'
+          ? va - vb
+          : String(va).localeCompare(String(vb), 'es');
+      return cmp !== 0 ? cmp * dir : a.line.campaign_line_id.localeCompare(b.line.campaign_line_id);
+    });
+  }, [ops.rows, sort, today]);
 
   return (
     <AppLayout title="Seguimiento operativo" description="Estado y avance de cada línea operativa">
@@ -135,10 +228,10 @@ export function OperationsPage() {
               <table className="w-full min-w-[1450px] text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50">
                   <tr className="text-left text-xs uppercase text-slate-500">
-                    <th className="sticky left-0 bg-slate-50 px-3 py-2 font-medium">Cliente / Campaña</th>
-                    <th className="px-3 py-2 font-medium">Operación</th>
-                    <th className="px-3 py-2 font-medium">Periodo</th>
-                    <th className="px-3 py-2 font-medium">Artículo</th>
+                    <SortHeader label="Cliente / Campaña" col="cliente" sort={sort} onSort={handleSort} className="sticky left-0 bg-slate-50" />
+                    <SortHeader label="Operación" col="operacion" sort={sort} onSort={handleSort} />
+                    <SortHeader label="Periodo" col="periodo" sort={sort} onSort={handleSort} />
+                    <SortHeader label="Artículo" col="articulo" sort={sort} onSort={handleSort} />
                     <th className="px-3 py-2 font-medium">Creatividad</th>
                     {CHECK_KEYS.map((k) => (
                       <th key={k} className="px-2 py-2 text-center font-medium">
@@ -146,12 +239,12 @@ export function OperationsPage() {
                       </th>
                     ))}
                     <th className="px-3 py-2 font-medium">Comentarios</th>
-                    <th className="px-3 py-2 font-medium">Avance</th>
-                    <th className="px-3 py-2 font-medium">Estado</th>
+                    <SortHeader label="Avance" col="avance" sort={sort} onSort={handleSort} />
+                    <SortHeader label="Estado" col="estado" sort={sort} onSort={handleSort} />
                   </tr>
                 </thead>
                 <tbody>
-                  {ops.rows.map((row) => {
+                  {sortedRows.map((row) => {
                     const required = requiredChecksForLine(row.line);
                     const status = computeStatus({
                       fechaFijacion: row.line.fecha_fijacion,
