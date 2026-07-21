@@ -2,12 +2,21 @@ import { useEffect, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/States';
 import { fetchResultsImports } from '@/repositories/results/results-import.repository';
-import type { ResultsImportMeta } from '@/types/results';
+import type { ResultsImportMeta, ResultsImportStatus } from '@/types/results';
 
 type State =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'ready'; imports: ResultsImportMeta[] };
+
+/** Etiqueta y tono legibles por estado (una carga a medias es "interrumpida"). */
+const STATUS_UI: Record<ResultsImportStatus, { label: string; tone: string }> = {
+  completed: { label: 'Completada', tone: 'bg-green-50 text-accent-green' },
+  writing: { label: 'Interrumpida', tone: 'bg-amber-50 text-amber-700' },
+  validating: { label: 'Validando', tone: 'bg-slate-100 text-slate-500' },
+  ready: { label: 'Lista', tone: 'bg-slate-100 text-slate-500' },
+  failed: { label: 'Fallida', tone: 'bg-red-50 text-red-600' },
+};
 
 export function ResultsImportHistoryPage() {
   const [state, setState] = useState<State>({ status: 'loading' });
@@ -55,13 +64,12 @@ export function ResultsImportHistoryPage() {
                     <td className="px-4 py-2 text-right tabular-nums text-slate-500">{imp.total_rows}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-amber-700">{imp.warning_count}</td>
                     <td className="px-4 py-2">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                          imp.status === 'completed' ? 'bg-green-50 text-accent-green' : 'bg-slate-100 text-slate-500'
-                        }`}
-                      >
-                        {imp.status}
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_UI[imp.status]?.tone ?? 'bg-slate-100 text-slate-500'}`}>
+                        {STATUS_UI[imp.status]?.label ?? imp.status}
                       </span>
+                      {imp.status === 'writing' && (
+                        <span className="ml-2 text-[11px] text-slate-400">Vuelve a subir el archivo para completarla.</span>
+                      )}
                     </td>
                   </tr>
                 ))}
