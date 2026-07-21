@@ -64,9 +64,18 @@ const DEFINITIONS: { term: string; detail: string }[] = [
   { term: 'Checks obligatorios', detail: 'DIGITAL SIGNAGE solo exige Artes; el resto, los 7 checks.' },
 ];
 
-function applyFilters(lines: readonly MetricLine[], f: FilterValues, today: string): MetricLine[] {
-  return lines.filter(
-    (l) =>
+function applyFilters(
+  lines: readonly MetricLine[],
+  f: FilterValues,
+  today: string,
+  fijacionDesde: string,
+  fijacionHasta: string,
+): MetricLine[] {
+  return lines.filter((l) => {
+    const fijacion = (l.fechaFijacion ?? '').trim();
+    if (fijacionDesde && fijacion && fijacion < fijacionDesde) return false;
+    if (fijacionHasta && fijacion && fijacion > fijacionHasta) return false;
+    return (
       (!f.periodo || (l.periodoOriginal ?? '') === f.periodo) &&
       (!f.mes || lineMonthKey(l) === f.mes) &&
       (!f.cadena || (l.cadena ?? '') === f.cadena) &&
@@ -74,8 +83,9 @@ function applyFilters(lines: readonly MetricLine[], f: FilterValues, today: stri
       (!f.cliente || (l.clienteOriginal ?? '') === f.cliente) &&
       (!f.estado || OP_STATUS_LABEL[operationalStatusOf(l, today)] === f.estado) &&
       (!f.cumplimiento || COMPLIANCE_LABEL[complianceStatusOf(l, today)] === f.cumplimiento) &&
-      (!f.continuidad || (l.tipoCampanaPeriodo ? CONTINUITY_LABEL[l.tipoCampanaPeriodo] : '') === f.continuidad),
-  );
+      (!f.continuidad || (l.tipoCampanaPeriodo ? CONTINUITY_LABEL[l.tipoCampanaPeriodo] : '') === f.continuidad)
+    );
+  });
 }
 
 function accentForPct(pct: number): 'green' | 'orange' | 'red' {
@@ -88,13 +98,18 @@ export function DashboardPage() {
   const today = todayIso();
   const { state, reload } = useDashboardData();
   const [filters, setFilters] = useState<FilterValues>({});
+  const [fijacionDesde, setFijacionDesde] = useState('');
+  const [fijacionHasta, setFijacionHasta] = useState('');
 
   const lines = useMemo<MetricLine[]>(
     () => (state.status === 'ready' ? state.lines : []),
     [state],
   );
 
-  const filtered = useMemo(() => applyFilters(lines, filters, today), [lines, filters, today]);
+  const filtered = useMemo(
+    () => applyFilters(lines, filters, today, fijacionDesde, fijacionHasta),
+    [lines, filters, today, fijacionDesde, fijacionHasta],
+  );
 
   const summary = useMemo(() => computeComplianceSummary(filtered, today), [filtered, today]);
   const byClient = useMemo(() => computeComplianceByClient(filtered, today), [filtered, today]);
@@ -149,11 +164,56 @@ export function DashboardPage() {
 
       {state.status === 'ready' && (
         <>
+          <div className="mb-3 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                Fijación desde
+              </label>
+              <input
+                type="date"
+                value={fijacionDesde}
+                onChange={(e) => setFijacionDesde(e.target.value)}
+                max={fijacionHasta || undefined}
+                className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                aria-label="Fijación desde"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                Fijación hasta
+              </label>
+              <input
+                type="date"
+                value={fijacionHasta}
+                onChange={(e) => setFijacionHasta(e.target.value)}
+                min={fijacionDesde || undefined}
+                className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                aria-label="Fijación hasta"
+              />
+            </div>
+            {(fijacionDesde || fijacionHasta) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFijacionDesde('');
+                  setFijacionHasta('');
+                }}
+                className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Limpiar fechas
+              </button>
+            )}
+          </div>
+
           <FilterBar
             fields={fields}
             values={filters}
             onChange={(key, value) => setFilters((f) => ({ ...f, [key]: value }))}
-            onClear={() => setFilters({})}
+            onClear={() => {
+              setFilters({});
+              setFijacionDesde('');
+              setFijacionHasta('');
+            }}
             meta={`${filtered.length} de ${lines.length} líneas`}
           />
 

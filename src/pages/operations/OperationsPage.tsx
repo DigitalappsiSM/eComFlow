@@ -49,6 +49,47 @@ export function OperationsPage() {
 
   return (
     <AppLayout title="Seguimiento operativo" description="Estado y avance de cada línea operativa">
+      <div className="mb-3 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+            Fijación desde
+          </label>
+          <input
+            type="date"
+            value={ops.fijacionDesde}
+            onChange={(e) => ops.setFijacionDesde(e.target.value)}
+            max={ops.fijacionHasta || undefined}
+            className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            aria-label="Fijación desde"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+            Fijación hasta
+          </label>
+          <input
+            type="date"
+            value={ops.fijacionHasta}
+            onChange={(e) => ops.setFijacionHasta(e.target.value)}
+            min={ops.fijacionDesde || undefined}
+            className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            aria-label="Fijación hasta"
+          />
+        </div>
+        {(ops.fijacionDesde || ops.fijacionHasta) && (
+          <button
+            type="button"
+            onClick={() => {
+              ops.setFijacionDesde('');
+              ops.setFijacionHasta('');
+            }}
+            className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Limpiar fechas
+          </button>
+        )}
+      </div>
+
       <FilterBar
         fields={ops.filterFields}
         values={ops.filters}
