@@ -25,6 +25,9 @@ export function useOperations(pageSize = 50) {
   const [hasMore, setHasMore] = useState(false);
   const [filters, setFilters] = useState<FilterValues>({});
   const [search, setSearch] = useState('');
+  // Rango de fijación (mismo filtro que el correo Ecommerce): ISO yyyy-mm-dd.
+  const [fijacionDesde, setFijacionDesde] = useState('');
+  const [fijacionHasta, setFijacionHasta] = useState('');
   const [savingLineId, setSavingLineId] = useState<string | null>(null);
   const [bulkStatus, setBulkStatus] = useState<'idle' | 'saving'>('idle');
 
@@ -139,6 +142,10 @@ export function useOperations(pageSize = 50) {
       if (filters.continuidad && (r.line.tipo_campana_periodo ?? '') !== filters.continuidad) return false;
       if (filters.cliente && (r.line.cliente_original ?? '') !== filters.cliente) return false;
       if (filters.estado && statusLabelOf(r) !== filters.estado) return false;
+      // Rango de fijación (por fecha_fijacion de la línea).
+      const fijacion = (r.line.fecha_fijacion ?? '').trim();
+      if (fijacionDesde && fijacion && fijacion < fijacionDesde) return false;
+      if (fijacionHasta && fijacion && fijacion > fijacionHasta) return false;
       if (q !== '') {
         const hay = [
           r.line.cliente_original,
@@ -159,7 +166,7 @@ export function useOperations(pageSize = 50) {
       }
       return true;
     });
-  }, [rows, search, filters, statusLabelOf]);
+  }, [rows, search, filters, statusLabelOf, fijacionDesde, fijacionHasta]);
 
   // El periodo operativo de una línea ya venció. Usa periodo_fin si existe (el
   // periodo operativo vence antes que la campaña global); si no, fecha_retirada.
@@ -269,9 +276,15 @@ export function useOperations(pageSize = 50) {
     filters,
     filterFields,
     setFilter: (key: string, value: string) => setFilters((f) => ({ ...f, [key]: value })),
+    fijacionDesde,
+    fijacionHasta,
+    setFijacionDesde,
+    setFijacionHasta,
     clearFilters: () => {
       setFilters({});
       setSearch('');
+      setFijacionDesde('');
+      setFijacionHasta('');
     },
     isLineExpired,
     savingLineId,
