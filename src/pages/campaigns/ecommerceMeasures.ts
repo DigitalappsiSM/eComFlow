@@ -68,7 +68,9 @@ const CATALOG: MeasureEntry[] = [
     measures: { desktop: '1920 x 260', mobile: '640 x 243', app1: '578x187', app2: EM_DASH },
   },
   {
-    keywords: ['HOME SECUNDARIO'],
+    // El artículo se importa como "HOME BANNER" (nomenclatura del dato), pero es
+    // el "home secundario" del negocio: ambos nombres resuelven estas medidas.
+    keywords: ['HOME SECUNDARIO', 'HOME BANNER'],
     measures: { desktop: '1920x344', mobile: '640x242', app1: '289 x 93', app2: EM_DASH },
   },
   {
