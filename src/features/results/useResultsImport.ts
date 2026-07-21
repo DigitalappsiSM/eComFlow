@@ -75,6 +75,24 @@ function compressIssues(issues: ValidationIssue[], perCode = MAX_ISSUES_PER_CODE
   return out;
 }
 
+/**
+ * Acota una operación de red para que un cuelgue (sin conexión, permisos, etc.)
+ * se convierta en un error accionable en vez de dejar la UI colgada.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Tiempo de espera agotado al ${label}. Revisa tu conexión o los permisos de Firestore.`)),
+        ms,
+      ),
+    ),
+  ]);
+}
+
+const NET_TIMEOUT_MS = 45_000;
+
 export function useResultsImport() {
   const { firebaseUser, appUser } = useAuth();
   const [state, setState] = useState<ResultsImportState>({ status: 'idle' });
@@ -92,10 +110,16 @@ export function useResultsImport() {
       return;
     }
     try {
-      setState({ status: 'processing', message: 'Leyendo y validando el archivo…' });
+      const progress = (message: string) => setState({ status: 'processing', message });
+
+      progress('Leyendo el archivo…');
       const [text, buffer] = await Promise.all([file.text(), file.arrayBuffer()]);
+
+      progress('Calculando la huella del archivo…');
       const fileHash = await fileHashSha256(buffer);
-      const periods = await fetchActivePeriods();
+
+      progress('Cargando el catálogo de periodos…');
+      const periods = await withTimeout(fetchActivePeriods(), NET_TIMEOUT_MS, 'cargar el catálogo de periodos');
 
       const extra: ValidationIssue[] = [];
       if (periods.length === 0) {
@@ -108,16 +132,34 @@ export function useResultsImport() {
         );
       }
 
+      progress('Validando las filas del archivo…');
       const parsed = await parseKevelPlan(text, periods);
 
-      const duplicate = await findImportByFileHash(fileHash);
-      if (duplicate) {
+      progress('Verificando duplicados y traslapes…');
+      const duplicate = await withTimeout(findImportByFileHash(fileHash), NET_TIMEOUT_MS, 'verificar duplicados');
+      if (duplicate?.status === 'completed') {
         extra.push(
           block('FILE_ALREADY_IMPORTED', 'Este archivo ya fue procesado.', 'No es necesario reimportarlo.'),
         );
+      } else if (duplicate) {
+        // Carga previa interrumpida (p. ej. se cerró la pestaña): se puede reanudar.
+        extra.push({
+          severity: 'warning',
+          code: 'IMPORT_RESUME',
+          row_number: null,
+          field: null,
+          received_value: duplicate.status,
+          description: 'Existe una carga interrumpida de este archivo; al confirmar se reanudará y completará.',
+          suggested_action: 'Confirma la importación para terminar de escribir las filas faltantes.',
+          blocks_import: false,
+        });
       }
       if (parsed.actualStartDate && parsed.actualEndDate) {
-        const overlaps = await findOverlappingImports(parsed.actualStartDate, parsed.actualEndDate);
+        const overlaps = await withTimeout(
+          findOverlappingImports(parsed.actualStartDate, parsed.actualEndDate),
+          NET_TIMEOUT_MS,
+          'verificar traslapes de rango',
+        );
         const others = overlaps.filter((o: ResultsImportMeta) => o.file_hash !== fileHash);
         if (others.length > 0) {
           extra.push(

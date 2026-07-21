@@ -74,6 +74,33 @@ export async function fetchValidationIssues(importId: string): Promise<Validatio
   return snap.docs.map((d) => d.data() as ValidationIssue);
 }
 
+/** IDs de los `results_daily` ya escritos para esta importación (para reanudar). */
+async function fetchDailyKeysByImport(importId: string): Promise<Set<string>> {
+  const db = requireDb();
+  const snap = await getDocs(
+    query(collection(db, COLLECTIONS.resultsDaily), where('results_import_id', '==', importId)),
+  );
+  return new Set(snap.docs.map((d) => d.id));
+}
+
+/** Claves de los `results_weekly` ya escritos para esta importación (para reanudar). */
+async function fetchWeeklyKeysByImport(importId: string): Promise<Set<string>> {
+  const db = requireDb();
+  const snap = await getDocs(
+    query(collection(db, COLLECTIONS.resultsWeekly), where('source_import_ids', 'array-contains', importId)),
+  );
+  return new Set(snap.docs.map((d) => d.id));
+}
+
+/** ¿Ya hay incidencias registradas para esta importación? (evita duplicarlas al reanudar). */
+async function hasIssuesForImport(importId: string): Promise<boolean> {
+  const db = requireDb();
+  const snap = await getDocs(
+    query(collection(db, COLLECTIONS.resultsValidationIssues), where('results_import_id', '==', importId)),
+  );
+  return !snap.empty;
+}
+
 function dailyDoc(e: EnrichedResultRow, importId: string, actor: Actor) {
   const r = e.row;
   return {
@@ -174,8 +201,11 @@ async function commitChunks<T>(
 }
 
 /**
- * Escribe la importación completa. Idempotente por IDs deterministas: reanudar
- * una carga interrumpida re-escribe los mismos documentos (no crea duplicados).
+ * Escribe la importación completa. Reanudable: si una carga previa quedó a medias
+ * (p. ej. se cerró la pestaña), re-ejecutar con el mismo archivo escribe solo los
+ * documentos faltantes y la cierra. Los `results_daily`/`results_weekly` son
+ * inmutables (IDs deterministas), por eso los ya escritos se OMITEN en lugar de
+ * reescribirse: reescribirlos violaría las reglas de inmutabilidad.
  */
 export async function commitResultsImport(input: CommitResultsImportInput): Promise<string> {
   const db = requireDb();
@@ -186,6 +216,15 @@ export async function commitResultsImport(input: CommitResultsImportInput): Prom
     done = n;
     input.onProgress?.(done, total);
   };
+
+  // ¿Reanudación? Si el doc de importación ya existe y no está completado, algunos
+  // documentos diarios/semanales pueden estar escritos: se omiten (son inmutables).
+  const priorSnap = await getDoc(doc(db, COLLECTIONS.resultsImports, importId));
+  const isNew = !priorSnap.exists();
+  const resuming = !isNew && (priorSnap.data() as ResultsImportMeta).status !== 'completed';
+  const [existingDaily, existingWeekly] = resuming
+    ? await Promise.all([fetchDailyKeysByImport(importId), fetchWeeklyKeysByImport(importId)])
+    : [new Set<string>(), new Set<string>()];
 
   // Doc de importación (status writing).
   const meta: ResultsImportMeta & Record<string, unknown> = {
@@ -207,37 +246,48 @@ export async function commitResultsImport(input: CommitResultsImportInput): Prom
     const batch = writeBatch(db);
     batch.set(
       doc(db, COLLECTIONS.resultsImports, importId),
-      { ...meta, created_at: serverTimestamp(), created_by: input.actor.uid, updated_at: serverTimestamp(), updated_by: input.actor.uid },
+      {
+        ...meta,
+        // created_* solo en la creación inicial; no se pisa al reanudar.
+        ...(isNew ? { created_at: serverTimestamp(), created_by: input.actor.uid } : {}),
+        updated_at: serverTimestamp(),
+        updated_by: input.actor.uid,
+      },
       { merge: true },
     );
     await batch.commit();
   })();
 
-  // results_daily (inmutable) por lotes.
+  // results_daily (inmutable) por lotes; se escriben solo los faltantes.
+  const pendingDaily = input.enriched.filter((e) => !existingDaily.has(e.result_key_hash));
   await commitChunks(
-    input.enriched,
+    pendingDaily,
     (batch, e) => batch.set(doc(db, COLLECTIONS.resultsDaily, e.result_key_hash), dailyDoc(e, importId, input.actor)),
-    (d) => bump(d),
+    (d) => bump(existingDaily.size + d),
   );
 
-  // results_weekly consolidado por lotes.
+  // results_weekly consolidado por lotes; se escriben solo los faltantes.
+  const pendingWeekly = input.weekly.filter((w) => !existingWeekly.has(w.weekly_result_key_hash));
   await commitChunks(
-    input.weekly,
+    pendingWeekly,
     (batch, w) => batch.set(doc(db, COLLECTIONS.resultsWeekly, w.weekly_result_key_hash), weeklyDoc(w, input.actor)),
-    (d) => bump(input.enriched.length + d),
+    (d) => bump(input.enriched.length + existingWeekly.size + d),
   );
 
-  // Incidencias (advertencias) + auditoría.
-  await commitChunks(input.issues, (batch, issue) => {
-    const id = doc(collection(db, COLLECTIONS.resultsValidationIssues)).id;
-    batch.set(doc(db, COLLECTIONS.resultsValidationIssues, id), {
-      ...issue,
-      issue_id: id,
-      results_import_id: importId,
-      created_at: serverTimestamp(),
-      created_by: input.actor.uid,
+  // Incidencias (advertencias) + auditoría. Al reanudar, solo si aún no existen.
+  const writeIssues = !resuming || !(await hasIssuesForImport(importId));
+  if (writeIssues) {
+    await commitChunks(input.issues, (batch, issue) => {
+      const id = doc(collection(db, COLLECTIONS.resultsValidationIssues)).id;
+      batch.set(doc(db, COLLECTIONS.resultsValidationIssues, id), {
+        ...issue,
+        issue_id: id,
+        results_import_id: importId,
+        created_at: serverTimestamp(),
+        created_by: input.actor.uid,
+      });
     });
-  });
+  }
 
   await (async () => {
     const batch = writeBatch(db);
