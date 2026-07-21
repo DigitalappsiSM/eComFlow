@@ -67,6 +67,13 @@ describe('ecommerceMeasures', () => {
     expect(lookupMeasures('CATEGORY MEDIA WEB').app1).toBe('578x186');
   });
 
+  it('HOME BANNER (home secundario) resuelve a las medidas del home secundario', () => {
+    const expected = { desktop: '1920x344', mobile: '640x242', app1: '289 x 93', app2: '—' };
+    expect(lookupMeasures('HOME SECUNDARIO')).toEqual(expected);
+    expect(lookupMeasures('HOME BANNER')).toEqual(expected);
+    expect(lookupMeasures('HOME BANNER N1')).toEqual(expected);
+  });
+
   it('artículo desconocido → todas las columnas en "—"', () => {
     expect(lookupMeasures('ALGO RARO')).toEqual(EMPTY_MEASURES);
     expect(lookupMeasures('')).toEqual(EMPTY_MEASURES);
