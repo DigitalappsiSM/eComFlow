@@ -33,6 +33,8 @@ export interface EmailSourceLine {
 }
 
 export interface EmailRow {
+  /** Identidad estable de la fila (para excluirla del borrador). */
+  key: string;
   cadena: string;
   cliente: string;
   anunciante: string;
@@ -163,6 +165,7 @@ export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
       continue;
     }
     groups.set(key, {
+      key,
       cadena,
       cliente,
       anunciante,
