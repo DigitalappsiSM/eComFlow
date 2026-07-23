@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, Check, AlertCircle, FileText } from 'lucide-react';
+import { Copy, Check, AlertCircle, FileText, Trash2, RotateCcw } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/States';
 import { FilterBar } from '@/components/filters/FilterBar';
@@ -74,6 +74,9 @@ export function CampaignsListPage() {
   const [hasta, setHasta] = useState('');
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
   const [copiedSubject, setCopiedSubject] = useState<string | null>(null);
+  // Filas excluidas del borrador (por su clave estable) + fila en confirmación.
+  const [excludedKeys, setExcludedKeys] = useState<Set<string>>(new Set());
+  const [confirmKey, setConfirmKey] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -102,8 +105,20 @@ export function CampaignsListPage() {
     [ecommerceLines, filters, desde, hasta],
   );
   const rows = useMemo(() => buildEmailRows(filtered), [filtered]);
-  const ctx = useMemo(() => computeEmailContext(rows), [rows]);
+  // Borrador efectivo: sin las filas que el usuario eliminó manualmente.
+  const visibleRows = useMemo(() => rows.filter((r) => !excludedKeys.has(r.key)), [rows, excludedKeys]);
+  const excludedCount = rows.length - visibleRows.length;
+  const ctx = useMemo(() => computeEmailContext(visibleRows), [visibleRows]);
   const subjects = useMemo(() => buildTrackingSubjects(filtered), [filtered]);
+
+  const removeRow = (key: string) => {
+    setExcludedKeys((prev) => new Set(prev).add(key));
+    setConfirmKey(null);
+  };
+  const restoreRows = () => {
+    setExcludedKeys(new Set());
+    setConfirmKey(null);
+  };
 
   const campaignRef = useMemo(() => {
     const set = new Set<string>();
@@ -129,8 +144,8 @@ export function CampaignsListPage() {
     filters.articulo || filters.search || desde || hasta;
 
   async function handleCopyHtml() {
-    const html = buildEmailHtml(recipient, campaignRef, rows);
-    const text = buildEmailText(recipient, campaignRef, rows);
+    const html = buildEmailHtml(recipient, campaignRef, visibleRows);
+    const text = buildEmailText(recipient, campaignRef, visibleRows);
     try {
       const clip = navigator.clipboard;
       if (clip && 'write' in clip && typeof ClipboardItem !== 'undefined') {
@@ -152,7 +167,7 @@ export function CampaignsListPage() {
 
   async function handleCopyText() {
     try {
-      await navigator.clipboard.writeText(buildEmailText(recipient, campaignRef, rows));
+      await navigator.clipboard.writeText(buildEmailText(recipient, campaignRef, visibleRows));
       setCopyStatus('text');
     } catch {
       setCopyStatus('error');
@@ -299,7 +314,20 @@ export function CampaignsListPage() {
                     <div>
                       <h3 className="text-sm font-semibold text-slate-800">Vista previa del correo</h3>
                       <p className="text-xs text-slate-400">
-                        Campaña(s) #{campaignRef || '—'} · {rows.length} creatividad(es)
+                        Campaña(s) #{campaignRef || '—'} · {visibleRows.length} creatividad(es)
+                        {excludedCount > 0 && (
+                          <>
+                            {' '}·{' '}
+                            <span className="text-amber-700">{excludedCount} fila(s) eliminada(s)</span>{' '}
+                            <button
+                              type="button"
+                              onClick={restoreRows}
+                              className="focus-ring inline-flex items-center gap-1 rounded border border-slate-300 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                            >
+                              <RotateCcw className="h-3 w-3" aria-hidden="true" /> Restaurar
+                            </button>
+                          </>
+                        )}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
@@ -335,7 +363,22 @@ export function CampaignsListPage() {
                     </div>
                   </div>
 
-                  <EmailPreview recipient={recipient} campaignRef={campaignRef} rows={rows} ctx={ctx} />
+                  {visibleRows.length === 0 ? (
+                    <EmptyState
+                      title="Eliminaste todas las filas"
+                      description="No queda ninguna creatividad en el borrador. Usa “Restaurar” para recuperarlas."
+                    />
+                  ) : (
+                    <EmailPreview
+                      recipient={recipient}
+                      campaignRef={campaignRef}
+                      rows={visibleRows}
+                      ctx={ctx}
+                      confirmKey={confirmKey}
+                      onAskDelete={setConfirmKey}
+                      onConfirmDelete={removeRow}
+                    />
+                  )}
                 </div>
                 </>
               )}
@@ -352,11 +395,17 @@ function EmailPreview({
   campaignRef,
   rows,
   ctx,
+  confirmKey,
+  onAskDelete,
+  onConfirmDelete,
 }: {
   recipient: string;
   campaignRef: string;
   rows: ReturnType<typeof buildEmailRows>;
   ctx: ReturnType<typeof computeEmailContext>;
+  confirmKey: string | null;
+  onAskDelete: (key: string | null) => void;
+  onConfirmDelete: (key: string) => void;
 }) {
   const deadline = ctx.deadlineIso ? formatDateLong(ctx.deadlineIso) : 'Por confirmar';
   return (
@@ -373,6 +422,9 @@ function EmailPreview({
         <table className="w-full min-w-[1000px] border-collapse text-xs">
           <thead>
             <tr className="bg-navy text-white">
+              <th className="whitespace-nowrap border border-slate-300 px-2 py-1.5 text-center font-semibold">
+                <span className="sr-only">Eliminar</span>
+              </th>
               {EMAIL_TABLE_COLUMNS.map((c) => (
                 <th key={c} className="whitespace-nowrap border border-slate-300 px-2.5 py-1.5 text-left font-semibold">
                   {c}
@@ -381,8 +433,38 @@ function EmailPreview({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
-              <tr key={`${row.cadena}|${row.articulo}|${row.nivel}|${i}`} className="odd:bg-slate-50">
+            {rows.map((row) => (
+              <tr key={row.key} className="odd:bg-slate-50">
+                <td className="border border-slate-300 px-1.5 py-1.5 text-center align-middle">
+                  {confirmKey === row.key ? (
+                    <span className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onConfirmDelete(row.key)}
+                        className="focus-ring rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-red-700"
+                      >
+                        Eliminar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onAskDelete(null)}
+                        className="focus-ring rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
+                      >
+                        Cancelar
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onAskDelete(row.key)}
+                      title="Eliminar esta fila del borrador"
+                      aria-label="Eliminar esta fila del borrador"
+                      className="focus-ring inline-flex text-slate-400 hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
+                </td>
                 {emailRowCells(row).map((cell, j) => (
                   <td key={j} className="whitespace-nowrap border border-slate-300 px-2.5 py-1.5">
                     {cell}
