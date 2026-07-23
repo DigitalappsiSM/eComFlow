@@ -227,6 +227,13 @@ escribir por lotes → actualizar dashboard
 - `created_at`/`created_by` inmutables; `updated_by`/`created_by` deben coincidir
   con el usuario; nadie cambia su propio rol; default deny para colecciones no
   declaradas.
+- **Importaciones** (`imports`, `import_rows`): solo **admin/manager** las
+  crean/confirman (`canWriteImports`); el `operator` (KAM) trabaja checks
+  operativos, responsables y comentarios, pero **no** importa. `imports` valida
+  transiciones de estado (`processing → processed/partially_processed/failed/cancelled`),
+  campos de procedencia inmutables y `last_confirmed_batch` no decreciente;
+  `import_rows` es inmutable tras crearse. `detected_changes` solo admite cambios
+  de revisión/estado (relación con campaña/línea/importación inmutable).
 - **Interruptor de reinicio de pruebas** (`canResetData()`): permite `delete` en
   colecciones operativas **solo** si eres admin **y** `app_settings.dev_reset_enabled == true`.
   Por defecto está apagado → borrado bloqueado.

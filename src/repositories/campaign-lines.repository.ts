@@ -127,22 +127,44 @@ export async function fetchActiveLinesForDashboard(maxLines = 2000): Promise<Met
   return snap.docs.map((d) => toMetricLine(d.data() as CampaignLine));
 }
 
+/** Resultado del dashboard: líneas + señal de truncamiento (sin inventar totales). */
+export interface DashboardLinesResult {
+  lines: MetricLine[];
+  limit: number;
+  truncated: boolean;
+}
+
+/**
+ * Aplica el límite del dashboard sobre un conjunto consultado con `limit + 1`:
+ * devuelve como máximo `limit` elementos y marca `truncated` cuando se recuperó
+ * más de `limit` (es decir, existen más de los que se muestran). Pura y testeable.
+ */
+export function applyDashboardLimit<T>(
+  fetched: readonly T[],
+  limit: number,
+): { items: T[]; truncated: boolean } {
+  const truncated = fetched.length > limit;
+  return { items: fetched.slice(0, limit), truncated };
+}
+
 /**
  * Carga las líneas activas y su operación (checks) para el dashboard de
  * cumplimiento. Une por id (`campaign_line_id`) en lotes de 10 (límite de
  * Firestore para `in`), en paralelo. Limitada por defecto para no descargar
- * colecciones completas (§53, §54).
+ * colecciones completas (§53, §54). Consulta `maxLines + 1` para detectar
+ * truncamiento e informarlo (sin inventar totales).
  */
-export async function fetchOperationalLinesForDashboard(maxLines = 1500): Promise<MetricLine[]> {
+export async function fetchOperationalLinesForDashboard(maxLines = 1500): Promise<DashboardLinesResult> {
   const db = requireDb();
   const q = query(
     collection(db, COLLECTIONS.campaignLines),
     where('active', '==', true),
     where('is_current', '==', true),
-    fbLimit(maxLines),
+    fbLimit(maxLines + 1),
   );
   const snap = await getDocs(q);
-  const lines = snap.docs.map((d) => d.data() as CampaignLine);
+  const { items: lineDocs, truncated } = applyDashboardLimit(snap.docs, maxLines);
+  const lines = lineDocs.map((d) => d.data() as CampaignLine);
 
   const ids = lines.map((l) => l.campaign_line_id);
   const opsById = new Map<string, CampaignOperation>();
@@ -158,5 +180,9 @@ export async function fetchOperationalLinesForDashboard(maxLines = 1500): Promis
     res.forEach((d) => opsById.set(d.id, d.data() as CampaignOperation));
   }
 
-  return lines.map((line) => toOperationalMetricLine(line, opsById.get(line.campaign_line_id)));
+  return {
+    lines: lines.map((line) => toOperationalMetricLine(line, opsById.get(line.campaign_line_id))),
+    limit: maxLines,
+    truncated,
+  };
 }

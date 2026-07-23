@@ -14,6 +14,7 @@ const STATUS_STYLES: Partial<Record<ImportStatus, string>> = {
   partially_processed: 'bg-amber-50 text-amber-700',
   rejected: 'bg-red-50 text-red-600',
   failed: 'bg-red-50 text-red-600',
+  cancelled: 'bg-slate-100 text-slate-500',
   processing: 'bg-blue-50 text-accent-blue',
 };
 
@@ -83,9 +84,15 @@ export function ImportHistoryPage() {
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                           STATUS_STYLES[imp.status] ?? 'bg-slate-100 text-slate-500'
                         }`}
+                        title={imp.status === 'failed' ? imp.failure_reason ?? undefined : undefined}
                       >
                         {imp.status}
                       </span>
+                      {imp.status === 'failed' && imp.failure_reason && (
+                        <p className="mt-1 max-w-xs text-xs text-red-600" title={imp.failure_reason}>
+                          {imp.failure_reason}
+                        </p>
+                      )}
                     </td>
                   </tr>
                 ))}

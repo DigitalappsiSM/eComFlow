@@ -5,12 +5,13 @@ import { fetchOperationalLinesForDashboard } from '@/repositories/campaign-lines
 type State =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; lines: MetricLine[] };
+  | { status: 'ready'; lines: MetricLine[]; limit: number; truncated: boolean };
 
 /**
  * Carga las líneas activas del dashboard EXCLUSIVAMENTE desde Firestore (§36,
  * §54). El cálculo de métricas y el filtrado se hacen en el componente sobre
- * estas líneas, para permitir filtros dinámicos sin re-consultar.
+ * estas líneas, para permitir filtros dinámicos sin re-consultar. Informa si el
+ * resultado quedó truncado por el límite (KPIs/gráficas posiblemente parciales).
  */
 export function useDashboardData() {
   const [state, setState] = useState<State>({ status: 'loading' });
@@ -18,8 +19,8 @@ export function useDashboardData() {
   const load = useCallback(async () => {
     setState({ status: 'loading' });
     try {
-      const lines = await fetchOperationalLinesForDashboard();
-      setState({ status: 'ready', lines });
+      const result = await fetchOperationalLinesForDashboard();
+      setState({ status: 'ready', lines: result.lines, limit: result.limit, truncated: result.truncated });
     } catch (err) {
       setState({
         status: 'error',
