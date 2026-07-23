@@ -105,6 +105,8 @@ export function DashboardPage() {
     () => (state.status === 'ready' ? state.lines : []),
     [state],
   );
+  const truncated = state.status === 'ready' && state.truncated;
+  const limit = state.status === 'ready' ? state.limit : 0;
 
   const filtered = useMemo(
     () => applyFilters(lines, filters, today, fijacionDesde, fijacionHasta),
@@ -164,6 +166,19 @@ export function DashboardPage() {
 
       {state.status === 'ready' && (
         <>
+          {truncated && (
+            <div
+              role="alert"
+              className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+              <span>
+                El dashboard muestra las primeras {limit} líneas activas. Los KPIs y gráficas pueden ser
+                parciales. Aplica filtros o reduce el alcance.
+              </span>
+            </div>
+          )}
+
           <div className="mb-3 flex flex-wrap items-end gap-3">
             <div>
               <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">

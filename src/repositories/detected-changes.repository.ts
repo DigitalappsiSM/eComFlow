@@ -98,6 +98,9 @@ function markReviewed(status: DetectedChangeStatus, actor: Actor, comment: strin
     reviewed_at: serverTimestamp(),
     reviewed_by: actor.uid,
     review_comment: comment,
+    // Requerido por las reglas endurecidas de detected_changes (updatedByIsCaller).
+    updated_at: serverTimestamp(),
+    updated_by: actor.uid,
   };
 }
 

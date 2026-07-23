@@ -22,10 +22,12 @@ import {
   serverTimestamp,
   where,
   writeBatch,
+  type DocumentReference,
   type Firestore,
 } from 'firebase/firestore';
 import { requireDb } from '@/lib/firebase';
 import { COLLECTIONS } from '@/lib/collections';
+import { memoizeAsync } from '@/lib/memoize';
 import type { ImportStoreLookup } from '@/domain/import-pipeline';
 import type { ImportPlan, RowPlan } from '@/domain/import-pipeline';
 import type { ExistingLineRef } from '@/domain/import-classification';
@@ -38,49 +40,60 @@ import { initialChecksForImportedLine, requiredChecksForOperationType } from '@/
 
 // ----------------------------- Lookups ------------------------------------
 
+/**
+ * Lookup de Firestore para clasificar la importación. Cada método cachea su
+ * resultado por clave durante la sesión (una sola lectura por clave repetida);
+ * los errores no se cachean (ver `memoizeAsync`). El resultado funcional es
+ * idéntico al de una consulta directa.
+ */
 export function buildFirestoreLookup(db: Firestore = requireDb()): ImportStoreLookup {
-  return {
-    async getGroupId(groupKey) {
-      const snap = await getDoc(doc(db, COLLECTIONS.campaignGroups, groupKey));
-      return snap.exists() ? groupKey : null;
-    },
-    async getSpaceId(spaceKey) {
-      const snap = await getDoc(doc(db, COLLECTIONS.campaignSpaces, spaceKey));
-      return snap.exists() ? spaceKey : null;
-    },
-    async getLine(lineKey) {
-      const snap = await getDoc(doc(db, COLLECTIONS.campaignLines, lineKey));
-      if (!snap.exists()) return null;
-      const l = snap.data() as CampaignLine;
-      return {
-        id: lineKey,
+  const getGroupId = memoizeAsync<string, string | null>(async (groupKey) => {
+    const snap = await getDoc(doc(db, COLLECTIONS.campaignGroups, groupKey));
+    return snap.exists() ? groupKey : null;
+  });
+  const getSpaceId = memoizeAsync<string, string | null>(async (spaceKey) => {
+    const snap = await getDoc(doc(db, COLLECTIONS.campaignSpaces, spaceKey));
+    return snap.exists() ? spaceKey : null;
+  });
+  const getLine = memoizeAsync<string, (ExistingLineRef & { id: string }) | null>(async (lineKey) => {
+    const snap = await getDoc(doc(db, COLLECTIONS.campaignLines, lineKey));
+    if (!snap.exists()) return null;
+    const l = snap.data() as CampaignLine;
+    return {
+      id: lineKey,
+      campaignLineKey: l.campaign_line_key,
+      creatividadIdKey: l.creatividad_id_key,
+      contentHash: l.content_hash,
+      isCurrent: l.is_current,
+      active: l.active,
+    };
+  });
+  const getSpaceLines = memoizeAsync<string, ExistingLineRef[]>(async (spaceId) => {
+    const q = query(
+      collection(db, COLLECTIONS.campaignLines),
+      where('campaign_space_id', '==', spaceId),
+      where('active', '==', true),
+    );
+    const snap = await getDocs(q);
+    const refs: ExistingLineRef[] = [];
+    snap.forEach((d) => {
+      const l = d.data() as CampaignLine;
+      refs.push({
         campaignLineKey: l.campaign_line_key,
         creatividadIdKey: l.creatividad_id_key,
         contentHash: l.content_hash,
         isCurrent: l.is_current,
         active: l.active,
-      };
-    },
-    async getSpaceLines(spaceId) {
-      const q = query(
-        collection(db, COLLECTIONS.campaignLines),
-        where('campaign_space_id', '==', spaceId),
-        where('active', '==', true),
-      );
-      const snap = await getDocs(q);
-      const refs: ExistingLineRef[] = [];
-      snap.forEach((d) => {
-        const l = d.data() as CampaignLine;
-        refs.push({
-          campaignLineKey: l.campaign_line_key,
-          creatividadIdKey: l.creatividad_id_key,
-          contentHash: l.content_hash,
-          isCurrent: l.is_current,
-          active: l.active,
-        });
       });
-      return refs;
-    },
+    });
+    return refs;
+  });
+
+  return {
+    getGroupId: (groupKey) => getGroupId(groupKey),
+    getSpaceId: (spaceKey) => getSpaceId(spaceKey),
+    getLine: (lineKey) => getLine(lineKey),
+    getSpaceLines: (spaceId) => getSpaceLines(spaceId),
   };
 }
 
@@ -158,6 +171,44 @@ type Op =
   | { kind: 'update'; path: [string, string]; data: Record<string, unknown> };
 
 const WRITE_LIMIT = 400;
+const FAILURE_REASON_MAX = 500;
+
+/** Confirma un lote etiquetando el origen del error con la fase (observabilidad). */
+async function commitPhase(phase: string, batch: ReturnType<typeof writeBatch>): Promise<void> {
+  try {
+    await batch.commit();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`[${phase}] ${msg}`);
+  }
+}
+
+/**
+ * Marca la importación como fallida (best-effort) conservando la fase del error.
+ * Si el propio update de `failed` falla, se ignora para NO perder el error
+ * original, que se propaga desde `runImport`.
+ */
+async function markImportFailed(
+  db: Firestore,
+  importRef: DocumentReference,
+  user: { uid: string },
+  err: unknown,
+): Promise<void> {
+  const reason = (err instanceof Error ? err.message : String(err)).slice(0, FAILURE_REASON_MAX);
+  try {
+    const batch = writeBatch(db);
+    batch.update(importRef, {
+      status: 'failed',
+      finished_at: serverTimestamp(),
+      failure_reason: reason,
+      updated_at: serverTimestamp(),
+      updated_by: user.uid,
+    });
+    await batch.commit();
+  } catch {
+    // No se pudo marcar failed: se conserva y propaga el error original.
+  }
+}
 
 /**
  * Ejecuta la importación confirmada: escribe entidades, operación, snapshots de
@@ -212,7 +263,8 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
   };
   const startBatch = writeBatch(db);
   startBatch.set(importRef, importBase);
-  await startBatch.commit();
+  // Fase "iniciar importación": si falla aquí, no hay registro que marcar failed.
+  await commitPhase('iniciar importación', startBatch);
 
   // 2) Construir todas las operaciones de escritura.
   const ops: Op[] = [];
@@ -496,6 +548,7 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
             obligatorio: req.obligatorio,
             requirement_snapshot_version: 1,
             created_at: now(),
+            created_by: user.uid,
           },
         });
       }
@@ -543,35 +596,45 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
     }
   }
 
-  // 3) Confirmar en lotes con progreso.
-  let confirmed = 0;
-  let batchNo = 0;
-  for (let i = 0; i < ops.length; i += WRITE_LIMIT) {
-    const slice = ops.slice(i, i + WRITE_LIMIT);
-    const batch = writeBatch(db);
-    for (const op of slice) {
-      const ref = doc(db, op.path[0], op.path[1]);
-      if (op.kind === 'set') batch.set(ref, op.data);
-      else batch.update(ref, op.data);
+  // 3-4) Ejecutar las escrituras. El registro imports/{id} ya existe, así que un
+  // error en fase de ejecución se marca como `failed` (best-effort) conservando
+  // la fase; el error original se propaga siempre.
+  try {
+    // 3) Confirmar en lotes con progreso.
+    let confirmed = 0;
+    let batchNo = 0;
+    for (let i = 0; i < ops.length; i += WRITE_LIMIT) {
+      const slice = ops.slice(i, i + WRITE_LIMIT);
+      const batch = writeBatch(db);
+      for (const op of slice) {
+        const ref = doc(db, op.path[0], op.path[1]);
+        if (op.kind === 'set') batch.set(ref, op.data);
+        else batch.update(ref, op.data);
+      }
+      await commitPhase('escribir lote', batch);
+      confirmed += slice.length;
+      batchNo += 1;
+      ctx.onProgress?.(confirmed, ops.length, batchNo);
     }
-    await batch.commit();
-    confirmed += slice.length;
-    batchNo += 1;
-    ctx.onProgress?.(confirmed, ops.length, batchNo);
+
+    // 4) Finalizar el registro de importación (§22).
+    const status: RunImportResult['status'] =
+      plan.summary.rejected > 0 && plan.summary.valid > 0
+        ? 'partially_processed'
+        : 'processed';
+    const finishBatch = writeBatch(db);
+    finishBatch.update(importRef, {
+      status,
+      finished_at: now(),
+      last_confirmed_batch: batchNo,
+      updated_at: now(),
+      updated_by: user.uid,
+    });
+    await commitPhase('cerrar importación', finishBatch);
+
+    return { importId, status };
+  } catch (err) {
+    await markImportFailed(db, importRef, user, err);
+    throw err;
   }
-
-  // 4) Finalizar el registro de importación (§22).
-  const status: RunImportResult['status'] =
-    plan.summary.rejected > 0 && plan.summary.valid > 0
-      ? 'partially_processed'
-      : 'processed';
-  const finishBatch = writeBatch(db);
-  finishBatch.update(importRef, {
-    status,
-    finished_at: now(),
-    last_confirmed_batch: batchNo,
-  });
-  await finishBatch.commit();
-
-  return { importId, status };
 }

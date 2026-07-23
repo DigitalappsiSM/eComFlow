@@ -56,6 +56,8 @@ export interface ImportRecord {
   finished_at: Timestamp | null;
   last_confirmed_batch: number;
   processing_version: string;
+  /** Motivo acotado del fallo (fase + mensaje) cuando status === 'failed'. */
+  failure_reason?: string | null;
 }
 
 export interface ImportRow {

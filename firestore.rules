@@ -59,6 +59,12 @@ service cloud.firestore {
       return hasRole(['admin', 'manager']);
     }
 
+    // Crear/confirmar importaciones: SOLO admin/manager. El operator (KAM)
+    // trabaja checks operativos, responsables y comentarios, pero no importa.
+    function canWriteImports() {
+      return hasRole(['admin', 'manager']);
+    }
+
     function isAdmin() {
       return hasRole(['admin']);
     }
@@ -90,6 +96,51 @@ service cloud.firestore {
     // created_by debe ser el usuario autenticado en una creación.
     function createdByIsCaller() {
       return request.resource.data.created_by == request.auth.uid;
+    }
+
+    // ---- Validaciones de importaciones (endurecimiento §22, §25) ----
+    // Campos de identidad/procedencia inmutables tras crear el registro.
+    function importFieldsImmutable() {
+      return request.resource.data.import_id == resource.data.import_id
+        && request.resource.data.file_hash == resource.data.file_hash
+        && request.resource.data.file_name == resource.data.file_name
+        && request.resource.data.file_size == resource.data.file_size
+        && request.resource.data.uploaded_at == resource.data.uploaded_at
+        && request.resource.data.uploaded_by == resource.data.uploaded_by;
+    }
+
+    // Transiciones válidas: solo desde 'processing' a un estado terminal, o
+    // dejar el estado igual (actualizaciones de progreso/cierre parcial).
+    function importStatusTransitionOk() {
+      return request.resource.data.status == resource.data.status
+        || (resource.data.status == 'processing'
+            && request.resource.data.status in
+               ['processed', 'partially_processed', 'failed', 'cancelled']);
+    }
+
+    // finished_at solo puede quedar establecido en un estado terminal.
+    function importFinishedOnlyTerminal() {
+      return request.resource.data.finished_at == null
+        || request.resource.data.status in
+           ['processed', 'partially_processed', 'failed', 'cancelled'];
+    }
+
+    // last_confirmed_batch nunca disminuye.
+    function importBatchNotDecreasing() {
+      return request.resource.data.get('last_confirmed_batch', 0)
+        >= resource.data.get('last_confirmed_batch', 0);
+    }
+
+    // ---- Validaciones de cambios detectados (endurecimiento §43) ----
+    // La relación con campaña/línea/importación y la procedencia son inmutables.
+    function detectedChangeImmutable() {
+      return request.resource.data.detected_change_id == resource.data.detected_change_id
+        && request.resource.data.campaign_group_id == resource.data.campaign_group_id
+        && request.resource.data.campaign_space_id == resource.data.campaign_space_id
+        && request.resource.data.campaign_line_id == resource.data.campaign_line_id
+        && request.resource.data.import_id == resource.data.import_id
+        && request.resource.data.created_at == resource.data.created_at
+        && request.resource.data.created_by == resource.data.created_by;
     }
 
     // Baja lógica únicamente: nunca se permite `delete`.
@@ -155,7 +206,8 @@ service cloud.firestore {
 
     match /campaign_line_requirements/{id} {
       allow read: if canRead();
-      allow create: if canWriteOperational();
+      // Snapshot escrito por el importador; created_by debe ser el llamador.
+      allow create: if canWriteOperational() && createdByIsCaller();
       // Snapshot inmutable: no se permite actualizar (histórico fiel).
       allow update: if false;
       allow delete: if canResetData();
@@ -182,23 +234,47 @@ service cloud.firestore {
 
     match /detected_changes/{id} {
       allow read: if canRead();
-      allow create: if canWriteOperational();
-      allow update: if canWriteOperational();
+      // Crea el importador (rol operativo); id del doc == detected_change_id.
+      allow create: if canWriteOperational()
+        && createdByIsCaller()
+        && request.resource.data.detected_change_id == id;
+      // Solo revisión/estado; la relación con campaña/línea/importación y la
+      // procedencia quedan inmutables.
+      allow update: if canWriteOperational()
+        && updatedByIsCaller()
+        && detectedChangeImmutable();
       allow delete: if canResetData();
     }
 
     // ---------------------- importaciones ------------------------------
     match /imports/{id} {
       allow read: if canRead();
-      allow create: if canWriteOperational() && createdByIsCaller();
-      allow update: if canWriteOperational();
+      // Solo admin/manager crean; el id del doc == import_id; arranca 'processing'.
+      allow create: if canWriteImports()
+        && createdByIsCaller()
+        && request.resource.data.import_id == id
+        && request.resource.data.status == 'processing';
+      // Solo admin/manager actualizan; identidad/creación inmutables; solo
+      // transiciones válidas de estado; finished_at solo en terminales;
+      // last_confirmed_batch no disminuye.
+      allow update: if canWriteImports()
+        && updatedByIsCaller()
+        && immutableCreation()
+        && importFieldsImmutable()
+        && importStatusTransitionOk()
+        && importFinishedOnlyTerminal()
+        && importBatchNotDecreasing();
       allow delete: if canResetData();
     }
 
     match /import_rows/{id} {
       allow read: if canRead();
-      allow create: if canWriteOperational();
-      allow update: if canWriteOperational();
+      // Solo admin/manager crean; si trae created_by debe ser el llamador.
+      allow create: if canWriteImports()
+        && (!('created_by' in request.resource.data)
+            || createdByIsCaller());
+      // Las filas de importación son inmutables (histórico fiel).
+      allow update: if false;
       allow delete: if canResetData();
     }
 
