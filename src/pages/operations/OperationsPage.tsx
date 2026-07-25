@@ -224,7 +224,7 @@ export function OperationsPage() {
                 </button>
               </div>
             )}
-            <div className="card overflow-x-auto">
+            <div className="card hidden overflow-x-auto md:block">
               <table className="w-full min-w-[1450px] text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50">
                   <tr className="text-left text-xs uppercase text-slate-500">
@@ -372,6 +372,115 @@ export function OperationsPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Vista de tarjetas para móvil/tablet chico (sin scroll lateral). */}
+            <div className="space-y-3 md:hidden">
+              {sortedRows.map((row) => {
+                const required = requiredChecksForLine(row.line);
+                const status = computeStatus({
+                  fechaFijacion: row.line.fecha_fijacion,
+                  fechaRetirada: row.line.fecha_retirada,
+                  checks: row.checks,
+                  cancelled: row.line.cancelled,
+                  today,
+                  requiredChecks: required,
+                });
+                const hasPendingChecks = required.some((k) => !row.checks[k]);
+                const canMarkAll = canWrite && hasPendingChecks;
+                const savingLine = ops.savingLineId === row.line.campaign_line_id;
+                return (
+                  <div key={row.line.campaign_line_id} className="card p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <button onClick={() => setSelected(row)} className="focus-ring min-w-0 text-left">
+                        <span className="block truncate font-semibold text-accent-blue">
+                          {row.line.cliente_original}
+                        </span>
+                        <span className="block text-xs text-slate-500">{row.line.numero_campaña_original}</span>
+                      </button>
+                      <StatusBadge status={status} />
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <OperationBadge value={row.line.tipo_operacion} />
+                      <ContinuityBadge value={row.line.tipo_campana_periodo} />
+                      <span className="text-xs text-slate-400">{row.line.cadena ?? 'Sin cadena'}</span>
+                    </div>
+
+                    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                      <div className="min-w-0">
+                        <dt className="text-[10px] uppercase tracking-wide text-slate-400">Periodo</dt>
+                        <dd className="truncate text-slate-700">
+                          {row.line.periodo_codigo || row.line.periodo_original || '—'}
+                        </dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-[10px] uppercase tracking-wide text-slate-400">Artículo</dt>
+                        <dd className="truncate text-slate-700" title={row.line.placement_name_snapshot}>
+                          {row.line.placement_name_snapshot}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    <div className="mt-3">
+                      <p className="mb-1.5 text-[10px] uppercase tracking-wide text-slate-400">Checks</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {CHECK_KEYS.map((k) =>
+                          isCheckRequiredForLine(row.line, k) ? (
+                            <button
+                              key={k}
+                              type="button"
+                              disabled={!canWrite}
+                              onClick={() => void ops.toggleCheck(row, k)}
+                              aria-pressed={row.checks[k]}
+                              className={`focus-ring inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${
+                                row.checks[k]
+                                  ? 'border-accent-green bg-green-50 text-accent-green'
+                                  : 'border-slate-300 bg-white text-slate-500'
+                              } ${canWrite ? '' : 'opacity-60'}`}
+                            >
+                              <span aria-hidden="true">{row.checks[k] ? '✓' : '○'}</span>
+                              {CHECK_LABELS[k]}
+                            </button>
+                          ) : null,
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <div className="h-1.5 flex-1 rounded-full bg-slate-100">
+                        <div className="h-1.5 rounded-full bg-accent-blue" style={{ width: `${row.progress}%` }} />
+                      </div>
+                      <span className="text-xs tabular-nums text-slate-500">{row.progress}%</span>
+                      {canMarkAll && (
+                        <button
+                          type="button"
+                          disabled={savingLine}
+                          onClick={() => void ops.markLineChecks(row)}
+                          className="focus-ring rounded border border-accent-blue px-2 py-0.5 text-[11px] font-medium text-accent-blue hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {savingLine ? 'Rellenando…' : 'Rellenar todo'}
+                        </button>
+                      )}
+                    </div>
+
+                    <textarea
+                      key={row.comentarios ?? ''}
+                      defaultValue={row.comentarios ?? ''}
+                      disabled={!canWrite}
+                      rows={2}
+                      onBlur={(e) => {
+                        if (e.target.value.trim() !== (row.comentarios ?? '')) {
+                          void ops.setComment(row, e.target.value);
+                        }
+                      }}
+                      placeholder="Agregar comentario…"
+                      className="focus-ring mt-3 w-full resize-y rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm disabled:bg-transparent"
+                      aria-label="Comentarios de la línea"
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             {ops.hasMore && (

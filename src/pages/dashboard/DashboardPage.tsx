@@ -314,40 +314,71 @@ export function DashboardPage() {
             {detail.length === 0 ? (
               <EmptyState title="Sin líneas" description="No hay líneas para el filtro actual." />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-sm">
-                  <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                    <tr>
-                      <th className="px-4 py-2 font-medium">Cliente</th>
-                      <th className="px-4 py-2 font-medium">Periodo</th>
-                      <th className="px-4 py-2 font-medium">Tipo</th>
-                      <th className="px-4 py-2 text-right font-medium">Total</th>
-                      <th className="px-4 py-2 text-right font-medium">Cumplidas</th>
-                      <th className="px-4 py-2 text-right font-medium">% Cumpl.</th>
-                      <th className="px-4 py-2 text-right font-medium">En riesgo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.slice(0, 16).map((r) => (
-                      <tr key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="border-t border-slate-100">
-                        <td className="max-w-52 truncate px-4 py-2 font-medium text-slate-700" title={r.cliente}>
-                          {r.cliente}
-                        </td>
-                        <td className="px-4 py-2 text-slate-600">{r.periodo}</td>
-                        <td className="px-4 py-2 text-slate-600">{r.tipo}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.total}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.cumplidas}</td>
-                        <td className="px-4 py-2 text-right">
-                          <CompliancePct pct={r.cumplimientoPct} />
-                        </td>
-                        <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600">
-                          {r.enRiesgo || <span className="text-slate-300">—</span>}
-                        </td>
+              <>
+                {/* Tabla en tablet/escritorio; tarjetas en móvil (sin scroll lateral). */}
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-[720px] text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                      <tr>
+                        <th className="px-4 py-2 font-medium">Cliente</th>
+                        <th className="px-4 py-2 font-medium">Periodo</th>
+                        <th className="px-4 py-2 font-medium">Tipo</th>
+                        <th className="px-4 py-2 text-right font-medium">Total</th>
+                        <th className="px-4 py-2 text-right font-medium">Cumplidas</th>
+                        <th className="px-4 py-2 text-right font-medium">% Cumpl.</th>
+                        <th className="px-4 py-2 text-right font-medium">En riesgo</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {detail.slice(0, 16).map((r) => (
+                        <tr key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="border-t border-slate-100">
+                          <td className="max-w-52 truncate px-4 py-2 font-medium text-slate-700" title={r.cliente}>
+                            {r.cliente}
+                          </td>
+                          <td className="px-4 py-2 text-slate-600">{r.periodo}</td>
+                          <td className="px-4 py-2 text-slate-600">{r.tipo}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.total}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.cumplidas}</td>
+                          <td className="px-4 py-2 text-right">
+                            <CompliancePct pct={r.cumplimientoPct} />
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600">
+                            {r.enRiesgo || <span className="text-slate-300">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="space-y-2 p-3 md:hidden">
+                  {detail.slice(0, 16).map((r) => (
+                    <div key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="rounded-lg border border-slate-200 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="min-w-0 truncate font-medium text-slate-700" title={r.cliente}>
+                          {r.cliente}
+                        </p>
+                        <CompliancePct pct={r.cumplimientoPct} />
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {r.periodo} · {r.tipo}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                        <span>Total: <strong className="tabular-nums text-slate-700">{r.total}</strong></span>
+                        <span>Cumplidas: <strong className="tabular-nums text-slate-700">{r.cumplidas}</strong></span>
+                        <span>
+                          En riesgo:{' '}
+                          {r.enRiesgo ? (
+                            <strong className="tabular-nums text-red-600">{r.enRiesgo}</strong>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </section>
 

@@ -44,7 +44,7 @@ export function FilterBar({ fields, values, onChange, onClear, search, meta }: F
         )}
 
         {fields.map((f) => (
-          <div key={f.key} className="min-w-[150px]">
+          <div key={f.key} className="min-w-[140px] flex-1 sm:flex-none sm:min-w-[150px]">
             <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
               {f.label}
             </label>
