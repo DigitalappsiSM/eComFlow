@@ -55,7 +55,8 @@ export function ImportHistoryPage() {
             description="Cuando confirme una carga desde «Nueva carga», aparecerá aquí."
           />
         ) : (
-          <div className="card overflow-x-auto">
+          <>
+          <div className="card hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
@@ -99,6 +100,38 @@ export function ImportHistoryPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Tarjetas en móvil (sin scroll lateral). */}
+          <div className="space-y-3 md:hidden">
+            {state.imports.map((imp) => (
+              <div key={imp.import_id} className="card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 truncate font-medium text-slate-700" title={imp.file_name}>
+                    {imp.file_name}
+                  </p>
+                  <span
+                    className={`flex-none rounded-full px-2 py-0.5 text-xs font-medium ${
+                      STATUS_STYLES[imp.status] ?? 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {imp.status}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-slate-400">{fmtDate(imp.uploaded_at)}</p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                  <span>Total: <strong className="tabular-nums text-slate-700">{imp.total_rows}</strong></span>
+                  <span>Nuevos: <strong className="tabular-nums text-slate-700">{imp.new_lines}</strong></span>
+                  <span>Actualizados: <strong className="tabular-nums text-slate-700">{imp.updated_rows}</strong></span>
+                  <span>Sin cambios: <strong className="tabular-nums text-slate-700">{imp.unchanged_rows}</strong></span>
+                  <span>Rechazados: <strong className="tabular-nums text-slate-700">{imp.rejected_rows}</strong></span>
+                </div>
+                {imp.status === 'failed' && imp.failure_reason && (
+                  <p className="mt-2 text-xs text-red-600">{imp.failure_reason}</p>
+                )}
+              </div>
+            ))}
+          </div>
+          </>
         ))}
     </AppLayout>
   );
