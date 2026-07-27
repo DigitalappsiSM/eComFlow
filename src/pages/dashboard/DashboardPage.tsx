@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { KpiCard } from '@/components/dashboard/KpiCard';
-import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/States';
+import { ErrorState, LoadingState } from '@/components/feedback/States';
 import { FilterBar } from '@/components/filters/FilterBar';
 import { distinctOptions, sortedOptions, type FilterValues } from '@/components/filters/filter-utils';
 import { useDashboardData } from '@/features/dashboard/useDashboardData';
@@ -165,11 +165,17 @@ export function DashboardPage() {
       {state.status === 'error' && <ErrorState description={state.message} onRetry={() => void reload()} />}
 
       {state.status === 'ready' && (
-        <>
+        <div
+          className="-m-4 min-h-[calc(100%+2rem)] rounded-tl-2xl p-4 text-slate-200 sm:-m-6 sm:min-h-[calc(100%+3rem)] sm:p-6"
+          style={{
+            background:
+              'radial-gradient(48rem 30rem at 12% -6%, rgba(91,141,239,.18), transparent 60%), radial-gradient(42rem 34rem at 112% 8%, rgba(52,214,230,.12), transparent 62%), linear-gradient(180deg,#0c1424,#080d18)',
+          }}
+        >
           {truncated && (
             <div
               role="alert"
-              className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              className="mb-3 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200"
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
               <span>
@@ -189,7 +195,7 @@ export function DashboardPage() {
                 value={fijacionDesde}
                 onChange={(e) => setFijacionDesde(e.target.value)}
                 max={fijacionHasta || undefined}
-                className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="focus-ring rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
                 aria-label="Fijación desde"
               />
             </div>
@@ -202,7 +208,7 @@ export function DashboardPage() {
                 value={fijacionHasta}
                 onChange={(e) => setFijacionHasta(e.target.value)}
                 min={fijacionDesde || undefined}
-                className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="focus-ring rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
                 aria-label="Fijación hasta"
               />
             </div>
@@ -213,7 +219,7 @@ export function DashboardPage() {
                   setFijacionDesde('');
                   setFijacionHasta('');
                 }}
-                className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                className="focus-ring rounded-lg border border-white/15 px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/10"
               >
                 Limpiar fechas
               </button>
@@ -230,17 +236,18 @@ export function DashboardPage() {
               setFijacionHasta('');
             }}
             meta={`${filtered.length} de ${lines.length} líneas`}
+            tone="dark"
           />
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-            <KpiCard label="Avance prom." value={`${summary.avgProgress}%`} icon={Activity} accent={accentForPct(summary.avgProgress)} />
-            <KpiCard label="En riesgo" value={summary.enRiesgo} icon={AlertTriangle} accent="red" />
-            <KpiCard label="En proceso" value={summary.enProceso} icon={Clock} accent="violet" />
-            <KpiCard label="Cumplidas" value={summary.cumplidas} icon={CheckCircle2} accent="green" />
-            <KpiCard label="% A tiempo" value={`${summary.aTiempoPct}%`} icon={Timer} accent={accentForPct(summary.aTiempoPct)} />
-            <KpiCard label="Líneas" value={summary.total} icon={Image} accent="teal" />
-            <KpiCard label="Clientes" value={clientes} icon={Users} accent="blue" />
-            <KpiCard label="Periodos" value={periodos} icon={CalendarRange} accent="orange" />
+            <KpiCard tone="dark" label="Avance prom." value={`${summary.avgProgress}%`} icon={Activity} accent={accentForPct(summary.avgProgress)} />
+            <KpiCard tone="dark" label="En riesgo" value={summary.enRiesgo} icon={AlertTriangle} accent="red" />
+            <KpiCard tone="dark" label="En proceso" value={summary.enProceso} icon={Clock} accent="violet" />
+            <KpiCard tone="dark" label="Cumplidas" value={summary.cumplidas} icon={CheckCircle2} accent="green" />
+            <KpiCard tone="dark" label="% A tiempo" value={`${summary.aTiempoPct}%`} icon={Timer} accent={accentForPct(summary.aTiempoPct)} />
+            <KpiCard tone="dark" label="Líneas" value={summary.total} icon={Image} accent="teal" />
+            <KpiCard tone="dark" label="Clientes" value={clientes} icon={Users} accent="blue" />
+            <KpiCard tone="dark" label="Periodos" value={periodos} icon={CalendarRange} accent="orange" />
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -289,36 +296,36 @@ export function DashboardPage() {
             >
               <AvgProgressByClientBar data={byClient} />
             </ChartCard>
-            <section className="card p-5" aria-labelledby="defs-heading">
-              <h2 id="defs-heading" className="mb-3 text-sm font-semibold text-slate-800">
+            <section className="glass p-5" aria-labelledby="defs-heading">
+              <h2 id="defs-heading" className="mb-3 text-sm font-semibold text-slate-100">
                 Definiciones
               </h2>
               <dl className="space-y-2 text-xs">
                 {DEFINITIONS.map((d) => (
                   <div key={d.term}>
-                    <dt className="font-semibold text-slate-700">{d.term}</dt>
-                    <dd className="text-slate-500">{d.detail}</dd>
+                    <dt className="font-semibold text-slate-200">{d.term}</dt>
+                    <dd className="text-slate-400">{d.detail}</dd>
                   </div>
                 ))}
               </dl>
             </section>
           </div>
 
-          <section className="card mt-6 overflow-hidden p-0" aria-labelledby="detail-heading">
-            <div className="border-b border-slate-100 p-5">
-              <h2 id="detail-heading" className="text-sm font-semibold text-slate-800">
+          <section className="glass mt-6 overflow-hidden p-0" aria-labelledby="detail-heading">
+            <div className="border-b border-white/10 p-5">
+              <h2 id="detail-heading" className="text-sm font-semibold text-slate-100">
                 Detalle de cumplimiento
               </h2>
               <p className="text-xs text-slate-400">Por cliente · periodo · tipo (mayor riesgo primero)</p>
             </div>
             {detail.length === 0 ? (
-              <EmptyState title="Sin líneas" description="No hay líneas para el filtro actual." />
+              <p className="p-8 text-center text-sm text-slate-400">No hay líneas para el filtro actual.</p>
             ) : (
               <>
                 {/* Tabla en tablet/escritorio; tarjetas en móvil (sin scroll lateral). */}
                 <div className="hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[720px] text-sm">
-                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                    <thead className="bg-white/5 text-left text-xs uppercase text-slate-400">
                       <tr>
                         <th className="px-4 py-2 font-medium">Cliente</th>
                         <th className="px-4 py-2 font-medium">Periodo</th>
@@ -331,19 +338,19 @@ export function DashboardPage() {
                     </thead>
                     <tbody>
                       {detail.slice(0, 16).map((r) => (
-                        <tr key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="border-t border-slate-100">
-                          <td className="max-w-52 truncate px-4 py-2 font-medium text-slate-700" title={r.cliente}>
+                        <tr key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="border-t border-white/10 hover:bg-white/5">
+                          <td className="max-w-52 truncate px-4 py-2 font-medium text-slate-100" title={r.cliente}>
                             {r.cliente}
                           </td>
-                          <td className="px-4 py-2 text-slate-600">{r.periodo}</td>
-                          <td className="px-4 py-2 text-slate-600">{r.tipo}</td>
-                          <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.total}</td>
-                          <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.cumplidas}</td>
+                          <td className="px-4 py-2 text-slate-300">{r.periodo}</td>
+                          <td className="px-4 py-2 text-slate-300">{r.tipo}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-slate-400">{r.total}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-slate-400">{r.cumplidas}</td>
                           <td className="px-4 py-2 text-right">
                             <CompliancePct pct={r.cumplimientoPct} />
                           </td>
-                          <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600">
-                            {r.enRiesgo || <span className="text-slate-300">—</span>}
+                          <td className="px-4 py-2 text-right tabular-nums font-semibold text-rose-400">
+                            {r.enRiesgo || <span className="text-slate-600">—</span>}
                           </td>
                         </tr>
                       ))}
@@ -353,25 +360,25 @@ export function DashboardPage() {
 
                 <div className="space-y-2 p-3 md:hidden">
                   {detail.slice(0, 16).map((r) => (
-                    <div key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="rounded-lg border border-slate-200 p-3">
+                    <div key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="rounded-lg border border-white/10 bg-white/5 p-3">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="min-w-0 truncate font-medium text-slate-700" title={r.cliente}>
+                        <p className="min-w-0 truncate font-medium text-slate-100" title={r.cliente}>
                           {r.cliente}
                         </p>
                         <CompliancePct pct={r.cumplimientoPct} />
                       </div>
-                      <p className="mt-0.5 text-xs text-slate-500">
+                      <p className="mt-0.5 text-xs text-slate-400">
                         {r.periodo} · {r.tipo}
                       </p>
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                        <span>Total: <strong className="tabular-nums text-slate-700">{r.total}</strong></span>
-                        <span>Cumplidas: <strong className="tabular-nums text-slate-700">{r.cumplidas}</strong></span>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+                        <span>Total: <strong className="tabular-nums text-slate-200">{r.total}</strong></span>
+                        <span>Cumplidas: <strong className="tabular-nums text-slate-200">{r.cumplidas}</strong></span>
                         <span>
                           En riesgo:{' '}
                           {r.enRiesgo ? (
-                            <strong className="tabular-nums text-red-600">{r.enRiesgo}</strong>
+                            <strong className="tabular-nums text-rose-400">{r.enRiesgo}</strong>
                           ) : (
-                            <span className="text-slate-300">—</span>
+                            <span className="text-slate-600">—</span>
                           )}
                         </span>
                       </div>
@@ -383,14 +390,14 @@ export function DashboardPage() {
           </section>
 
           {lines.length === 0 && (
-            <div className="mt-6">
-              <EmptyState
-                title="La base de datos está vacía"
-                description="Cuando se procese una importación, el cumplimiento aparecerá aquí."
-              />
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+              <p className="text-sm font-medium text-slate-200">La base de datos está vacía</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Cuando se procese una importación, el cumplimiento aparecerá aquí.
+              </p>
             </div>
           )}
-        </>
+        </div>
       )}
     </AppLayout>
   );
@@ -398,7 +405,11 @@ export function DashboardPage() {
 
 function CompliancePct({ pct }: { pct: number }) {
   const tone =
-    pct >= 90 ? 'bg-green-50 text-accent-green' : pct >= 60 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600';
+    pct >= 90
+      ? 'bg-emerald-400/15 text-emerald-300'
+      : pct >= 60
+        ? 'bg-amber-400/15 text-amber-300'
+        : 'bg-rose-400/15 text-rose-300';
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${tone}`}>{pct}%</span>;
 }
 
@@ -418,10 +429,14 @@ function ChartCard({
   children: ReactNode;
 }) {
   return (
-    <section className={`card p-5 ${className ?? ''}`} aria-label={title}>
-      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+    <section className={`glass p-5 ${className ?? ''}`} aria-label={title}>
+      <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
       {subtitle && <p className="mb-3 text-xs text-slate-400">{subtitle}</p>}
-      {isEmpty ? <EmptyState title={emptyLabel ?? 'Sin datos en el periodo'} /> : children}
+      {isEmpty ? (
+        <p className="py-12 text-center text-sm text-slate-500">{emptyLabel ?? 'Sin datos en el periodo'}</p>
+      ) : (
+        children
+      )}
     </section>
   );
 }
