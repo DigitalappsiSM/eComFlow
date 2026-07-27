@@ -123,22 +123,52 @@ export function OperationsPage() {
   const handleSort = (col: SortKey) =>
     setSort((prev) => (prev.key === col ? { key: col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key: col, dir: 'asc' }));
 
-  // Orden en cliente sobre las filas ya filtradas. Sin orden activo, respeta el
-  // orden de carga. Empate estable por id de línea para evitar saltos.
-  const sortedRows = useMemo(() => {
-    if (!sort.key) return ops.rows;
+  // Firma del CONJUNTO de filas (ids); cambia al filtrar o cargar más, pero NO
+  // cuando solo cambia un check. El orden se calcula sobre esta firma para que
+  // marcar un check NO reordene la tabla en vivo (las filas no "saltan"): el
+  // orden se recalcula solo al cambiar de columna/dirección, filtro o página.
+  const idSignature = ops.rows.map((r) => r.line.campaign_line_id).join('|');
+  const orderedIds = useMemo(() => {
+    if (!sort.key) return null;
     const key = sort.key;
     const dir = sort.dir === 'asc' ? 1 : -1;
-    return [...ops.rows].sort((a, b) => {
-      const va = sortValue(a, key, today);
-      const vb = sortValue(b, key, today);
-      const cmp =
-        typeof va === 'number' && typeof vb === 'number'
-          ? va - vb
-          : String(va).localeCompare(String(vb), 'es');
-      return cmp !== 0 ? cmp * dir : a.line.campaign_line_id.localeCompare(b.line.campaign_line_id);
-    });
-  }, [ops.rows, sort, today]);
+    return [...ops.rows]
+      .sort((a, b) => {
+        const va = sortValue(a, key, today);
+        const vb = sortValue(b, key, today);
+        const cmp =
+          typeof va === 'number' && typeof vb === 'number'
+            ? va - vb
+            : String(va).localeCompare(String(vb), 'es');
+        return cmp !== 0 ? cmp * dir : a.line.campaign_line_id.localeCompare(b.line.campaign_line_id);
+      })
+      .map((r) => r.line.campaign_line_id);
+    // `ops.rows` se omite a propósito: usamos `idSignature` para no reordenar al marcar checks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort, idSignature, today]);
+
+  // Reproyecta el orden congelado a las filas ACTUALES (checks al día) y
+  // deduplica por id, evitando claves repetidas de React.
+  const sortedRows = useMemo(() => {
+    const byId = new Map(ops.rows.map((r) => [r.line.campaign_line_id, r]));
+    if (!orderedIds) return [...byId.values()];
+    const seen = new Set<string>();
+    const out: OperationRow[] = [];
+    for (const id of orderedIds) {
+      const r = byId.get(id);
+      if (r && !seen.has(id)) {
+        out.push(r);
+        seen.add(id);
+      }
+    }
+    for (const r of ops.rows) {
+      if (!seen.has(r.line.campaign_line_id)) {
+        out.push(r);
+        seen.add(r.line.campaign_line_id);
+      }
+    }
+    return out;
+  }, [orderedIds, ops.rows]);
 
   return (
     <AppLayout title="Seguimiento operativo" description="Estado y avance de cada línea operativa">
