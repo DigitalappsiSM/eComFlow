@@ -344,6 +344,23 @@ describe('dashboard-metrics · Cumplimiento (SLA)', () => {
     expect(s.avgProgress).toBe(75); // (100+100+40+60)/4
   });
 
+  it('% a tiempo nunca supera 100%: completar antes de que venza el periodo no infla el numerador', () => {
+    const lines = [
+      // Vencida y a tiempo → numerador y denominador.
+      done({ campaignLineId: 'v1', completedAtIso: '2026-07-15', periodoInicio: '2026-07-10', periodoFin: '2026-07-16' }),
+      // Completa a tiempo pero su periodo AÚN no vence (en curso) → no es "vencida".
+      done({ campaignLineId: 'c1', campaignSpaceId: 'sc', completedAtIso: '2026-07-19', periodoInicio: '2026-07-17', periodoFin: '2026-07-23' }),
+      // Completa con periodo futuro → tampoco vencida.
+      done({ campaignLineId: 'f1', campaignSpaceId: 'sf', completedAtIso: '2026-07-19', periodoInicio: '2026-07-24', periodoFin: '2026-07-30' }),
+    ];
+    const s = computeComplianceSummary(lines, today);
+    expect(s.cumplidas).toBe(3);
+    expect(s.vencidas).toBe(1); // solo v1
+    expect(s.aTiempo).toBe(1); // solo v1 (c1/f1 aún no vencen)
+    expect(s.aTiempoPct).toBe(100); // 1/1 — antes daba 300%
+    expect(s.aTiempoPct).toBeLessThanOrEqual(100);
+  });
+
   it('computeComplianceByClient ordena peor primero (más riesgo)', () => {
     const lines = [
       done({ clienteOriginal: 'BUENO', clienteKey: 'bueno', campaignLineId: 'l1' }),
