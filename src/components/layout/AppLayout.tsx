@@ -44,7 +44,10 @@ export function AppLayout({ title, description, children }: AppLayoutProps) {
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header title={title} description={description} onOpenMenu={() => setMobileOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        {/* Lienzo de trabajo claro enmarcado por el chrome de vidrio oscuro. */}
+        <main className="flex-1 overflow-y-auto rounded-tl-2xl border-l border-t border-white/10 bg-canvas p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] sm:p-6">
+          {children}
+        </main>
       </div>
     </div>
   );

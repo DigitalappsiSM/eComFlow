@@ -19,14 +19,23 @@ export default {
           violet: '#7c3aed',
           orange: '#ea580c',
           teal: '#0d9488',
+          cyan: '#22d3ee',
+        },
+        // Fondo tinta profundo del nuevo shell "tech ejecutivo".
+        ink: {
+          900: '#080d18',
+          800: '#0c1424',
+          700: '#0e1728',
         },
         canvas: '#f6f7f9',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       boxShadow: {
         card: '0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06)',
+        glass: '0 24px 60px -28px rgba(0, 0, 0, 0.75)',
       },
     },
   },
