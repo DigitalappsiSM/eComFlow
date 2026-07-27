@@ -14,16 +14,22 @@ interface FilterBarProps {
   search?: { value: string; onChange: (v: string) => void; placeholder?: string };
   /** Texto opcional a la derecha (p. ej. "120 de 434 líneas"). */
   meta?: string;
+  /** 'dark' usa vidrio oscuro con texto claro (dashboard tech ejecutivo). */
+  tone?: 'light' | 'dark';
 }
 
-export function FilterBar({ fields, values, onChange, onClear, search, meta }: FilterBarProps) {
+export function FilterBar({ fields, values, onChange, onClear, search, meta, tone = 'light' }: FilterBarProps) {
   const active = fields
     .map((f) => ({ field: f, value: values[f.key] ?? '' }))
     .filter((x) => x.value !== '');
   const hasActive = active.length > 0 || !!search?.value;
+  const dark = tone === 'dark';
+  const inputCls = dark
+    ? 'border-white/15 bg-white/5 text-slate-100 placeholder-slate-500'
+    : 'border-slate-300 bg-white';
 
   return (
-    <div className="card mb-4 p-3">
+    <div className={`${dark ? 'glass' : 'card'} mb-4 p-3`}>
       <div className="flex flex-wrap items-end gap-3">
         {search && (
           <div className="min-w-[220px] flex-1">
@@ -36,7 +42,7 @@ export function FilterBar({ fields, values, onChange, onClear, search, meta }: F
                 value={search.value}
                 onChange={(e) => search.onChange(e.target.value)}
                 placeholder={search.placeholder ?? 'Buscar…'}
-                className="focus-ring w-full rounded-lg border border-slate-300 py-2 pl-8 pr-3 text-sm"
+                className={`focus-ring w-full rounded-lg border py-2 pl-8 pr-3 text-sm ${inputCls}`}
                 aria-label="Buscar"
               />
             </div>
@@ -51,7 +57,7 @@ export function FilterBar({ fields, values, onChange, onClear, search, meta }: F
             <select
               value={values[f.key] ?? ''}
               onChange={(e) => onChange(f.key, e.target.value)}
-              className="focus-ring w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm"
+              className={`focus-ring w-full rounded-lg border px-2.5 py-2 text-sm ${dark ? 'border-white/15 bg-white/5 text-slate-100 [&>option]:text-slate-900' : 'border-slate-300 bg-white'}`}
               aria-label={f.label}
             >
               <option value="">Todos</option>
@@ -70,7 +76,7 @@ export function FilterBar({ fields, values, onChange, onClear, search, meta }: F
             <button
               type="button"
               onClick={onClear}
-              className="focus-ring inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              className={`focus-ring inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium ${dark ? 'border-white/15 text-slate-300 hover:bg-white/10' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" /> Limpiar
             </button>
@@ -79,7 +85,7 @@ export function FilterBar({ fields, values, onChange, onClear, search, meta }: F
       </div>
 
       {hasActive && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2">
+        <div className={`mt-2 flex flex-wrap items-center gap-1.5 border-t pt-2 ${dark ? 'border-white/10' : 'border-slate-100'}`}>
           <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
           {active.map(({ field, value }) => (
             <button

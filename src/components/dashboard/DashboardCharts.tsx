@@ -35,9 +35,9 @@ import type {
 import type { CheckKey } from '@/domain/progress';
 
 /** Paleta categórica (acentos del tema). */
-const PALETTE = ['#2563eb', '#7c3aed', '#0d9488', '#ea580c', '#16a34a', '#db2777', '#0891b2', '#ca8a04'];
-const AXIS = '#64748b';
-const GRID = '#e2e8f0';
+const PALETTE = ['#5b8def', '#a78bfa', '#2dd4bf', '#fb923c', '#34d399', '#f472b6', '#22d3ee', '#facc15'];
+const AXIS = '#94a3b8';
+const GRID = 'rgba(255,255,255,0.09)';
 
 /** Colores del estado operativo. */
 export const STATUS_COLORS = {
