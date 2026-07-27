@@ -60,7 +60,7 @@ const DEFINITIONS: { term: string; detail: string }[] = [
   { term: 'En riesgo', detail: 'El periodo ya venció y la línea sigue incompleta.' },
   { term: 'En proceso', detail: 'El periodo está en curso y la línea aún no se completa.' },
   { term: 'Futura', detail: 'El periodo aún no comienza.' },
-  { term: '% A tiempo', detail: 'Líneas completadas antes del fin de su periodo ÷ líneas ya vencidas.' },
+  { term: '% A tiempo', detail: 'De las líneas ya vencidas, las que se completaron a más tardar al fin de su periodo ÷ líneas ya vencidas.' },
   { term: 'Checks obligatorios', detail: 'DIGITAL SIGNAGE solo exige Artes; el resto, los 7 checks.' },
 ];
 

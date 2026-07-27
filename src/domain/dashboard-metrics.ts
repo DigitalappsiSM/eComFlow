@@ -570,7 +570,10 @@ export function computeComplianceSummary(
     switch (complianceStatusOf(l, today)) {
       case 'cumplida':
         cumplidas += 1;
-        if (completedOnTime(l)) aTiempo += 1;
+        // El SLA "a tiempo" solo aplica a líneas cuyo periodo YA venció: así el
+        // numerador nunca excede al denominador (una línea completada antes de
+        // que termine su periodo no infla el porcentaje por encima de 100%).
+        if (vencida && completedOnTime(l)) aTiempo += 1;
         break;
       case 'en_riesgo':
         enRiesgo += 1;
