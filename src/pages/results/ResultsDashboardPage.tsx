@@ -114,16 +114,22 @@ export function ResultsDashboardPage() {
             description="Aún no hay consolidado semanal. Importa un reporte Kevel en «Nueva carga»."
           />
         ) : (
-          <>
+          <div
+            className="-m-4 min-h-[calc(100%+2rem)] rounded-tl-2xl p-4 text-slate-200 sm:-m-6 sm:min-h-[calc(100%+3rem)] sm:p-6"
+            style={{
+              background:
+                'radial-gradient(48rem 30rem at 12% -6%, rgba(91,141,239,.18), transparent 60%), radial-gradient(42rem 34rem at 112% 8%, rgba(52,214,230,.12), transparent 62%), linear-gradient(180deg,#0c1424,#080d18)',
+            }}
+          >
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
+              <div className="inline-flex flex-wrap rounded-lg border border-white/10 bg-white/5 p-0.5 text-sm backdrop-blur-xl">
                 {(['real', 'effective', 'adjusted', 'compare'] as DashView[]).map((v) => (
                   <button
                     key={v}
                     type="button"
                     onClick={() => setDashView(v)}
                     className={`focus-ring rounded-md px-3 py-1.5 font-medium ${
-                      dashView === v ? 'bg-accent-blue text-white' : 'text-slate-600 hover:bg-slate-50'
+                      dashView === v ? 'bg-accent-blue text-white' : 'text-slate-300 hover:bg-white/10'
                     }`}
                   >
                     {VIEW_LABEL[v]}
@@ -151,6 +157,7 @@ export function ResultsDashboardPage() {
               onClear={() => setFilters({})}
               search={{ value: filters.search ?? '', onChange: (v) => setFilters((f) => ({ ...f, search: v })), placeholder: 'Buscar cliente, campaña, artículo, categoría…' }}
               meta={`${filtered.length} de ${lines.length} filas`}
+              tone="dark"
             />
 
             {compare ? (
@@ -161,14 +168,14 @@ export function ResultsDashboardPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-                <KpiCard label="Impresiones" value={nf.format(kpis.impressions)} icon={BarChart3} accent="blue" />
-                <KpiCard label="Clics (únicos)" value={nf.format(kpis.clicks)} icon={MousePointerClick} accent="violet" />
-                <KpiCard label="CTR" value={pct(kpis.ctr)} icon={Percent} accent="teal" />
-                <KpiCard label="Clientes" value={kpis.clientes} icon={Users} accent="green" />
-                <KpiCard label="Campañas" value={kpis.campanas} icon={Flag} accent="orange" />
-                <KpiCard label="Artículos" value={kpis.articulos} icon={Package} accent="blue" />
-                <KpiCard label="Categorías" value={kpis.categorias} icon={Tag} accent="violet" />
-                <KpiCard label="Periodos" value={kpis.periodos} icon={CalendarRange} accent="teal" />
+                <KpiCard tone="dark" label="Impresiones" value={nf.format(kpis.impressions)} icon={BarChart3} accent="blue" />
+                <KpiCard tone="dark" label="Clics (únicos)" value={nf.format(kpis.clicks)} icon={MousePointerClick} accent="violet" />
+                <KpiCard tone="dark" label="CTR" value={pct(kpis.ctr)} icon={Percent} accent="teal" />
+                <KpiCard tone="dark" label="Clientes" value={kpis.clientes} icon={Users} accent="green" />
+                <KpiCard tone="dark" label="Campañas" value={kpis.campanas} icon={Flag} accent="orange" />
+                <KpiCard tone="dark" label="Artículos" value={kpis.articulos} icon={Package} accent="blue" />
+                <KpiCard tone="dark" label="Categorías" value={kpis.categorias} icon={Tag} accent="violet" />
+                <KpiCard tone="dark" label="Periodos" value={kpis.periodos} icon={CalendarRange} accent="teal" />
               </div>
             )}
 
@@ -199,17 +206,17 @@ export function ResultsDashboardPage() {
               </ChartCard>
             </div>
 
-            <section className="card mt-6 overflow-hidden p-0" aria-labelledby="res-table">
-              <div className="border-b border-slate-100 p-5">
-                <h2 id="res-table" className="text-sm font-semibold text-slate-800">Detalle consolidado</h2>
+            <section className="glass mt-6 overflow-hidden p-0" aria-labelledby="res-table">
+              <div className="border-b border-white/10 p-5">
+                <h2 id="res-table" className="text-sm font-semibold text-slate-100">Detalle consolidado</h2>
                 <p className="text-xs text-slate-400">Semana · Cliente · Campaña · Artículo · Categoría (orden cronológico)</p>
               </div>
               {tableRows.length === 0 ? (
-                <EmptyState title="Sin filas" description="Ajusta los filtros." />
+                <p className="p-8 text-center text-sm text-slate-400">Ajusta los filtros.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[980px] text-sm">
-                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                    <thead className="bg-white/5 text-left text-xs uppercase text-slate-400">
                       <tr>
                         <th className="px-3 py-2 font-medium">Mes</th>
                         <th className="px-3 py-2 font-medium">Semana</th>
@@ -228,25 +235,25 @@ export function ResultsDashboardPage() {
                         const imp = impressionsOf(l, view);
                         const clk = clicksOf(l, view);
                         return (
-                          <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                            <td className="px-3 py-2 text-slate-500">{monthName(l.month)}</td>
-                            <td className="px-3 py-2 font-medium text-slate-700">{l.period_code}</td>
-                            <td className="max-w-40 truncate px-3 py-2 text-slate-600" title={l.cliente}>{l.cliente}</td>
-                            <td className="max-w-40 truncate px-3 py-2 text-slate-600" title={l.campaign}>{l.campaign}</td>
-                            <td className="px-3 py-2 text-slate-600">{l.articulo}</td>
-                            <td className="px-3 py-2 text-slate-500">{l.categoria}</td>
-                            <td className="px-3 py-2 text-slate-500">{DEVICE_LABEL[l.device]}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-slate-700">
+                          <tr key={i} className="border-t border-white/10 hover:bg-white/5">
+                            <td className="px-3 py-2 text-slate-400">{monthName(l.month)}</td>
+                            <td className="px-3 py-2 font-medium text-slate-100">{l.period_code}</td>
+                            <td className="max-w-40 truncate px-3 py-2 text-slate-300" title={l.cliente}>{l.cliente}</td>
+                            <td className="max-w-40 truncate px-3 py-2 text-slate-300" title={l.campaign}>{l.campaign}</td>
+                            <td className="px-3 py-2 text-slate-300">{l.articulo}</td>
+                            <td className="px-3 py-2 text-slate-400">{l.categoria}</td>
+                            <td className="px-3 py-2 text-slate-400">{DEVICE_LABEL[l.device]}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-slate-100">
                               {nf.format(imp)}
                               {view === 'effective' && l.impressions_estimated > 0 && (
-                                <span className="ml-1 text-[10px] text-amber-600">+est</span>
+                                <span className="ml-1 text-[10px] text-amber-300">+est</span>
                               )}
                               {view === 'adjusted' && l.has_adjustment && (
                                 <span className="ml-1 text-[10px] text-accent-blue">aj</span>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-slate-700">{nf.format(clk)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-slate-500">{pct(imp > 0 ? clk / imp : 0)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-slate-100">{nf.format(clk)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-slate-400">{pct(imp > 0 ? clk / imp : 0)}</td>
                           </tr>
                         );
                       })}
@@ -255,17 +262,17 @@ export function ResultsDashboardPage() {
                 </div>
               )}
               {filtered.length > tableRows.length && (
-                <div className="border-t border-slate-100 p-3 text-center">
+                <div className="border-t border-white/10 p-3 text-center">
                   <button
                     onClick={() => setLimit((n) => n + 50)}
-                    className="focus-ring rounded-lg border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    className="focus-ring rounded-lg border border-white/15 px-4 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/10"
                   >
                     Cargar más ({filtered.length - tableRows.length} restantes)
                   </button>
                 </div>
               )}
             </section>
-          </>
+          </div>
         ))}
     </AppLayout>
   );
@@ -275,18 +282,18 @@ function CompareCard({ label, real, adjusted, isPct = false }: { label: string; 
   const fmt = (v: number) => (isPct ? pct(v) : nf.format(v));
   const diff = adjusted - real;
   const diffPct = real !== 0 ? diff / real : 0;
-  const tone = diff > 0 ? 'text-accent-green' : diff < 0 ? 'text-red-600' : 'text-slate-400';
+  const tone = diff > 0 ? 'text-emerald-300' : diff < 0 ? 'text-rose-300' : 'text-slate-400';
   return (
-    <div className="card p-4">
-      <p className="text-sm text-slate-500">{label}</p>
+    <div className="glass p-4">
+      <p className="text-sm text-slate-400">{label}</p>
       <div className="mt-2 grid grid-cols-2 gap-3">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-slate-400">Real</p>
-          <p className="text-lg font-bold text-slate-900 tabular-nums">{fmt(real)}</p>
+          <p className="text-lg font-bold text-white tabular-nums">{fmt(real)}</p>
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-wide text-slate-400">Ajustado</p>
-          <p className="text-lg font-bold text-slate-900 tabular-nums">{fmt(adjusted)}</p>
+          <p className="text-lg font-bold text-white tabular-nums">{fmt(adjusted)}</p>
         </div>
       </div>
       <p className={`mt-2 text-xs font-medium tabular-nums ${tone}`}>
@@ -299,10 +306,10 @@ function CompareCard({ label, real, adjusted, isPct = false }: { label: string; 
 
 function ChartCard({ title, subtitle, isEmpty, className, children }: { title: string; subtitle?: string; isEmpty: boolean; className?: string; children: ReactNode }) {
   return (
-    <section className={`card p-5 ${className ?? ''}`} aria-label={title}>
-      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+    <section className={`glass p-5 ${className ?? ''}`} aria-label={title}>
+      <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
       {subtitle && <p className="mb-3 text-xs text-slate-400">{subtitle}</p>}
-      {isEmpty ? <EmptyState title="Sin datos" /> : children}
+      {isEmpty ? <p className="py-12 text-center text-sm text-slate-500">Sin datos</p> : children}
     </section>
   );
 }
