@@ -2,6 +2,7 @@
 
 import type { Timestamp } from 'firebase/firestore';
 import type { IsoDate } from '@/lib/dates';
+import type { PeriodGranularity } from '@/domain/retailers/types';
 
 export interface AuditFields {
   created_at: Timestamp | null;
@@ -92,4 +93,18 @@ export interface CampaignLine extends AuditFields {
   anunciante: string;
   required_pieces: number;
   cancelled: boolean;
+
+  // --- Multi-retailer / consolidación de activaciones diarias (opcionales para
+  // documentos históricos; se escriben en importaciones nuevas). ---
+  retailer_id?: string | null;
+  /** Fechas de activación (días) consolidados en esta línea, únicas y ordenadas. */
+  activation_dates?: string[];
+  /** Periodo Id Ekon de cada activación (auditoría). */
+  period_ids?: string[];
+  /** "Línea campaña" Ekon de cada activación (auditoría). */
+  external_line_ids?: string[];
+  activation_start?: IsoDate | null;
+  activation_end?: IsoDate | null;
+  activation_count?: number;
+  period_granularity?: PeriodGranularity | null;
 }

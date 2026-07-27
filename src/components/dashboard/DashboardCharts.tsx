@@ -60,7 +60,7 @@ const CHECK_LABELS: Record<CheckKey, string> = {
   artes: 'Artes',
   validacion: 'Validación',
   link: 'Link',
-  kevel: 'Kevel',
+  kevel: 'Ad server',
   testigos_app: 'T. App',
   testigos_web: 'T. Web',
 };

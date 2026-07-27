@@ -50,6 +50,10 @@ function baseMetricLine(line: CampaignLine): MetricLine {
     periodoFin: line.periodo_fin ?? null,
     tipoCampanaPeriodo: line.tipo_campana_periodo ?? null,
     cancelled: line.cancelled ?? false,
+    retailerId: line.retailer_id ?? null,
+    activationStart: line.activation_start ?? null,
+    activationEnd: line.activation_end ?? null,
+    activationCount: line.activation_count ?? null,
   };
 }
 

@@ -11,6 +11,7 @@
 import type { CampaignIdentity } from './identity';
 import { buildIdentity } from './identity';
 import { classifyRow, type ExistingLineRef, type ImportResult } from './import-classification';
+import type { IdentityStrategy, PeriodGranularity } from './retailers/types';
 import type { PlacementIndex } from './placement-index';
 import {
   findDuplicateLineKeys,
@@ -65,6 +66,19 @@ export interface RowPlan {
     periodoFin?: string;
     /** Clasificación operativa del periodo: nueva fijación o continuidad inmediata. */
     tipoCampanaPeriodo?: 'fijacion' | 'continua';
+    // --- Multi-retailer / consolidación de activaciones diarias ---
+    retailerId?: string | null;
+    identityStrategy?: IdentityStrategy;
+    periodGranularity?: PeriodGranularity;
+    /** Activaciones (día/periodo/línea Ekon) acumuladas al consolidar (La Comer). */
+    activations?: { date: string; periodId: string; lineId: string; numSoportes: number }[];
+    /** Resultado consolidado (persistido en la línea; §6). */
+    activationDates?: string[];
+    periodIds?: string[];
+    externalLineIds?: string[];
+    activationStart?: string | null;
+    activationEnd?: string | null;
+    activationCount?: number;
   };
 }
 

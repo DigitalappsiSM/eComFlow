@@ -6,7 +6,11 @@
  * nunca de datos dinámicos de requirements.
  */
 
-import { lookupMeasures, type ArtMeasures } from './ecommerceMeasures';
+import { type ArtMeasures } from './ecommerceMeasures';
+import { adapterForLine, resolveRetailerAdapter } from '@/domain/retailers/registry';
+
+const SPONSORED_NOTE =
+  'SPONSORED PRODUCT no requiere piezas gráficas. Favor de compartir el listado de productos/SKUs requerido para su configuración.';
 
 /**
  * Proyección mínima de una línea para el correo. `CampaignLine` es asignable a
@@ -14,6 +18,7 @@ import { lookupMeasures, type ArtMeasures } from './ecommerceMeasures';
  */
 export interface EmailSourceLine {
   cadena?: string | null;
+  retailer_id?: string | null;
   cliente_original?: string | null;
   numero_campaña_original?: string | null;
   anunciante?: string | null;
@@ -25,6 +30,9 @@ export interface EmailSourceLine {
   creatividad_descripcion_original?: string | null;
   fecha_fijacion?: string | null;
   fecha_retirada?: string | null;
+  /** Rango de activación consolidado (La Comer): prevalece sobre fijación/retirada. */
+  activation_start?: string | null;
+  activation_end?: string | null;
   // Fuentes alternativas de descripción (por si el modelo cambia).
   creatividad_descripcion?: string | null;
   creative_description?: string | null;
@@ -45,6 +53,8 @@ export interface EmailRow {
   fijacionIso: string;
   retiradaIso: string;
   measures: ArtMeasures;
+  /** El artículo no requiere piezas gráficas (p. ej. SPONSORED PRODUCT). */
+  noArt: boolean;
 }
 
 const EM_DASH = '—';
@@ -140,6 +150,19 @@ function sortPeriods(periods: Iterable<string>): string[] {
  * descripción), uniendo periodos y tomando la mínima fijación y máxima retirada.
  * Distintas creatividades quedan como filas distintas.
  */
+/** Medidas + flag "sin arte" del artículo, resueltas por el adaptador del retailer. */
+function measuresForLine(line: EmailSourceLine, articulo: string): { measures: ArtMeasures; noArt: boolean } {
+  const cfg = adapterForLine({ retailer_id: line.retailer_id ?? null, cadena: line.cadena ?? null }).articleConfig(articulo);
+  if (!cfg || !cfg.measures) {
+    return { measures: { desktop: EM_DASH, mobile: EM_DASH, app1: EM_DASH, app2: EM_DASH }, noArt: false };
+  }
+  const m = cfg.measures;
+  return {
+    measures: { desktop: m.desktop, mobile: m.mobile, app1: m.app1 ?? EM_DASH, app2: m.app2 ?? EM_DASH },
+    noArt: !cfg.requiresArtCheck,
+  };
+}
+
 export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
   const groups = new Map<string, EmailRow & { _periods: Set<string> }>();
 
@@ -153,8 +176,9 @@ export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
     const creatividadId = (line.creatividad_id_original ?? '').trim();
     const key = [cliente, cadena, articulo, creatividadId, nivel, descripcion].join('||');
 
-    const fijacion = (line.fecha_fijacion ?? '').trim();
-    const retirada = (line.fecha_retirada ?? '').trim();
+    // Rango de fechas: activación consolidada (La Comer) o fijación/retirada.
+    const fijacion = (line.activation_start ?? line.fecha_fijacion ?? '').trim();
+    const retirada = (line.activation_end ?? line.fecha_retirada ?? '').trim();
     const periodo = periodoLabelOf(line);
 
     const existing = groups.get(key);
@@ -164,6 +188,7 @@ export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
       existing.retiradaIso = maxIso(existing.retiradaIso, retirada);
       continue;
     }
+    const { measures, noArt } = measuresForLine(line, articulo);
     groups.set(key, {
       key,
       cadena,
@@ -175,7 +200,8 @@ export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
       nivel,
       fijacionIso: fijacion,
       retiradaIso: retirada,
-      measures: lookupMeasures(articulo),
+      measures,
+      noArt,
       _periods: new Set(periodo ? [periodo] : []),
     });
   }
@@ -288,6 +314,12 @@ export function greeting(recipientName: string): string {
   return name ? `Hola ${name},` : 'Hola,';
 }
 
+/** Nombre de sitio del correo según el retailer de las filas (mixto → Soriana.com). */
+export function emailSiteName(rows: readonly EmailRow[]): string {
+  const names = new Set(rows.map((r) => resolveRetailerAdapter(r.cadena).emailConfig.siteName));
+  return names.size === 1 ? [...names][0]! : 'Soriana.com';
+}
+
 /**
  * Arma el correo completo listo para copiar. La tabla usa TABULACIONES (`\t`)
  * para que se pegue bien en correo/documentos.
@@ -300,6 +332,8 @@ export function buildEmailText(
   const ctx = computeEmailContext(rows);
   const periodosTexto = ctx.periodos.join(', ') || EM_DASH;
   const deadlineTexto = ctx.deadlineIso ? formatDateLong(ctx.deadlineIso) : 'Por confirmar';
+  const siteName = emailSiteName(rows);
+  const hasSponsored = rows.some((r) => r.noArt);
 
   const headerLine = EMAIL_TABLE_COLUMNS.join('\t');
   const bodyLines = rows.map((r) => emailRowCells(r).join('\t'));
@@ -308,12 +342,13 @@ export function buildEmailText(
   return [
     greeting(recipientName),
     '',
-    `Espero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${campaignId || EM_DASH} para Soriana.com, activa del ${formatDateLong(ctx.inicioIso)} al ${formatDateLong(ctx.finIso)}, correspondiente a los periodos ${periodosTexto}.`,
+    `Espero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${campaignId || EM_DASH} para ${siteName}, activa del ${formatDateLong(ctx.inicioIso)} al ${formatDateLong(ctx.finIso)}, correspondiente a los periodos ${periodosTexto}.`,
     '',
     'A continuación encontrarán el detalle de las creatividades requeridas:',
     '',
     table,
     '',
+    ...(hasSponsored ? [SPONSORED_NOTE, ''] : []),
     `📅 Fecha límite de entrega de materiales: ${deadlineTexto}`,
     '',
     'Esta fecha es indispensable para asegurar la correcta implementación de su campaña. Materiales recibidos fuera de plazo podrán quedar sujetos a reprogramación.',
@@ -351,6 +386,8 @@ export function buildEmailHtml(
   const periodosTexto = escapeHtml(ctx.periodos.join(', ') || EM_DASH);
   const deadlineTexto = escapeHtml(ctx.deadlineIso ? formatDateLong(ctx.deadlineIso) : 'Por confirmar');
   const campaignTexto = escapeHtml(campaignId || EM_DASH);
+  const siteName = escapeHtml(emailSiteName(rows));
+  const hasSponsored = rows.some((r) => r.noArt);
 
   const th =
     'padding:6px 10px;border:1px solid #cbd5e1;text-align:left;font-weight:600;white-space:nowrap;';
@@ -367,12 +404,13 @@ export function buildEmailHtml(
   return [
     '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1e293b;line-height:1.5;">',
     `<p>${escapeHtml(greeting(recipientName))}</p>`,
-    `<p>Espero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${campaignTexto} para <strong>Soriana.com</strong>, activa del ${escapeHtml(formatDateLong(ctx.inicioIso))} al ${escapeHtml(formatDateLong(ctx.finIso))}, correspondiente a los periodos ${periodosTexto}.</p>`,
+    `<p>Espero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #${campaignTexto} para <strong>${siteName}</strong>, activa del ${escapeHtml(formatDateLong(ctx.inicioIso))} al ${escapeHtml(formatDateLong(ctx.finIso))}, correspondiente a los periodos ${periodosTexto}.</p>`,
     '<p>A continuación encontrarán el detalle de las creatividades requeridas:</p>',
     '<table role="presentation" cellspacing="0" cellpadding="0" border="1" style="border-collapse:collapse;font-size:12px;color:#1e293b;">',
     `<thead><tr style="background:#0f2350;color:#ffffff;">${headCells}</tr></thead>`,
     `<tbody>${bodyRows}</tbody>`,
     '</table>',
+    ...(hasSponsored ? [`<p style="margin-top:8px;"><strong>${escapeHtml(SPONSORED_NOTE)}</strong></p>`] : []),
     `<p>📅 <strong>Fecha límite de entrega de materiales:</strong> ${deadlineTexto}</p>`,
     '<p>Esta fecha es indispensable para asegurar la correcta implementación de su campaña. Materiales recibidos fuera de plazo podrán quedar sujetos a reprogramación.</p>',
     '<p>📎 Adjunto encontrarán nuestra Guía de Buenas Prácticas con los requisitos técnicos que deben cumplir todos los materiales antes del envío.</p>',
