@@ -76,6 +76,36 @@ export function formatDateRange(start: string, end: string): string {
 }
 
 /**
+ * Consolida fechas en bloques CONTIGUOS y formatea cada bloque como rango.
+ * A diferencia de `formatActivationDates`, no colapsa a "N fechas no
+ * consecutivas": presenta cada tramo continuo como su propio rango.
+ *  - []                              → ""
+ *  - 15..31 ago                      → "15–31 ago 2026"
+ *  - 15..31 ago + 1..13 sep          → "15 ago–13 sep 2026" (si son contiguas)
+ *  - 15..20 ago + 25..28 ago (hueco) → "15–20 ago 2026 y 25–28 ago 2026"
+ */
+export function formatConsolidatedRanges(dates: readonly string[]): string {
+  const s = sortUniqueDates(dates);
+  if (s.length === 0) return '';
+  const blocks: Array<{ start: string; end: string }> = [];
+  let start = s[0]!;
+  let prev = s[0]!;
+  for (let i = 1; i < s.length; i += 1) {
+    if (nextDay(prev) === s[i]) {
+      prev = s[i]!;
+      continue;
+    }
+    blocks.push({ start, end: prev });
+    start = s[i]!;
+    prev = s[i]!;
+  }
+  blocks.push({ start, end: prev });
+  const parts = blocks.map((b) => formatDateRange(b.start, b.end));
+  if (parts.length === 1) return parts[0]!;
+  return `${parts.slice(0, -1).join(', ')} y ${parts[parts.length - 1]}`;
+}
+
+/**
  * Presenta una lista de fechas de activación (§13):
  *  - vacío → ""
  *  - consecutivas → rango comprimido ("15 ago–3 sep 2026")

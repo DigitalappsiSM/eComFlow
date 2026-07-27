@@ -41,7 +41,6 @@ function applyFilters(lines: CampaignLine[], f: FilterValues, desde: string, has
   const q = (f.search ?? '').trim().toLowerCase();
   return lines.filter((l) => {
     if (f.cliente && (l.cliente_original ?? '') !== f.cliente) return false;
-    if (f.periodo && periodoLabelOf(l) !== f.periodo) return false;
     if (f.cadena && (l.cadena ?? '') !== f.cadena) return false;
     if (f.anunciante && (l.anunciante ?? '') !== f.anunciante) return false;
     if (f.articulo && articuloOf(l) !== f.articulo) return false;
@@ -133,7 +132,6 @@ export function CampaignsListPage() {
   const filterFields = useMemo(
     () => [
       { key: 'cliente', label: 'Cliente', options: distinctOptions(ecommerceLines, (l) => l.cliente_original) },
-      { key: 'periodo', label: 'Periodo', options: distinctOptions(ecommerceLines, (l) => periodoLabelOf(l)) },
       { key: 'cadena', label: 'Cadena', options: distinctOptions(ecommerceLines, (l) => l.cadena) },
       { key: 'anunciante', label: 'Anunciante', options: distinctOptions(ecommerceLines, (l) => l.anunciante) },
       { key: 'articulo', label: 'Artículo', options: distinctOptions(ecommerceLines, (l) => articuloOf(l)) },
@@ -141,7 +139,7 @@ export function CampaignsListPage() {
     [ecommerceLines],
   );
 
-  const hasSelection = filters.cliente || filters.periodo || filters.cadena || filters.anunciante ||
+  const hasSelection = filters.cliente || filters.cadena || filters.anunciante ||
     filters.articulo || filters.search || desde || hasta;
 
   async function handleCopyHtml() {
@@ -189,7 +187,7 @@ export function CampaignsListPage() {
   return (
     <AppLayout
       title="Correo de especificaciones Ecommerce"
-      description="Filtra por cliente, periodo o fechas y arma un correo listo para Outlook"
+      description="Filtra por cliente, cadena o rango de fechas y arma un correo listo para Outlook"
     >
       {state.status === 'loading' && <LoadingState label="Cargando líneas Ecommerce…" />}
       {state.status === 'error' && <ErrorState description={state.message} />}
@@ -199,7 +197,7 @@ export function CampaignsListPage() {
           <div className="card p-5">
             <h2 className="text-base font-bold text-slate-900">Correo de especificaciones Ecommerce</h2>
             <p className="mt-1 text-xs text-slate-400">
-              Selecciona con filtros (cliente, periodo, fechas…) y el correo se arma con las líneas de operativa
+              Selecciona con filtros (cliente, cadena, rango de fechas…) y el correo se arma con las líneas de operativa
               <strong> Ecommerce</strong> de todas las campañas que apliquen. Las medidas provienen del catálogo fijo.
             </p>
           </div>
@@ -273,7 +271,7 @@ export function CampaignsListPage() {
                   description={
                     hasSelection
                       ? 'Ninguna línea Ecommerce coincide con los filtros actuales.'
-                      : 'Selecciona un cliente, periodo o rango de fechas para armar el correo.'
+                      : 'Selecciona un cliente, cadena o rango de fechas para armar el correo.'
                   }
                 />
               ) : (

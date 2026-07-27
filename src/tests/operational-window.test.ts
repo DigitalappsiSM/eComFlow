@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { campaignLineWindow, isInvalidRange, windowIntersects } from '@/domain/operational-window';
-import { buildEmailRows, emailRowCells, emailSiteName, buildEmailText } from '@/pages/campaigns/ecommerceEmail';
+import { buildEmailRows, emailRowCells, emailSiteName, buildEmailText, computeEmailContext, rowPeriodsText } from '@/pages/campaigns/ecommerceEmail';
 
 describe('ventana operativa y cruce de rango (§12)', () => {
   const win = { start: '2026-08-15', end: '2026-09-03' };
@@ -73,6 +73,51 @@ describe('correo Ecommerce multi-retailer (§16)', () => {
     expect(text).toContain('SPONSORED PRODUCT no requiere piezas gráficas');
     expect(text).toContain('listado de productos/SKUs');
     expect(emailSiteName(rows)).toBe('La Comer');
+  });
+
+  it('La Comer: consolida las fechas de activación diarias en rangos (no día a día)', () => {
+    // 15..31 ago + 1..13 sep contiguas → un solo rango consolidado.
+    const activationDates = [
+      ...Array.from({ length: 17 }, (_, i) => `2026-08-${String(15 + i).padStart(2, '0')}`),
+      ...Array.from({ length: 13 }, (_, i) => `2026-09-${String(1 + i).padStart(2, '0')}`),
+    ];
+    const rows = buildEmailRows([
+      {
+        cadena: 'LA COMER',
+        retailer_id: 'la_comer',
+        cliente_original: 'COMERCIALIZADORA ELORO',
+        placement_name_snapshot: 'LA COMER / CARRUSEL HOME',
+        creatividad_id_original: '65643',
+        activation_start: '2026-08-15',
+        activation_end: '2026-09-13',
+        activation_dates: activationDates,
+        // El periodo diario NO debe filtrarse al correo.
+        periodo_original: '15/08/2026 a 15/08/2026',
+      },
+    ]);
+    // Columna Periodo(s): un rango, sin listar cada día.
+    expect(rowPeriodsText(rows[0]!)).toBe('15 ago–13 sep 2026');
+    expect(rowPeriodsText(rows[0]!)).not.toContain('15/08/2026');
+    // Narrativa: periodos consolidados, no 30 fechas sueltas.
+    const ctx = computeEmailContext(rows);
+    expect(ctx.periodos).toEqual(['15 ago–13 sep 2026']);
+    const text = buildEmailText('Ana', '26139', rows);
+    expect(text).toContain('correspondiente a los periodos 15 ago–13 sep 2026.');
+    expect(text).not.toContain('01/09/2026 a 01/09/2026');
+  });
+
+  it('La Comer: tramos con hueco se listan como rangos separados', () => {
+    const rows = buildEmailRows([
+      {
+        cadena: 'LA COMER',
+        retailer_id: 'la_comer',
+        cliente_original: 'CLI',
+        placement_name_snapshot: 'LA COMER / DEPARTAMENTO',
+        creatividad_id_original: '1',
+        activation_dates: ['2026-08-15', '2026-08-16', '2026-08-17', '2026-08-25', '2026-08-26'],
+      },
+    ]);
+    expect(rowPeriodsText(rows[0]!)).toBe('15–17 ago 2026 y 25–26 ago 2026');
   });
 
   it('Soriana conserva sus medidas y site name', () => {
