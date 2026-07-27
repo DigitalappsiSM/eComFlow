@@ -11,8 +11,9 @@ import {
 import { computeProgress, type CheckKey } from '@/domain/progress';
 import { computeStatus, STATUS_LABELS } from '@/domain/campaign-status';
 import { requiredChecksForLine } from '@/domain/operation-rules';
+import { campaignLineWindow, isInvalidRange, windowIntersects } from '@/domain/operational-window';
 import { todayIso } from '@/lib/dates';
-import { distinctOptions, sortedOptions, type FilterValues } from '@/components/filters/filter-utils';
+import { distinctOptions, type FilterValues } from '@/components/filters/filter-utils';
 
 type Status = 'loading' | 'error' | 'ready';
 
@@ -135,17 +136,17 @@ export function useOperations(pageSize = 50) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const rangeOk = !isInvalidRange(fijacionDesde, fijacionHasta);
+    const from = rangeOk ? fijacionDesde : '';
+    const to = rangeOk ? fijacionHasta : '';
     return rows.filter((r) => {
-      if (filters.periodo && (r.line.periodo_original ?? '') !== filters.periodo) return false;
       if (filters.cadena && (r.line.cadena ?? '') !== filters.cadena) return false;
       if (filters.tipo && (r.line.tipo_operacion ?? '') !== filters.tipo) return false;
       if (filters.continuidad && (r.line.tipo_campana_periodo ?? '') !== filters.continuidad) return false;
       if (filters.cliente && (r.line.cliente_original ?? '') !== filters.cliente) return false;
       if (filters.estado && statusLabelOf(r) !== filters.estado) return false;
-      // Rango de fijación (por fecha_fijacion de la línea).
-      const fijacion = (r.line.fecha_fijacion ?? '').trim();
-      if (fijacionDesde && fijacion && fijacion < fijacionDesde) return false;
-      if (fijacionHasta && fijacion && fijacion > fijacionHasta) return false;
+      // Rango operativo (§12): cruce con la ventana activación → periodo → fechas.
+      if (!windowIntersects(campaignLineWindow(r.line), from, to)) return false;
       if (q !== '') {
         const hay = [
           r.line.cliente_original,
@@ -245,11 +246,6 @@ export function useOperations(pageSize = 50) {
 
   const filterFields = useMemo(
     () => [
-      {
-        key: 'periodo',
-        label: 'Periodo',
-        options: sortedOptions(rows, (r) => r.line.periodo_original, (r) => r.line.periodo_inicio),
-      },
       { key: 'cadena', label: 'Cadena', options: distinctOptions(rows, (r) => r.line.cadena) },
       { key: 'tipo', label: 'Tipo', options: distinctOptions(rows, (r) => r.line.tipo_operacion) },
       {
@@ -280,6 +276,7 @@ export function useOperations(pageSize = 50) {
     fijacionHasta,
     setFijacionDesde,
     setFijacionHasta,
+    rangeInvalid: isInvalidRange(fijacionDesde, fijacionHasta),
     clearFilters: () => {
       setFilters({});
       setSearch('');

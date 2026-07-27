@@ -13,7 +13,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { KpiCard } from '@/components/dashboard/KpiCard';
 import { ErrorState, LoadingState } from '@/components/feedback/States';
 import { FilterBar } from '@/components/filters/FilterBar';
-import { distinctOptions, sortedOptions, type FilterValues } from '@/components/filters/filter-utils';
+import { distinctOptions, type FilterValues } from '@/components/filters/filter-utils';
 import { useDashboardData } from '@/features/dashboard/useDashboardData';
 import {
   AvgProgressByClientBar,
@@ -29,12 +29,14 @@ import {
   computeComplianceByPeriod,
   computeComplianceDetail,
   computeComplianceSummary,
-  lineMonthKey,
+  lineStart,
+  lineEnd,
   operationalStatusOf,
   type ComplianceStatus,
   type MetricLine,
   type OperationalStatus,
 } from '@/domain/dashboard-metrics';
+import { windowIntersects, isInvalidRange } from '@/domain/operational-window';
 import { todayIso } from '@/lib/dates';
 import type { ReactNode } from 'react';
 
@@ -68,16 +70,13 @@ function applyFilters(
   lines: readonly MetricLine[],
   f: FilterValues,
   today: string,
-  fijacionDesde: string,
-  fijacionHasta: string,
+  desde: string,
+  hasta: string,
 ): MetricLine[] {
   return lines.filter((l) => {
-    const fijacion = (l.fechaFijacion ?? '').trim();
-    if (fijacionDesde && fijacion && fijacion < fijacionDesde) return false;
-    if (fijacionHasta && fijacion && fijacion > fijacionHasta) return false;
+    // Rango operativo (§12): cruce con la ventana activación → periodo → fechas.
+    if (!windowIntersects({ start: lineStart(l), end: lineEnd(l) }, desde, hasta)) return false;
     return (
-      (!f.periodo || (l.periodoOriginal ?? '') === f.periodo) &&
-      (!f.mes || lineMonthKey(l) === f.mes) &&
       (!f.cadena || (l.cadena ?? '') === f.cadena) &&
       (!f.tipo || (l.tipoOperacion ?? '') === f.tipo) &&
       (!f.cliente || (l.clienteOriginal ?? '') === f.cliente) &&
@@ -108,9 +107,11 @@ export function DashboardPage() {
   const truncated = state.status === 'ready' && state.truncated;
   const limit = state.status === 'ready' ? state.limit : 0;
 
+  const rangeInvalid = isInvalidRange(fijacionDesde, fijacionHasta);
   const filtered = useMemo(
-    () => applyFilters(lines, filters, today, fijacionDesde, fijacionHasta),
-    [lines, filters, today, fijacionDesde, fijacionHasta],
+    // Un rango inválido (Desde > Hasta) no se aplica (se muestra un aviso).
+    () => applyFilters(lines, filters, today, rangeInvalid ? '' : fijacionDesde, rangeInvalid ? '' : fijacionHasta),
+    [lines, filters, today, fijacionDesde, fijacionHasta, rangeInvalid],
   );
 
   const summary = useMemo(() => computeComplianceSummary(filtered, today), [filtered, today]);
@@ -131,12 +132,6 @@ export function DashboardPage() {
   }, [filtered]);
 
   const fields = [
-    {
-      key: 'periodo',
-      label: 'Periodo',
-      options: sortedOptions(lines, (l) => l.periodoOriginal, (l) => l.periodoInicio),
-    },
-    { key: 'mes', label: 'Mes', options: distinctOptions(lines, (l) => lineMonthKey(l)) },
     { key: 'cadena', label: 'Cadena', options: distinctOptions(lines, (l) => l.cadena) },
     { key: 'tipo', label: 'Tipo', options: distinctOptions(lines, (l) => l.tipoOperacion) },
     { key: 'cliente', label: 'Cliente', options: distinctOptions(lines, (l) => l.clienteOriginal) },
@@ -188,28 +183,26 @@ export function DashboardPage() {
           <div className="mb-3 flex flex-wrap items-end gap-3">
             <div>
               <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                Fijación desde
+                Desde
               </label>
               <input
                 type="date"
                 value={fijacionDesde}
                 onChange={(e) => setFijacionDesde(e.target.value)}
-                max={fijacionHasta || undefined}
                 className="focus-ring rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
-                aria-label="Fijación desde"
+                aria-label="Rango operativo desde"
               />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                Fijación hasta
+                Hasta
               </label>
               <input
                 type="date"
                 value={fijacionHasta}
                 onChange={(e) => setFijacionHasta(e.target.value)}
-                min={fijacionDesde || undefined}
                 className="focus-ring rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
-                aria-label="Fijación hasta"
+                aria-label="Rango operativo hasta"
               />
             </div>
             {(fijacionDesde || fijacionHasta) && (
@@ -223,6 +216,11 @@ export function DashboardPage() {
               >
                 Limpiar fechas
               </button>
+            )}
+            {rangeInvalid && (
+              <p role="alert" className="self-center text-xs font-medium text-rose-300">
+                El rango es inválido: «Desde» es posterior a «Hasta».
+              </p>
             )}
           </div>
 
@@ -247,7 +245,7 @@ export function DashboardPage() {
             <KpiCard tone="dark" label="% A tiempo" value={`${summary.aTiempoPct}%`} icon={Timer} accent={accentForPct(summary.aTiempoPct)} />
             <KpiCard tone="dark" label="Líneas" value={summary.total} icon={Image} accent="teal" />
             <KpiCard tone="dark" label="Clientes" value={clientes} icon={Users} accent="blue" />
-            <KpiCard tone="dark" label="Periodos" value={periodos} icon={CalendarRange} accent="orange" />
+            <KpiCard tone="dark" label="Rangos" value={periodos} icon={CalendarRange} accent="orange" />
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">

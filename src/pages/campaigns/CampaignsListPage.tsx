@@ -5,6 +5,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/Stat
 import { FilterBar } from '@/components/filters/FilterBar';
 import { distinctOptions, type FilterValues } from '@/components/filters/filter-utils';
 import { fetchActiveCampaignLines } from '@/repositories/campaigns.repository';
+import { campaignLineWindow, windowIntersects } from '@/domain/operational-window';
 import type { CampaignLine } from '@/types/campaign';
 import {
   articuloOf,
@@ -15,6 +16,7 @@ import {
   computeEmailContext,
   descripcionOf,
   emailRowCells,
+  emailSiteName,
   formatDateLong,
   greeting,
   nivelOf,
@@ -43,9 +45,8 @@ function applyFilters(lines: CampaignLine[], f: FilterValues, desde: string, has
     if (f.cadena && (l.cadena ?? '') !== f.cadena) return false;
     if (f.anunciante && (l.anunciante ?? '') !== f.anunciante) return false;
     if (f.articulo && articuloOf(l) !== f.articulo) return false;
-    const fijacion = (l.fecha_fijacion ?? '').trim();
-    if (desde && fijacion && fijacion < desde) return false;
-    if (hasta && fijacion && fijacion > hasta) return false;
+    // Rango operativo (§12): cruce con la ventana activación → periodo → fechas.
+    if (!windowIntersects(campaignLineWindow(l), desde, hasta)) return false;
     if (q !== '') {
       const hay = [
         l.cliente_original,
@@ -225,26 +226,26 @@ export function CampaignsListPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                    Fijación desde
+                    Desde
                   </label>
                   <input
                     type="date"
                     value={desde}
                     onChange={(e) => setDesde(e.target.value)}
                     className="focus-ring w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    aria-label="Fijación desde"
+                    aria-label="Rango operativo desde"
                   />
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                    Fijación hasta
+                    Hasta
                   </label>
                   <input
                     type="date"
                     value={hasta}
                     onChange={(e) => setHasta(e.target.value)}
                     className="focus-ring w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    aria-label="Fijación hasta"
+                    aria-label="Rango operativo hasta"
                   />
                 </div>
               </div>
@@ -408,12 +409,14 @@ function EmailPreview({
   onConfirmDelete: (key: string) => void;
 }) {
   const deadline = ctx.deadlineIso ? formatDateLong(ctx.deadlineIso) : 'Por confirmar';
+  const siteName = emailSiteName(rows);
+  const hasSponsored = rows.some((r) => r.noArt);
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-700">
       <p>{greeting(recipient)}</p>
       <p className="mt-3">
         Espero se encuentren muy bien. Les compartimos las especificaciones técnicas de la campaña #
-        {campaignRef || '—'} para <strong>Soriana.com</strong>, activa del {formatDateLong(ctx.inicioIso)} al{' '}
+        {campaignRef || '—'} para <strong>{siteName}</strong>, activa del {formatDateLong(ctx.inicioIso)} al{' '}
         {formatDateLong(ctx.finIso)}, correspondiente a los periodos {ctx.periodos.join(', ') || '—'}.
       </p>
       <p className="mt-3">A continuación encontrarán el detalle de las creatividades requeridas:</p>
@@ -475,6 +478,13 @@ function EmailPreview({
           </tbody>
         </table>
       </div>
+
+      {hasSponsored && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+          SPONSORED PRODUCT no requiere piezas gráficas. Favor de compartir el listado de productos/SKUs requerido
+          para su configuración.
+        </p>
+      )}
 
       <p className="mt-3">
         📅 <strong>Fecha límite de entrega de materiales:</strong> {deadline}

@@ -175,28 +175,26 @@ export function OperationsPage() {
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <div>
           <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-            Fijación desde
+            Desde
           </label>
           <input
             type="date"
             value={ops.fijacionDesde}
             onChange={(e) => ops.setFijacionDesde(e.target.value)}
-            max={ops.fijacionHasta || undefined}
             className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            aria-label="Fijación desde"
+            aria-label="Rango operativo desde"
           />
         </div>
         <div>
           <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-            Fijación hasta
+            Hasta
           </label>
           <input
             type="date"
             value={ops.fijacionHasta}
             onChange={(e) => ops.setFijacionHasta(e.target.value)}
-            min={ops.fijacionDesde || undefined}
             className="focus-ring rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            aria-label="Fijación hasta"
+            aria-label="Rango operativo hasta"
           />
         </div>
         {(ops.fijacionDesde || ops.fijacionHasta) && (
@@ -210,6 +208,11 @@ export function OperationsPage() {
           >
             Limpiar fechas
           </button>
+        )}
+        {ops.rangeInvalid && (
+          <p role="alert" className="self-center text-xs font-medium text-red-600">
+            El rango es inválido: «Desde» es posterior a «Hasta».
+          </p>
         )}
       </div>
 
