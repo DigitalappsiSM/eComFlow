@@ -8,6 +8,7 @@
 
 import { type ArtMeasures } from './ecommerceMeasures';
 import { adapterForLine, resolveRetailerAdapter } from '@/domain/retailers/registry';
+import { formatConsolidatedRanges, sortUniqueDates } from '@/domain/retailers/period-formatting';
 
 const SPONSORED_NOTE =
   'SPONSORED PRODUCT no requiere piezas gráficas. Favor de compartir el listado de productos/SKUs requerido para su configuración.';
@@ -33,6 +34,8 @@ export interface EmailSourceLine {
   /** Rango de activación consolidado (La Comer): prevalece sobre fijación/retirada. */
   activation_start?: string | null;
   activation_end?: string | null;
+  /** Fechas de activación (ISO). La Comer las consolida en rangos, no día a día. */
+  activation_dates?: readonly string[] | null;
   // Fuentes alternativas de descripción (por si el modelo cambia).
   creatividad_descripcion?: string | null;
   creative_description?: string | null;
@@ -47,6 +50,8 @@ export interface EmailRow {
   cliente: string;
   anunciante: string;
   periodos: string[];
+  /** Fechas de activación (ISO) para consolidar periodos en rangos (La Comer). */
+  activationDates: string[];
   articulo: string;
   creatividadDescripcion: string;
   nivel: string;
@@ -164,7 +169,7 @@ function measuresForLine(line: EmailSourceLine, articulo: string): { measures: A
 }
 
 export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
-  const groups = new Map<string, EmailRow & { _periods: Set<string> }>();
+  const groups = new Map<string, EmailRow & { _periods: Set<string>; _activation: Set<string> }>();
 
   for (const line of lines) {
     const cadena = (line.cadena ?? '').trim() || EM_DASH;
@@ -179,11 +184,17 @@ export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
     // Rango de fechas: activación consolidada (La Comer) o fijación/retirada.
     const fijacion = (line.activation_start ?? line.fecha_fijacion ?? '').trim();
     const retirada = (line.activation_end ?? line.fecha_retirada ?? '').trim();
-    const periodo = periodoLabelOf(line);
+    // Fechas de activación (La Comer): se consolidan en rangos, no día a día.
+    const activation = sortUniqueDates([...(line.activation_dates ?? [])]);
+    const hasActivation = activation.length > 0;
+    // El periodo diario de La Comer no entra a la etiqueta: se usa el rango
+    // consolidado. Para el resto (Soriana), se conserva el código de periodo.
+    const periodo = hasActivation ? '' : periodoLabelOf(line);
 
     const existing = groups.get(key);
     if (existing) {
       if (periodo) existing._periods.add(periodo);
+      for (const d of activation) existing._activation.add(d);
       existing.fijacionIso = minIso(existing.fijacionIso, fijacion);
       existing.retiradaIso = maxIso(existing.retiradaIso, retirada);
       continue;
@@ -195,6 +206,7 @@ export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
       cliente,
       anunciante,
       periodos: [],
+      activationDates: [],
       articulo,
       creatividadDescripcion: descripcion,
       nivel,
@@ -203,13 +215,18 @@ export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
       measures,
       noArt,
       _periods: new Set(periodo ? [periodo] : []),
+      _activation: new Set(activation),
     });
   }
 
   // Orden: por cliente y luego por periodo (cronológico, por la fijación más
   // temprana de la fila); desempate por cadena/artículo/nivel.
   return [...groups.values()]
-    .map(({ _periods, ...row }) => ({ ...row, periodos: sortPeriods(_periods) }))
+    .map(({ _periods, _activation, ...row }) => ({
+      ...row,
+      periodos: sortPeriods(_periods),
+      activationDates: sortUniqueDates([..._activation]),
+    }))
     .sort(
       (a, b) =>
         a.cliente.localeCompare(b.cliente, 'es') ||
@@ -264,13 +281,24 @@ export const EMAIL_TABLE_COLUMNS = [
   'App 2',
 ] as const;
 
+/**
+ * Texto de la columna "Periodo(s)". La Comer consolida las fechas de activación
+ * en rangos ("15–31 ago 2026"); el resto (Soriana) muestra los códigos de periodo.
+ */
+export function rowPeriodsText(row: EmailRow): string {
+  if (row.activationDates.length > 0) {
+    return formatConsolidatedRanges(row.activationDates) || EM_DASH;
+  }
+  return row.periodos.join(', ') || EM_DASH;
+}
+
 /** Celdas de una fila de la tabla, en el orden de `EMAIL_TABLE_COLUMNS`. */
 export function emailRowCells(row: EmailRow): string[] {
   return [
     row.cadena,
     row.cliente,
     row.anunciante,
-    row.periodos.join(', ') || EM_DASH,
+    rowPeriodsText(row),
     row.articulo,
     row.creatividadDescripcion,
     row.nivel,
@@ -294,16 +322,24 @@ export interface EmailContext {
 export function computeEmailContext(rows: readonly EmailRow[]): EmailContext {
   let inicio = '';
   let fin = '';
-  const periods = new Set<string>();
+  const codes = new Set<string>();
+  const activation = new Set<string>();
   for (const r of rows) {
     inicio = minIso(inicio, r.fijacionIso);
     fin = maxIso(fin, r.retiradaIso);
-    for (const p of r.periodos) periods.add(p);
+    for (const p of r.periodos) codes.add(p);
+    for (const d of r.activationDates) activation.add(d);
   }
+  // Los periodos diarios de La Comer se consolidan en rangos; Soriana conserva
+  // sus códigos (S28, C16…). Se listan primero los rangos, luego los códigos.
+  const periodos: string[] = [];
+  const consolidated = formatConsolidatedRanges([...activation]);
+  if (consolidated) periodos.push(consolidated);
+  periodos.push(...sortPeriods(codes));
   return {
     inicioIso: inicio,
     finIso: fin,
-    periodos: sortPeriods(periods),
+    periodos,
     deadlineIso: addDaysIso(inicio, -2),
   };
 }
