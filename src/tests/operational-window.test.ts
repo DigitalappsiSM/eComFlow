@@ -106,6 +106,30 @@ describe('correo Ecommerce multi-retailer (§16)', () => {
     expect(text).not.toContain('01/09/2026 a 01/09/2026');
   });
 
+  it('La Comer: consolida periodos diarios aunque NO haya activation_dates', () => {
+    // Reproduce datos reales: líneas diarias con periodo_original "dd/mm a dd/mm"
+    // y SIN activation_dates poblado. Deben consolidarse igual.
+    const dias = [
+      ...Array.from({ length: 17 }, (_, i) => `${String(15 + i).padStart(2, '0')}/08/2026`),
+      ...Array.from({ length: 13 }, (_, i) => `${String(1 + i).padStart(2, '0')}/09/2026`),
+    ];
+    const rows = buildEmailRows(
+      dias.map((d) => ({
+        cadena: 'LA COMER',
+        retailer_id: 'la_comer',
+        cliente_original: 'COMERCIALIZADORA ELORO',
+        placement_name_snapshot: 'LA COMER / CARRUSEL HOME',
+        creatividad_id_original: '65643',
+        periodo_original: `${d} a ${d}`,
+      })),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rowPeriodsText(rows[0]!)).toBe('15 ago–13 sep 2026');
+    const text = buildEmailText('Ana', '26139', rows);
+    expect(text).toContain('correspondiente a los periodos 15 ago–13 sep 2026.');
+    expect(text).not.toContain('01/09/2026 a 01/09/2026');
+  });
+
   it('La Comer: tramos con hueco se listan como rangos separados', () => {
     const rows = buildEmailRows([
       {

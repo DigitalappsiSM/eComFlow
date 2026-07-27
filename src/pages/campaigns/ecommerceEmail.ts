@@ -112,6 +112,37 @@ export function periodoLabelOf(line: EmailSourceLine): string {
   return (line.periodo_original ?? '').trim();
 }
 
+// "dd/mm/yyyy" (día suelto) o "dd/mm/yyyy a dd/mm/yyyy" (rango). Admite 1–2 dígitos.
+const PERIOD_RANGE_RE =
+  /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s*a\s*(\d{1,2})\/(\d{1,2})\/(\d{4}))?$/i;
+
+function dmyToIso(d: string, m: string, y: string): string {
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+}
+
+/**
+ * Expande una etiqueta de periodo con formato de fecha ("01/09/2026 a
+ * 01/09/2026" o "15/08/2026 a 31/08/2026") a las fechas ISO que cubre.
+ * Devuelve [] si la etiqueta no es una fecha (p. ej. códigos Soriana "S29").
+ * Así el correo consolida los periodos diarios de La Comer aunque la línea no
+ * tenga `activation_dates` poblado.
+ */
+export function periodDatesOf(label: string): string[] {
+  const m = PERIOD_RANGE_RE.exec((label ?? '').trim());
+  if (!m) return [];
+  const start = dmyToIso(m[1]!, m[2]!, m[3]!);
+  const end = m[4] ? dmyToIso(m[4]!, m[5]!, m[6]!) : start;
+  if (start > end) return [start];
+  const dates: string[] = [];
+  let cur = start;
+  // Cap defensivo: no expandir rangos absurdos (más de ~400 días).
+  for (let i = 0; i < 400 && cur !== '' && cur <= end; i += 1) {
+    dates.push(cur);
+    cur = addDaysIso(cur, 1);
+  }
+  return dates;
+}
+
 /** "Nivel" = título de la creatividad (p. ej. "N2 DESTILADOS Y LICORES"). */
 export function nivelOf(line: EmailSourceLine): string {
   return (line.creatividad_titulo_original ?? '').trim() || EM_DASH;
@@ -184,12 +215,16 @@ export function buildEmailRows(lines: readonly EmailSourceLine[]): EmailRow[] {
     // Rango de fechas: activación consolidada (La Comer) o fijación/retirada.
     const fijacion = (line.activation_start ?? line.fecha_fijacion ?? '').trim();
     const retirada = (line.activation_end ?? line.fecha_retirada ?? '').trim();
-    // Fechas de activación (La Comer): se consolidan en rangos, no día a día.
-    const activation = sortUniqueDates([...(line.activation_dates ?? [])]);
+    // Fechas para consolidar: las de activación (si existen) más las que aporte
+    // una etiqueta de periodo con formato de fecha (La Comer diario). Así se
+    // consolidan aun cuando la línea no tenga `activation_dates` poblado.
+    const rawPeriodo = periodoLabelOf(line);
+    const periodDates = periodDatesOf(rawPeriodo);
+    const activation = sortUniqueDates([...(line.activation_dates ?? []), ...periodDates]);
     const hasActivation = activation.length > 0;
-    // El periodo diario de La Comer no entra a la etiqueta: se usa el rango
-    // consolidado. Para el resto (Soriana), se conserva el código de periodo.
-    const periodo = hasActivation ? '' : periodoLabelOf(line);
+    // Cuando hay fechas, la etiqueta se presenta como rango consolidado; si no
+    // (p. ej. códigos Soriana "S29"), se conserva el código de periodo.
+    const periodo = hasActivation ? '' : rawPeriodo;
 
     const existing = groups.get(key);
     if (existing) {
