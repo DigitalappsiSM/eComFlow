@@ -12,6 +12,7 @@ import { buildIdentity } from './identity';
 import { normalizeKey, normalizeSlugKey } from './normalization';
 import { classifyRow } from './import-classification';
 import { DEFAULT_DIGITAL_TIPOS, type TipoClassifier } from './articulo-tipos';
+import { resolveRetailerAdapter } from './retailers/registry';
 import type {
   ImportPlan,
   ImportStoreLookup,
@@ -91,28 +92,82 @@ export function ekonPlacementName(cadena: string, articulo: string): string {
   return `${cadena.trim()} / ${articulo.trim()}`;
 }
 
+/** Consolida las activaciones diarias de una línea (§6): dedup por fecha, orden asc. */
+export function consolidateActivations(
+  activations: readonly { date: string; periodId: string; lineId: string; numSoportes: number }[],
+): {
+  activationDates: string[];
+  periodIds: string[];
+  externalLineIds: string[];
+  activationStart: string | null;
+  activationEnd: string | null;
+  activationCount: number;
+  maxNumSoportes: number;
+} {
+  const sorted = [...activations].filter((a) => a.date).sort((a, b) => a.date.localeCompare(b.date));
+  const seen = new Set<string>();
+  const activationDates: string[] = [];
+  const periodIds: string[] = [];
+  const externalLineIds: string[] = [];
+  let maxNumSoportes = 0;
+  for (const a of activations) maxNumSoportes = Math.max(maxNumSoportes, a.numSoportes || 0);
+  for (const a of sorted) {
+    if (seen.has(a.date)) continue;
+    seen.add(a.date);
+    activationDates.push(a.date);
+    periodIds.push(a.periodId);
+    externalLineIds.push(a.lineId);
+  }
+  return {
+    activationDates,
+    periodIds,
+    externalLineIds,
+    activationStart: activationDates[0] ?? null,
+    activationEnd: activationDates[activationDates.length - 1] ?? null,
+    activationCount: activationDates.length,
+    maxNumSoportes,
+  };
+}
+
 function buildRowPlan(
   rowNumber: number,
   raw: Record<string, string>,
   n: EkonNormalizedRow,
   classifier?: TipoClassifier,
 ): RowPlan {
-  const placementId = ekonPlacementId(n.cadena, n.articulo);
-  // En seguimiento operativo, una misma campaña/creatividad debe existir por
-  // periodo para que se pueda coordinar desde la semana en que inicia. Las
-  // fechas de campaña se conservan en normalized; la identidad usa el periodo
-  // del archivo cuando está disponible para no absorber S28 dentro de S29.
+  const adapter = resolveRetailerAdapter(n.cadena);
+  const { placementId, placementName } = adapter.resolvePlacement({ chain: n.cadena, article: n.articulo });
+  const period = adapter.parsePeriod({
+    rawPeriod: n.periodo.original,
+    periodId: n.periodoId,
+    fixationDate: n.fechaFijacionIso,
+    removalDate: n.fechaRetiradaIso,
+  });
+
+  // Fecha de fijación/retirada que ENTRA a la identidad, según la estrategia:
+  //  - campaign_range (La Comer): rango GENERAL de campaña (ignora el día del
+  //    campo Periodo) → una sola línea por campaña/artículo/creatividad.
+  //  - period_range (Soriana/genérico): inicio/fin del periodo del archivo
+  //    (comportamiento actual: S28 no se absorbe dentro de S29).
+  const campaignRange = adapter.identityStrategy === 'campaign_range';
+  const identityFixation = campaignRange ? n.fechaFijacionIso : n.periodo.inicioIso || n.fechaFijacionIso;
+  const identityRemoval = campaignRange ? n.fechaRetiradaIso : n.periodo.finIso || n.fechaRetiradaIso;
+
   const identity = buildIdentity({
     cliente: n.cliente,
     numeroCampana: n.campana,
     placementId,
-    fechaFijacionIso: n.periodo.inicioIso || n.fechaFijacionIso,
-    fechaRetiradaIso: n.periodo.finIso || n.fechaRetiradaIso,
+    fechaFijacionIso: identityFixation,
+    fechaRetiradaIso: identityRemoval,
     creatividadTitulo: n.creatividadTitulo,
     creatividadDescripcion: n.creatividadDescripcion,
     creatividadId: n.creatividadId,
     anunciante: n.anunciante,
   });
+
+  // Fecha de activación de ESTA fila (día del campo Periodo, o fijación general).
+  const activationDate = n.periodo.inicioIso || n.fechaFijacionIso;
+
   return {
     rowNumber,
     raw,
@@ -133,7 +188,7 @@ function buildRowPlan(
       creatividadId: n.creatividadId,
     },
     extra: {
-      placementName: ekonPlacementName(n.cadena, n.articulo),
+      placementName,
       cadena: n.cadena,
       lineaCampana: n.lineaCampana,
       requiredPieces: n.numSoportes,
@@ -143,6 +198,10 @@ function buildRowPlan(
       periodoTipo: n.periodo.tipo,
       periodoInicio: n.periodo.inicioIso,
       periodoFin: n.periodo.finIso,
+      retailerId: adapter.retailerId === 'default' ? null : adapter.retailerId,
+      identityStrategy: adapter.identityStrategy,
+      periodGranularity: period.granularity,
+      activations: [{ date: activationDate, periodId: n.periodoId, lineId: n.lineaCampana, numSoportes: n.numSoportes }],
     },
   };
 }
@@ -189,16 +248,46 @@ export async function buildEkonImportPlan(
     const key = plan.identity!.campaignLineKey;
     const existing = byLineKey.get(key);
     if (existing) {
-      mergedRows += 1; // material adicional de una línea ya vista
-      existing.extra = {
-        ...existing.extra,
-        requiredPieces:
-          (existing.extra?.requiredPieces ?? 0) + (plan.extra?.requiredPieces ?? 0),
-      };
+      mergedRows += 1; // otra fila de la misma línea (material u otro día)
+      if (existing.extra?.identityStrategy === 'campaign_range') {
+        // La Comer: filas diarias de la misma línea → acumular activaciones y
+        // usar el MÁXIMO Nº Soportes (no sumar los días como si fueran artes).
+        existing.extra = {
+          ...existing.extra,
+          requiredPieces: Math.max(existing.extra?.requiredPieces ?? 0, plan.extra?.requiredPieces ?? 0),
+          activations: [...(existing.extra?.activations ?? []), ...(plan.extra?.activations ?? [])],
+        };
+      } else {
+        // Soriana/genérico: material adicional de la misma línea → suma (actual).
+        existing.extra = {
+          ...existing.extra,
+          requiredPieces: (existing.extra?.requiredPieces ?? 0) + (plan.extra?.requiredPieces ?? 0),
+        };
+      }
       return;
     }
     byLineKey.set(key, plan);
   });
+
+  // Consolidación de activaciones diarias (campaign_range): materializa
+  // activation_dates/period_ids/external_line_ids y el rango operativo.
+  for (const plan of byLineKey.values()) {
+    if (plan.extra?.identityStrategy !== 'campaign_range') continue;
+    const c = consolidateActivations(plan.extra.activations ?? []);
+    plan.extra = {
+      ...plan.extra,
+      requiredPieces: c.maxNumSoportes || plan.extra.requiredPieces,
+      activationDates: c.activationDates,
+      periodIds: c.periodIds,
+      externalLineIds: c.externalLineIds,
+      activationStart: c.activationStart,
+      activationEnd: c.activationEnd,
+      activationCount: c.activationCount,
+      // periodo_* de la línea = rango de activación consolidado (info secundaria).
+      periodoInicio: c.activationStart ?? plan.extra.periodoInicio,
+      periodoFin: c.activationEnd ?? plan.extra.periodoFin,
+    };
+  }
 
   // Una campaña es continua si el periodo inmediato anterior tiene la misma
   // campaña/artículo/creatividad/descripción; si no, es una fijación.

@@ -38,6 +38,11 @@ export interface MetricLine {
   tipoCampanaPeriodo?: 'fijacion' | 'continua' | null;
   /** Baja lógica de la línea (cancelada). */
   cancelled?: boolean;
+  // --- Multi-retailer: ventana de activación consolidada (La Comer). ---
+  retailerId?: string | null;
+  activationStart?: string | null;
+  activationEnd?: string | null;
+  activationCount?: number | null;
 
   // --- Estatus operativo real (join con campaign_operations) ---
   /** Avance 0..100 sobre los checks obligatorios de la línea. */
@@ -57,14 +62,19 @@ export interface MetricLine {
 /** Estado operativo de una línea respecto a hoy (por periodo operativo). */
 export type OperationalStatus = 'vencido' | 'en_curso' | 'futuro';
 
-/** Inicio operativo de la línea: periodo si existe; si no, la campaña. */
+/**
+ * Ventana operativa UNIVERSAL de una línea (§12). Prioridad:
+ *   activation_start/end (La Comer) → periodo_inicio/fin (Soriana) → fijación/retirada.
+ * Es la única regla de fechas para dashboard, seguimiento, estado y vencimiento.
+ */
 export function lineStart(line: MetricLine): IsoDate {
-  return line.periodoInicio ?? line.fechaFijacion;
+  return line.activationStart ?? line.periodoInicio ?? line.fechaFijacion;
 }
-
-/** Fin operativo de la línea: periodo si existe; si no, la campaña. */
 export function lineEnd(line: MetricLine): IsoDate {
-  return line.periodoFin ?? line.fechaRetirada;
+  return line.activationEnd ?? line.periodoFin ?? line.fechaRetirada;
+}
+export function operationalWindow(line: MetricLine): { start: IsoDate; end: IsoDate } {
+  return { start: lineStart(line), end: lineEnd(line) };
 }
 
 /**

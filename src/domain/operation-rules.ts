@@ -1,4 +1,5 @@
 import { CHECK_KEYS, type CheckKey, type CheckValues } from './progress';
+import { adapterForLine } from './retailers/registry';
 import type { CampaignLine } from '@/types/campaign';
 
 const ECOMMERCE_REQUIRED_CHECKS: readonly CheckKey[] = CHECK_KEYS;
@@ -9,6 +10,13 @@ function normalizeTipo(tipo: string | null | undefined): string {
   return (tipo ?? '').trim().toUpperCase();
 }
 
+/** Artículo a partir del nombre de placement ("CADENA / ARTÍCULO" → "ARTÍCULO"). */
+function articleFromPlacementName(name: string | null | undefined): string {
+  const value = (name ?? '').trim();
+  const sep = value.indexOf(' / ');
+  return (sep >= 0 ? value.slice(sep + 3) : value).trim();
+}
+
 export function requiredChecksForOperationType(
   tipoOperacion: string | null | undefined,
 ): readonly CheckKey[] {
@@ -16,14 +24,31 @@ export function requiredChecksForOperationType(
   return ECOMMERCE_REQUIRED_CHECKS;
 }
 
-export function requiredChecksForLine(line: Pick<CampaignLine, 'tipo_operacion'>): readonly CheckKey[] {
-  return requiredChecksForOperationType(line.tipo_operacion);
+/** Campos de una línea que influyen en qué checks son obligatorios. */
+type CheckRuleLine = Pick<
+  CampaignLine,
+  'tipo_operacion' | 'retailer_id' | 'cadena' | 'placement_name_snapshot'
+>;
+
+/**
+ * Checks obligatorios de una línea. Considera:
+ *  - tipo de operación (Digital Signage solo exige Artes);
+ *  - el artículo/retailer: si su configuración NO requiere arte (p. ej.
+ *    SPONSORED PRODUCT de La Comer), el check "Artes" no participa.
+ */
+export function requiredChecksForLine(line: CheckRuleLine): readonly CheckKey[] {
+  const base = requiredChecksForOperationType(line.tipo_operacion);
+  const article = articleFromPlacementName(line.placement_name_snapshot);
+  if (article) {
+    const cfg = adapterForLine(line).articleConfig(article);
+    if (cfg && !cfg.requiresArtCheck) {
+      return base.filter((k) => k !== 'artes');
+    }
+  }
+  return base;
 }
 
-export function isCheckRequiredForLine(
-  line: Pick<CampaignLine, 'tipo_operacion'>,
-  key: CheckKey,
-): boolean {
+export function isCheckRequiredForLine(line: CheckRuleLine, key: CheckKey): boolean {
   return requiredChecksForLine(line).includes(key);
 }
 

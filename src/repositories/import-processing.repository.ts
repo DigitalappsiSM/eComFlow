@@ -36,7 +36,7 @@ import type { Placement, PlacementRequirement } from '@/types/placement';
 import type { ImportScope } from '@/types/import';
 import type { IsoDate } from '@/lib/dates';
 import { computeProgress } from '@/domain/progress';
-import { initialChecksForImportedLine, requiredChecksForOperationType } from '@/domain/operation-rules';
+import { initialChecksForImportedLine, requiredChecksForLine } from '@/domain/operation-rules';
 
 // ----------------------------- Lookups ------------------------------------
 
@@ -368,6 +368,20 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
       periodo_fin: row.extra?.periodoFin ?? null,
       tipo_campana_periodo: row.extra?.tipoCampanaPeriodo ?? null,
     };
+    // Retailer + consolidación de activaciones diarias (solo se escriben los
+    // campos de activación cuando la línea las tiene, p. ej. La Comer).
+    const retailerInfo: Record<string, unknown> = {
+      retailer_id: row.extra?.retailerId ?? null,
+      period_granularity: row.extra?.periodGranularity ?? null,
+    };
+    if (row.extra?.activationDates) {
+      retailerInfo.activation_dates = row.extra.activationDates;
+      retailerInfo.period_ids = row.extra.periodIds ?? [];
+      retailerInfo.external_line_ids = row.extra.externalLineIds ?? [];
+      retailerInfo.activation_start = row.extra.activationStart ?? null;
+      retailerInfo.activation_end = row.extra.activationEnd ?? null;
+      retailerInfo.activation_count = row.extra.activationCount ?? 0;
+    }
 
     const createsGroup = row.result === 'new_campaign';
     const createsSpace = row.result === 'new_campaign' || row.result === 'new_space';
@@ -473,6 +487,7 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
           tipo_operacion: tipoOperacion,
           linea_campana: lineaCampana,
           ...periodo,
+          ...retailerInfo,
           fecha_fijacion: n.fechaFijacionIso,
           fecha_retirada: n.fechaRetiradaIso,
           creatividad_titulo_original: n.creatividadTitulo,
@@ -499,7 +514,13 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
         tipoOperacion,
         tipoCampanaPeriodo: row.extra?.tipoCampanaPeriodo,
       });
-      const requiredChecks = requiredChecksForOperationType(tipoOperacion);
+      // Checks obligatorios de la LÍNEA (excluye "Artes" en Sponsored Product).
+      const requiredChecks = requiredChecksForLine({
+        tipo_operacion: tipoOperacion,
+        retailer_id: (row.extra?.retailerId ?? null) as string | null,
+        cadena,
+        placement_name_snapshot: placementName,
+      });
       ops.push({
         kind: 'set',
         path: [COLLECTIONS.campaignOperations, id.campaignLineKey],

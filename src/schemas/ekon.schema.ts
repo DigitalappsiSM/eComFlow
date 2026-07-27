@@ -89,6 +89,8 @@ export interface EkonNormalizedRow {
   creatividadDescripcion: string;
   numSoportes: number;
   periodo: ParsedPeriodo;
+  /** Periodo Id Ekon (auditoría/trazabilidad; no es identidad principal). */
+  periodoId: string;
 }
 
 export type EkonRowResult =
@@ -180,6 +182,7 @@ export function mapEkonRow(row: Record<string, string>): EkonRowResult {
       creatividadDescripcion: val(EKON_COLUMNS.creatividadDesc),
       numSoportes: toInt(val(EKON_COLUMNS.numSoportes)),
       periodo: parsePeriodo(val(EKON_COLUMNS.periodo)),
+      periodoId: val(EKON_COLUMNS.periodoId),
     },
   };
 }
