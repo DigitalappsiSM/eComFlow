@@ -45,7 +45,7 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
 
       <aside
         className={cx(
-          'fixed inset-y-0 left-0 z-40 flex h-full flex-col bg-navy-900 text-slate-200 transition-[width,transform] duration-200 ease-out',
+          'fixed inset-y-0 left-0 z-40 flex h-full flex-col border-r border-white/10 bg-ink-900/70 text-slate-200 backdrop-blur-2xl transition-[width,transform] duration-200 ease-out',
           'w-64 -translate-x-full lg:static lg:z-auto lg:translate-x-0',
           mobileOpen && 'translate-x-0',
           collapsed ? 'lg:w-[68px]' : 'lg:w-64',
@@ -53,8 +53,8 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
         aria-label="Navegación principal"
       >
         <div className={cx('flex items-center gap-2.5 px-5 py-5', collapsed && 'lg:justify-center lg:px-0')}>
-          <div className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-accent-blue/20 ring-1 ring-accent-blue/40">
-            <span className="h-3.5 w-3.5 rounded-full border-2 border-accent-blue" />
+          <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-cyan shadow-lg shadow-accent-blue/30">
+            <span className="h-3 w-3 rounded-full border-2 border-white/90" />
           </div>
           <div className={cx('leading-tight', collapsed && 'lg:hidden')}>
             <p className="text-sm font-bold text-white">eComFlow</p>

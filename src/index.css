@@ -9,15 +9,61 @@
   #root {
     height: 100%;
   }
+  html {
+    background-color: #080d18;
+  }
   body {
-    @apply bg-canvas text-slate-800 antialiased;
+    /* El contenido vive en tarjetas claras: el texto por defecto queda oscuro
+       para que las tarjetas no requieran fijar color en cada nodo. El shell
+       (sidebar/header) fija su propio texto claro. */
+    @apply text-slate-800 antialiased;
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    position: relative;
+  }
+  /* Campo ambiental "tech ejecutivo": degradado tinta + glows sutiles. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background:
+      radial-gradient(58rem 40rem at 8% -10%, rgba(91, 141, 239, 0.26), transparent 60%),
+      radial-gradient(50rem 40rem at 112% 6%, rgba(52, 214, 230, 0.16), transparent 62%),
+      radial-gradient(68rem 60rem at 92% 122%, rgba(91, 141, 239, 0.15), transparent 60%),
+      linear-gradient(180deg, #0c1424, #080d18);
+  }
+  /* Rejilla tenue detrás del vidrio. */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.5;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 46px 46px;
+    -webkit-mask-image: radial-gradient(circle at 50% 22%, #000, transparent 82%);
+    mask-image: radial-gradient(circle at 50% 22%, #000, transparent 82%);
   }
 }
 
 @layer components {
   .card {
     @apply rounded-xl border border-slate-200 bg-white shadow-card;
+  }
+  /* Panel de vidrio oscuro (chrome y pantallas convertidas al nuevo tema). */
+  .glass {
+    @apply rounded-2xl border border-white/10 bg-white/[0.055] shadow-glass backdrop-blur-xl;
+  }
+  .glass-soft {
+    @apply rounded-xl border border-white/10 bg-white/[0.06];
+  }
+  /* Micro-etiqueta monoespaciada (eyebrow) del estilo tech. */
+  .eyebrow {
+    @apply font-mono text-[11px] uppercase tracking-[0.2em] text-slate-400;
   }
   .focus-ring {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue focus-visible:ring-offset-2;
