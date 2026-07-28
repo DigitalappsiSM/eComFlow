@@ -17,7 +17,11 @@ import { distinctOptions, type FilterValues } from '@/components/filters/filter-
 
 type Status = 'loading' | 'error' | 'ready';
 
-export function useOperations(pageSize = 50) {
+// Tope alto (mismo working-set que el dashboard) para que ninguna línea
+// vigente se caiga de la vista al iniciar la semana: los testigos pueden
+// tomarse durante toda la semana operativa, así que las líneas cuya ventana
+// sigue abierta deben permanecer disponibles hasta el cierre de semana.
+export function useOperations(pageSize = 1500) {
   const { firebaseUser, appUser } = useAuth();
   const [status, setStatus] = useState<Status>('loading');
   const [message, setMessage] = useState<string | null>(null);
