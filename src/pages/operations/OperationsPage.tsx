@@ -113,7 +113,7 @@ function ContinuityBadge({ value }: { value: string | null | undefined }) {
 }
 
 export function OperationsPage() {
-  const ops = useOperations(500);
+  const ops = useOperations(1500);
   const { can } = usePermissions();
   const canWrite = can('operations.write');
   const [selected, setSelected] = useState<OperationRow | null>(null);

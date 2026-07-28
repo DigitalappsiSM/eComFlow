@@ -84,14 +84,18 @@ export async function fetchOperationsPage(
   const hasMore = snap.docs.length > pageSize;
   const lines = docs.map((d) => d.data() as CampaignLine);
 
-  // Operaciones por id (== campaign_line_id) en lotes de 10.
+  // Operaciones por id (== campaign_line_id) en lotes de 10, en paralelo
+  // (Firestore limita `in` a 10). El paralelo mantiene rápida la carga aun con
+  // páginas grandes.
   const ids = lines.map((l) => l.campaign_line_id);
   const opsById = new Map<string, CampaignOperation>();
-  for (const group of chunk(ids, 10)) {
-    if (group.length === 0) continue;
-    const opsSnap = await getDocs(
-      query(collection(db, COLLECTIONS.campaignOperations), where(documentId(), 'in', group)),
-    );
+  const groups = chunk(ids, 10).filter((g) => g.length > 0);
+  const opsSnaps = await Promise.all(
+    groups.map((group) =>
+      getDocs(query(collection(db, COLLECTIONS.campaignOperations), where(documentId(), 'in', group))),
+    ),
+  );
+  for (const opsSnap of opsSnaps) {
     opsSnap.forEach((d) => opsById.set(d.id, d.data() as CampaignOperation));
   }
 
