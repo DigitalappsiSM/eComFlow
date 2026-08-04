@@ -113,7 +113,7 @@ function ContinuityBadge({ value }: { value: string | null | undefined }) {
 }
 
 export function OperationsPage() {
-  const ops = useOperations(1500);
+  const ops = useOperations();
   const { can } = usePermissions();
   const canWrite = can('operations.write');
   const [selected, setSelected] = useState<OperationRow | null>(null);
@@ -214,6 +214,10 @@ export function OperationsPage() {
             El rango es inválido: «Desde» es posterior a «Hasta».
           </p>
         )}
+        <p className="w-full text-xs text-slate-400">
+          Por defecto se muestran las líneas del mes anterior, el actual y el siguiente. Ajusta «Desde/Hasta» para
+          consultar otras fechas.
+        </p>
       </div>
 
       <FilterBar

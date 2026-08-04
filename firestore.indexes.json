@@ -22,6 +22,15 @@
       "collectionGroup": "campaign_lines",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "is_current", "order": "ASCENDING" },
+        { "fieldPath": "fecha_retirada", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_lines",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "cliente_key", "order": "ASCENDING" },
         { "fieldPath": "fecha_fijacion", "order": "ASCENDING" }
       ]

@@ -12,16 +12,16 @@ import { computeProgress, type CheckKey } from '@/domain/progress';
 import { computeStatus, STATUS_LABELS } from '@/domain/campaign-status';
 import { requiredChecksForLine } from '@/domain/operation-rules';
 import { campaignLineWindow, isInvalidRange, windowIntersects } from '@/domain/operational-window';
-import { todayIso } from '@/lib/dates';
+import { getMonthWindow, todayIso } from '@/lib/dates';
 import { distinctOptions, type FilterValues } from '@/components/filters/filter-utils';
 
 type Status = 'loading' | 'error' | 'ready';
 
-// Tope alto (mismo working-set que el dashboard) para que ninguna línea
-// vigente se caiga de la vista al iniciar la semana: los testigos pueden
-// tomarse durante toda la semana operativa, así que las líneas cuya ventana
-// sigue abierta deben permanecer disponibles hasta el cierre de semana.
-export function useOperations(pageSize = 1500) {
+// Seguimiento operativo consulta por VENTANA de meses (por defecto mes anterior,
+// actual y siguiente), acotando por la fecha de retirada para no cargar todo el
+// histórico ni perder campañas continuas. El tope por página vuelve a ser
+// moderado porque la ventana ya limita el volumen; se pagina con "Cargar más".
+export function useOperations(pageSize = 500) {
   const { firebaseUser, appUser } = useAuth();
   const [status, setStatus] = useState<Status>('loading');
   const [message, setMessage] = useState<string | null>(null);
@@ -42,27 +42,53 @@ export function useOperations(pageSize = 1500) {
     [firebaseUser, appUser],
   );
 
-  const load = useCallback(
-    async (reset: boolean) => {
-      setStatus(reset ? 'loading' : status);
-      try {
-        const page = await fetchOperationsPage(pageSize, reset ? null : cursor);
-        setRows((prev) => (reset ? page.rows : [...prev, ...page.rows]));
+  // Ventana operativa: por defecto mes anterior, actual y siguiente. Si el
+  // usuario fija Desde/Hasta (válidos), se usan esos. El servidor acota por la
+  // fecha de retirada (windowFrom) para no perder campañas continuas; el límite
+  // superior (windowTo) se afina en cliente.
+  const defaultWindow = useMemo(() => getMonthWindow(todayIso(), 1, 1), []);
+  const rangeOk = !isInvalidRange(fijacionDesde, fijacionHasta);
+  const windowFrom = rangeOk && fijacionDesde ? fijacionDesde : defaultWindow.start;
+  const windowTo = rangeOk && fijacionHasta ? fijacionHasta : defaultWindow.end;
+
+  const [reloadNonce, setReloadNonce] = useState(0);
+
+  // Carga (reset) al cambiar la ventana de servidor (windowFrom) o al recargar.
+  useEffect(() => {
+    let cancelled = false;
+    setStatus('loading');
+    fetchOperationsPage(pageSize, null, { from: windowFrom })
+      .then((page) => {
+        if (cancelled) return;
+        setRows(page.rows);
         setCursor(page.cursor);
         setHasMore(page.hasMore);
         setStatus('ready');
-      } catch (err) {
+      })
+      .catch((err) => {
+        if (cancelled) return;
         setMessage(err instanceof Error ? err.message : 'Error desconocido.');
         setStatus('error');
-      }
-    },
-    [pageSize, cursor, status],
-  );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [windowFrom, pageSize, reloadNonce]);
 
-  useEffect(() => {
-    void load(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const loadMore = useCallback(() => {
+    if (!cursor) return;
+    fetchOperationsPage(pageSize, cursor, { from: windowFrom })
+      .then((page) => {
+        setRows((prev) => [...prev, ...page.rows]);
+        setCursor(page.cursor);
+        setHasMore(page.hasMore);
+      })
+      .catch((err) => {
+        setMessage(err instanceof Error ? err.message : 'Error desconocido.');
+      });
+  }, [cursor, pageSize, windowFrom]);
+
+  const reload = useCallback(() => setReloadNonce((n) => n + 1), []);
 
   const idsOf = (row: OperationRow) => ({
     campaign_line_id: row.line.campaign_line_id,
@@ -140,9 +166,6 @@ export function useOperations(pageSize = 1500) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const rangeOk = !isInvalidRange(fijacionDesde, fijacionHasta);
-    const from = rangeOk ? fijacionDesde : '';
-    const to = rangeOk ? fijacionHasta : '';
     return rows.filter((r) => {
       if (filters.cadena && (r.line.cadena ?? '') !== filters.cadena) return false;
       if (filters.tipo && (r.line.tipo_operacion ?? '') !== filters.tipo) return false;
@@ -150,7 +173,7 @@ export function useOperations(pageSize = 1500) {
       if (filters.cliente && (r.line.cliente_original ?? '') !== filters.cliente) return false;
       if (filters.estado && statusLabelOf(r) !== filters.estado) return false;
       // Rango operativo (§12): cruce con la ventana activación → periodo → fechas.
-      if (!windowIntersects(campaignLineWindow(r.line), from, to)) return false;
+      if (!windowIntersects(campaignLineWindow(r.line), windowFrom, windowTo)) return false;
       if (q !== '') {
         const hay = [
           r.line.cliente_original,
@@ -171,7 +194,7 @@ export function useOperations(pageSize = 1500) {
       }
       return true;
     });
-  }, [rows, search, filters, statusLabelOf, fijacionDesde, fijacionHasta]);
+  }, [rows, search, filters, statusLabelOf, windowFrom, windowTo]);
 
   // El periodo operativo de una línea ya venció. Usa periodo_fin si existe (el
   // periodo operativo vence antes que la campaña global); si no, fecha_retirada.
@@ -269,8 +292,8 @@ export function useOperations(pageSize = 1500) {
     rows: filtered,
     totalLoaded: rows.length,
     hasMore,
-    loadMore: () => void load(false),
-    reload: () => void load(true),
+    loadMore,
+    reload,
     search,
     setSearch,
     filters,

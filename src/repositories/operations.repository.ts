@@ -18,6 +18,7 @@ import {
   startAfter,
   where,
   writeBatch,
+  type QueryConstraint,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { requireDb } from '@/lib/firebase';
@@ -63,30 +64,77 @@ function checksFromOperation(op: CampaignOperation | undefined): CheckValues {
   return base;
 }
 
-/** Página de líneas operativas con su operación asociada (join por id). */
+/** Ventana operativa a consultar (ISO). Acota por la fecha de FIN (retirada). */
+export interface OperationsWindow {
+  /** Solo líneas cuya retirada es >= a esta fecha (no cargar lo ya cerrado). */
+  from: string;
+}
+
+/** ¿El error de Firestore es por índice faltante/en construcción? */
+function isMissingIndexError(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code;
+  const msg = err instanceof Error ? err.message.toLowerCase() : '';
+  return code === 'failed-precondition' || msg.includes('requires an index') || msg.includes('index');
+}
+
+/**
+ * Página de líneas operativas con su operación asociada (join por id).
+ *
+ * Acota por `window.from` sobre la fecha de RETIRADA (no la de fijación) para no
+ * perder campañas continuas: su fijación es antigua pero su retirada sigue
+ * vigente. Si el índice `(active, is_current, fecha_retirada)` aún no existe,
+ * cae a la consulta amplia por fijación (sin acotar) para no romper la vista
+ * mientras el índice se construye; el filtrado fino por rango se hace en cliente.
+ */
 export async function fetchOperationsPage(
   pageSize: number,
   cursor: QueryDocumentSnapshot | null = null,
+  window?: OperationsWindow,
 ): Promise<OperationsPage> {
   const db = requireDb();
-  const constraints = [
-    where('active', '==', true),
-    where('is_current', '==', true),
-    orderBy('fecha_fijacion', 'desc'),
-    fbLimit(pageSize + 1),
-  ];
-  const q = cursor
-    ? query(collection(db, COLLECTIONS.campaignLines), ...constraints, startAfter(cursor))
-    : query(collection(db, COLLECTIONS.campaignLines), ...constraints);
 
-  const snap = await getDocs(q);
+  const runQuery = async (constraints: QueryConstraint[]) => {
+    const q = cursor
+      ? query(collection(db, COLLECTIONS.campaignLines), ...constraints, startAfter(cursor))
+      : query(collection(db, COLLECTIONS.campaignLines), ...constraints);
+    return getDocs(q);
+  };
+
+  let snap;
+  if (window?.from) {
+    try {
+      snap = await runQuery([
+        where('active', '==', true),
+        where('is_current', '==', true),
+        where('fecha_retirada', '>=', window.from),
+        orderBy('fecha_retirada', 'asc'),
+        fbLimit(pageSize + 1),
+      ]);
+    } catch (err) {
+      if (!isMissingIndexError(err)) throw err;
+      // Fallback sin acotar (índice en construcción): el rango se filtra en cliente.
+      snap = await runQuery([
+        where('active', '==', true),
+        where('is_current', '==', true),
+        orderBy('fecha_fijacion', 'desc'),
+        fbLimit(pageSize + 1),
+      ]);
+    }
+  } else {
+    snap = await runQuery([
+      where('active', '==', true),
+      where('is_current', '==', true),
+      orderBy('fecha_fijacion', 'desc'),
+      fbLimit(pageSize + 1),
+    ]);
+  }
+
   const docs = snap.docs.slice(0, pageSize);
   const hasMore = snap.docs.length > pageSize;
   const lines = docs.map((d) => d.data() as CampaignLine);
 
   // Operaciones por id (== campaign_line_id) en lotes de 10, en paralelo
-  // (Firestore limita `in` a 10). El paralelo mantiene rápida la carga aun con
-  // páginas grandes.
+  // (Firestore limita `in` a 10). El paralelo mantiene rápida la carga.
   const ids = lines.map((l) => l.campaign_line_id);
   const opsById = new Map<string, CampaignOperation>();
   const groups = chunk(ids, 10).filter((g) => g.length > 0);

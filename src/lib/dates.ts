@@ -134,6 +134,18 @@ export function getMonthRange(iso: IsoDate): DateRange {
   return { start, end: `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}` };
 }
 
+/**
+ * Ventana de meses alrededor del mes de `iso`: desde el inicio del mes
+ * `monthsBefore` atrás hasta el fin del mes `monthsAfter` adelante.
+ * Por defecto (1,1) → mes anterior, actual y siguiente. Maneja el cruce de año.
+ */
+export function getMonthWindow(iso: IsoDate, monthsBefore = 1, monthsAfter = 1): DateRange {
+  const [y, m] = iso.split('-').map(Number);
+  const startBase = toIsoDate(new Date(Date.UTC(y!, m! - 1 - monthsBefore, 1)));
+  const endBase = toIsoDate(new Date(Date.UTC(y!, m! - 1 + monthsAfter, 1)));
+  return { start: getMonthRange(startBase).start, end: getMonthRange(endBase).end };
+}
+
 /** Rango del trimestre natural que contiene `iso`. */
 export function getQuarterRange(iso: IsoDate): DateRange {
   const [y, m] = iso.split('-').map(Number);
