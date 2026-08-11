@@ -1,398 +1,346 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Users,
-  CalendarRange,
-  AlertTriangle,
   Activity,
+  AlertTriangle,
   CheckCircle2,
+  ClipboardCheck,
   Clock,
-  Timer,
   Image,
+  ListChecks,
+  RefreshCw,
+  Rocket,
+  Timer,
+  Users,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { KpiCard } from '@/components/dashboard/KpiCard';
 import { ErrorState, LoadingState } from '@/components/feedback/States';
-import { FilterBar } from '@/components/filters/FilterBar';
-import { distinctOptions, type FilterValues } from '@/components/filters/filter-utils';
-import { useDashboardData } from '@/features/dashboard/useDashboardData';
+import { useEcommerceDashboard } from '@/features/dashboard/useEcommerceDashboard';
 import {
-  AvgProgressByClientBar,
-  CheckBottleneckBar,
-  ComplianceDonut,
-  ComplianceStackedByClient,
-  ComplianceStackedByPeriod,
-} from '@/components/dashboard/DashboardCharts';
+  CheckProgressChart,
+  HistoricalEvolutionChart,
+  PreparationByClientChart,
+  StatusDistributionChart,
+} from '@/components/dashboard/EcommerceDashboardCharts';
 import {
-  complianceStatusOf,
-  computeCheckBottlenecks,
-  computeComplianceByClient,
-  computeComplianceByPeriod,
-  computeComplianceDetail,
-  computeComplianceSummary,
-  lineStart,
-  lineEnd,
-  operationalStatusOf,
-  type ComplianceStatus,
-  type MetricLine,
-  type OperationalStatus,
-} from '@/domain/dashboard-metrics';
-import { windowIntersects, isInvalidRange } from '@/domain/operational-window';
-import { todayIso } from '@/lib/dates';
+  buildAggregateSeries,
+  buildDrilldownHref,
+  computeCheckProgress,
+  computeClientCheckMatrix,
+  computeFourWeeks,
+  computePreparationByClient,
+  computeWeekCard,
+  computeWeekKpis,
+  creativesForWeek,
+  mexicoCityDate,
+  CHECK_LABELS,
+  CHECK_ORDER,
+  type WeekSlot,
+  type DrilldownFilters,
+} from '@/domain/ecommerce-dashboard';
+import { isInvalidRange } from '@/domain/operational-window';
+import type { CheckKey } from '@/domain/progress';
+import type { OperationalStatus } from '@/domain/ecommerce-dashboard';
 import type { ReactNode } from 'react';
 
-const OP_STATUS_LABEL: Record<OperationalStatus, string> = {
-  vencido: 'Vencido',
-  en_curso: 'En curso',
-  futuro: 'Futuro',
-};
-const CONTINUITY_LABEL: Record<'fijacion' | 'continua', string> = {
-  fijacion: 'Fijación',
-  continua: 'Continua',
-};
-const COMPLIANCE_LABEL: Record<ComplianceStatus, string> = {
-  cumplida: 'Cumplida',
-  en_riesgo: 'En riesgo',
-  en_proceso: 'En proceso',
-  pendiente_futuro: 'Futura',
-};
+const BG =
+  'radial-gradient(48rem 30rem at 12% -6%, rgba(91,141,239,.18), transparent 60%), radial-gradient(42rem 34rem at 112% 8%, rgba(52,214,230,.12), transparent 62%), linear-gradient(180deg,#0c1424,#080d18)';
 
-const DEFINITIONS: { term: string; detail: string }[] = [
-  { term: 'Avance', detail: 'Promedio del % de checks obligatorios completos por línea.' },
-  { term: 'Cumplida', detail: 'Todos los checks obligatorios de la línea están completos.' },
-  { term: 'En riesgo', detail: 'El periodo ya venció y la línea sigue incompleta.' },
-  { term: 'En proceso', detail: 'El periodo está en curso y la línea aún no se completa.' },
-  { term: 'Futura', detail: 'El periodo aún no comienza.' },
-  { term: '% A tiempo', detail: 'De las líneas ya vencidas, las que se completaron a más tardar al fin de su periodo ÷ líneas ya vencidas.' },
-  { term: 'Checks obligatorios', detail: 'DIGITAL SIGNAGE solo exige Artes; el resto, los 7 checks.' },
-];
-
-function applyFilters(
-  lines: readonly MetricLine[],
-  f: FilterValues,
-  today: string,
-  desde: string,
-  hasta: string,
-): MetricLine[] {
-  return lines.filter((l) => {
-    // Rango operativo (§12): cruce con la ventana activación → periodo → fechas.
-    if (!windowIntersects({ start: lineStart(l), end: lineEnd(l) }, desde, hasta)) return false;
-    return (
-      (!f.cadena || (l.cadena ?? '') === f.cadena) &&
-      (!f.tipo || (l.tipoOperacion ?? '') === f.tipo) &&
-      (!f.cliente || (l.clienteOriginal ?? '') === f.cliente) &&
-      (!f.estado || OP_STATUS_LABEL[operationalStatusOf(l, today)] === f.estado) &&
-      (!f.cumplimiento || COMPLIANCE_LABEL[complianceStatusOf(l, today)] === f.cumplimiento) &&
-      (!f.continuidad || (l.tipoCampanaPeriodo ? CONTINUITY_LABEL[l.tipoCampanaPeriodo] : '') === f.continuidad)
-    );
-  });
+/** % con un decimal cuando el redondeo entero oculta cambios; «No aplica» si null (§8). */
+function fmtPct(v: number | null): string {
+  if (v === null) return 'No aplica';
+  return Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%`;
 }
 
-function accentForPct(pct: number): 'green' | 'orange' | 'red' {
+function accentForPct(pct: number | null): 'green' | 'orange' | 'red' | 'teal' {
+  if (pct === null) return 'teal';
   if (pct >= 90) return 'green';
   if (pct >= 60) return 'orange';
   return 'red';
 }
 
+function formatLoadedAt(date: Date): string {
+  return new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'America/Mexico_City',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function formatWeekRange(week: { start: string; end: string }): string {
+  const fmt = (iso: string) =>
+    new Intl.DateTimeFormat('es-MX', { timeZone: 'UTC', day: '2-digit', month: 'short' }).format(
+      new Date(`${iso}T00:00:00Z`),
+    );
+  return `${fmt(week.start)} – ${fmt(week.end)}`;
+}
+
+function heatTone(pct: number): string {
+  if (pct >= 90) return 'bg-emerald-500/20 text-emerald-200';
+  if (pct >= 60) return 'bg-amber-500/20 text-amber-200';
+  if (pct > 0) return 'bg-rose-500/20 text-rose-200';
+  return 'bg-white/5 text-slate-500';
+}
+
 export function DashboardPage() {
-  const today = todayIso();
-  const { state, reload } = useDashboardData();
-  const [filters, setFilters] = useState<FilterValues>({});
-  const [fijacionDesde, setFijacionDesde] = useState('');
-  const [fijacionHasta, setFijacionHasta] = useState('');
+  const { state, creatives, loadedAt, fetched, reload } = useEcommerceDashboard();
+  const today = mexicoCityDate(Date.now());
+  const weeks = useMemo(() => computeFourWeeks(today), [today]);
+  const [selectedSlot, setSelectedSlot] = useState<WeekSlot>('current');
+  const [customDesde, setCustomDesde] = useState('');
+  const [customHasta, setCustomHasta] = useState('');
 
-  const lines = useMemo<MetricLine[]>(
-    () => (state.status === 'ready' ? state.lines : []),
-    [state],
-  );
-  const truncated = state.status === 'ready' && state.truncated;
-  const limit = state.status === 'ready' ? state.limit : 0;
-
-  const rangeInvalid = isInvalidRange(fijacionDesde, fijacionHasta);
-  const filtered = useMemo(
-    // Un rango inválido (Desde > Hasta) no se aplica (se muestra un aviso).
-    () => applyFilters(lines, filters, today, rangeInvalid ? '' : fijacionDesde, rangeInvalid ? '' : fijacionHasta),
-    [lines, filters, today, fijacionDesde, fijacionHasta, rangeInvalid],
+  const selectedWeek = weeks.find((w) => w.slot === selectedSlot) ?? weeks[1]!;
+  const rangeInvalid = isInvalidRange(customDesde, customHasta);
+  const useCustom = !!customDesde && !!customHasta && !rangeInvalid;
+  const scope = useMemo(
+    () => (useCustom ? { start: customDesde, end: customHasta } : { start: selectedWeek.start, end: selectedWeek.end }),
+    [useCustom, customDesde, customHasta, selectedWeek.start, selectedWeek.end],
   );
 
-  const summary = useMemo(() => computeComplianceSummary(filtered, today), [filtered, today]);
-  const byClient = useMemo(() => computeComplianceByClient(filtered, today), [filtered, today]);
-  const byPeriod = useMemo(() => computeComplianceByPeriod(filtered, today), [filtered, today]);
-  const bottlenecks = useMemo(() => computeCheckBottlenecks(filtered), [filtered]);
-  const detail = useMemo(() => computeComplianceDetail(filtered, today), [filtered, today]);
+  const inScope = useMemo(() => creativesForWeek(creatives, scope), [creatives, scope]);
+  const kpis = useMemo(() => computeWeekKpis(inScope, today), [inScope, today]);
+  const checkProgress = useMemo(() => computeCheckProgress(inScope), [inScope]);
+  const prepByClient = useMemo(() => computePreparationByClient(inScope), [inScope]);
+  const clientCheckMatrix = useMemo(() => computeClientCheckMatrix(inScope), [inScope]);
 
-  const clientes = useMemo(() => {
-    const set = new Set<string>();
-    for (const l of filtered) if (!l.cancelled) set.add(l.clienteKey);
-    return set.size;
-  }, [filtered]);
-  const periodos = useMemo(() => {
-    const set = new Set<string>();
-    for (const l of filtered) if (!l.cancelled && l.periodoOriginal) set.add(l.periodoOriginal);
-    return set.size;
-  }, [filtered]);
+  // Comparativo de las cuatro tarjetas.
+  const cards = useMemo(
+    () => weeks.map((week) => ({ week, card: computeWeekCard(creatives, week, today) })),
+    [weeks, creatives, today],
+  );
 
-  const fields = [
-    { key: 'cadena', label: 'Cadena', options: distinctOptions(lines, (l) => l.cadena) },
-    { key: 'tipo', label: 'Tipo', options: distinctOptions(lines, (l) => l.tipoOperacion) },
-    { key: 'cliente', label: 'Cliente', options: distinctOptions(lines, (l) => l.clienteOriginal) },
-    {
-      key: 'cumplimiento',
-      label: 'Cumplimiento',
-      options: distinctOptions(lines, (l) => COMPLIANCE_LABEL[complianceStatusOf(l, today)]),
-    },
-    {
-      key: 'estado',
-      label: 'Estado',
-      options: distinctOptions(lines, (l) => OP_STATUS_LABEL[operationalStatusOf(l, today)]),
-    },
-    {
-      key: 'continuidad',
-      label: 'Continuidad',
-      options: distinctOptions(lines, (l) =>
-        l.tipoCampanaPeriodo ? CONTINUITY_LABEL[l.tipoCampanaPeriodo] : '',
-      ),
-    },
-  ];
+  // Evolución histórica: semana en foco + semana anterior para comparación (§9).
+  const evolution = useMemo(() => buildAggregateSeries(inScope), [inScope]);
+  const previousWeek = weeks[0]!;
+  const previousEvolution = useMemo(
+    () => (useCustom ? { points: [], insufficient: true } : buildAggregateSeries(creativesForWeek(creatives, previousWeek))),
+    [useCustom, creatives, previousWeek],
+  );
+
+  const navigate = useNavigate();
+  const drill = (extra: Omit<DrilldownFilters, 'tipo' | 'weekStart' | 'weekEnd'>) => {
+    navigate(buildDrilldownHref({ tipo: 'ECOMMERCE', weekStart: scope.start, weekEnd: scope.end, ...extra }));
+  };
 
   return (
-    <AppLayout title="Cumplimiento operativo" description="Estatus real de operación por cliente y periodo">
-      {state.status === 'loading' && <LoadingState label="Cargando cumplimiento (líneas y checks)…" />}
+    <AppLayout
+      title="Avance operativo Ecommerce"
+      description="Progreso real de preparación y cierre por creatividad (semanas viernes→jueves)"
+    >
+      {state.status === 'loading' && <LoadingState label="Cargando creatividades Ecommerce y checks…" />}
       {state.status === 'error' && <ErrorState description={state.message} onRetry={() => void reload()} />}
 
       {state.status === 'ready' && (
         <div
           className="-m-4 min-h-[calc(100%+2rem)] rounded-tl-2xl p-4 text-slate-200 sm:-m-6 sm:min-h-[calc(100%+3rem)] sm:p-6"
-          style={{
-            background:
-              'radial-gradient(48rem 30rem at 12% -6%, rgba(91,141,239,.18), transparent 60%), radial-gradient(42rem 34rem at 112% 8%, rgba(52,214,230,.12), transparent 62%), linear-gradient(180deg,#0c1424,#080d18)',
-          }}
+          style={{ background: BG }}
         >
-          {truncated && (
-            <div
-              role="alert"
-              className="mb-3 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200"
+          {/* Barra superior: última actualización + Actualizar. */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-400">
+              {loadedAt ? (
+                <>
+                  Última actualización: <span className="font-medium text-slate-300">{formatLoadedAt(loadedAt)}</span>
+                  {' · '}
+                  <span className="tabular-nums">{fetched}</span> líneas Ecommerce · <span className="tabular-nums">{creatives.length}</span> creatividades
+                </>
+              ) : (
+                '—'
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => void reload()}
+              className="focus-ring inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/10"
             >
-              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
-              <span>
-                El dashboard muestra las primeras {limit} líneas activas. Los KPIs y gráficas pueden ser
-                parciales. Aplica filtros o reduce el alcance.
-              </span>
-            </div>
-          )}
-
-          <div className="mb-3 flex flex-wrap items-end gap-3">
-            <div>
-              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                Desde
-              </label>
-              <input
-                type="date"
-                value={fijacionDesde}
-                onChange={(e) => setFijacionDesde(e.target.value)}
-                className="focus-ring rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
-                aria-label="Rango operativo desde"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                Hasta
-              </label>
-              <input
-                type="date"
-                value={fijacionHasta}
-                onChange={(e) => setFijacionHasta(e.target.value)}
-                className="focus-ring rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
-                aria-label="Rango operativo hasta"
-              />
-            </div>
-            {(fijacionDesde || fijacionHasta) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setFijacionDesde('');
-                  setFijacionHasta('');
-                }}
-                className="focus-ring rounded-lg border border-white/15 px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/10"
-              >
-                Limpiar fechas
-              </button>
-            )}
-            {rangeInvalid && (
-              <p role="alert" className="self-center text-xs font-medium text-rose-300">
-                El rango es inválido: «Desde» es posterior a «Hasta».
-              </p>
-            )}
+              <RefreshCw className="h-4 w-4" aria-hidden="true" /> Actualizar
+            </button>
           </div>
 
-          <FilterBar
-            fields={fields}
-            values={filters}
-            onChange={(key, value) => setFilters((f) => ({ ...f, [key]: value }))}
-            onClear={() => {
-              setFilters({});
-              setFijacionDesde('');
-              setFijacionHasta('');
-            }}
-            meta={`${filtered.length} de ${lines.length} líneas`}
-            tone="dark"
-          />
-
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-            <KpiCard tone="dark" label="Avance prom." value={`${summary.avgProgress}%`} icon={Activity} accent={accentForPct(summary.avgProgress)} />
-            <KpiCard tone="dark" label="En riesgo" value={summary.enRiesgo} icon={AlertTriangle} accent="red" />
-            <KpiCard tone="dark" label="En proceso" value={summary.enProceso} icon={Clock} accent="violet" />
-            <KpiCard tone="dark" label="Cumplidas" value={summary.cumplidas} icon={CheckCircle2} accent="green" />
-            <KpiCard tone="dark" label="% A tiempo" value={`${summary.aTiempoPct}%`} icon={Timer} accent={accentForPct(summary.aTiempoPct)} />
-            <KpiCard tone="dark" label="Líneas" value={summary.total} icon={Image} accent="teal" />
-            <KpiCard tone="dark" label="Clientes" value={clientes} icon={Users} accent="blue" />
-            <KpiCard tone="dark" label="Rangos" value={periodos} icon={CalendarRange} accent="orange" />
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <ChartCard
-              title="Estado por cliente"
-              subtitle="Líneas por estado (top 10, mayor riesgo primero)"
-              isEmpty={byClient.length === 0}
-              className="lg:col-span-2"
-            >
-              <ComplianceStackedByClient data={byClient} />
-            </ChartCard>
-            <ChartCard
-              title="Semáforo de cumplimiento"
-              subtitle="Cumplidas / En proceso / En riesgo / Futuras"
-              isEmpty={summary.total === 0}
-            >
-              <ComplianceDonut summary={summary} />
-            </ChartCard>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <ChartCard
-              title="Estado por periodo"
-              subtitle="Líneas por estado en cada semana / catorcena"
-              isEmpty={byPeriod.length === 0}
-              className="lg:col-span-2"
-            >
-              <ComplianceStackedByPeriod data={byPeriod} />
-            </ChartCard>
-            <ChartCard
-              title="Cuellos de botella"
-              subtitle="Checks obligatorios pendientes (nº de líneas)"
-              isEmpty={bottlenecks.length === 0}
-              emptyLabel="Sin checks pendientes"
-            >
-              <CheckBottleneckBar data={bottlenecks} />
-            </ChartCard>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <ChartCard
-              title="Avance por cliente"
-              subtitle="Avance promedio de checks (%), menor primero"
-              isEmpty={byClient.length === 0}
-              className="lg:col-span-2"
-            >
-              <AvgProgressByClientBar data={byClient} />
-            </ChartCard>
-            <section className="glass p-5" aria-labelledby="defs-heading">
-              <h2 id="defs-heading" className="mb-3 text-sm font-semibold text-slate-100">
-                Definiciones
-              </h2>
-              <dl className="space-y-2 text-xs">
-                {DEFINITIONS.map((d) => (
-                  <div key={d.term}>
-                    <dt className="font-semibold text-slate-200">{d.term}</dt>
-                    <dd className="text-slate-400">{d.detail}</dd>
+          {/* Comparativo de cuatro semanas (tarjetas seleccionables). */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {cards.map(({ week, card }, i) => {
+              const prev = i > 0 ? cards[i - 1]!.card : null;
+              const selected = !useCustom && week.slot === selectedSlot;
+              const delta = prev ? card.avgPreparation - prev.avgPreparation : null;
+              return (
+                <button
+                  key={week.slot}
+                  type="button"
+                  onClick={() => {
+                    setSelectedSlot(week.slot);
+                    setCustomDesde('');
+                    setCustomHasta('');
+                  }}
+                  className={`glass rounded-2xl p-4 text-left transition ${
+                    selected ? 'ring-2 ring-accent-blue' : 'hover:bg-white/[0.07]'
+                  }`}
+                  aria-pressed={selected}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-100">{week.label}</p>
+                    {week.slot === 'current' && (
+                      <span className="rounded-full bg-accent-blue/20 px-2 py-0.5 text-[10px] font-semibold text-accent-blue">HOY</span>
+                    )}
                   </div>
-                ))}
-              </dl>
-            </section>
+                  <p className="mt-0.5 text-[11px] text-slate-400">{formatWeekRange(week)}</p>
+                  <p className="mt-3 text-3xl font-bold tabular-nums text-white">{fmtPct(card.avgPreparation)}</p>
+                  <p className="text-[11px] text-slate-400">
+                    preparación prom.
+                    {delta !== null && Math.abs(delta) >= 0.1 && (
+                      <span className={delta >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+                        {' '}
+                        {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}
+                      </span>
+                    )}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                    <span>Listas: <strong className="tabular-nums text-slate-200">{card.listas}</strong></span>
+                    <span>Pend.: <strong className="tabular-nums text-slate-200">{card.pendientes}</strong></span>
+                    <span>Cierre: <strong className="tabular-nums text-slate-200">{fmtPct(card.avgClosing)}</strong></span>
+                    <span>SLA: <strong className={`tabular-nums ${card.fueraDeSla ? 'text-rose-300' : 'text-slate-200'}`}>{card.fueraDeSla}</strong></span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
-          <section className="glass mt-6 overflow-hidden p-0" aria-labelledby="detail-heading">
-            <div className="border-b border-white/10 p-5">
-              <h2 id="detail-heading" className="text-sm font-semibold text-slate-100">
-                Detalle de cumplimiento
-              </h2>
-              <p className="text-xs text-slate-400">Por cliente · periodo · tipo (mayor riesgo primero)</p>
+          {/* Rango personalizado (opción avanzada, §3). */}
+          <details className="mt-3 text-sm text-slate-300">
+            <summary className="cursor-pointer select-none text-xs text-slate-400 hover:text-slate-200">
+              Rango personalizado (avanzado)
+            </summary>
+            <div className="mt-2 flex flex-wrap items-end gap-3">
+              <label className="text-[11px] text-slate-400">
+                Desde
+                <input
+                  type="date"
+                  value={customDesde}
+                  onChange={(e) => setCustomDesde(e.target.value)}
+                  className="focus-ring mt-1 block rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
+                />
+              </label>
+              <label className="text-[11px] text-slate-400">
+                Hasta
+                <input
+                  type="date"
+                  value={customHasta}
+                  onChange={(e) => setCustomHasta(e.target.value)}
+                  className="focus-ring mt-1 block rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
+                />
+              </label>
+              {(customDesde || customHasta) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomDesde('');
+                    setCustomHasta('');
+                  }}
+                  className="focus-ring rounded-lg border border-white/15 px-3 py-2 text-xs text-slate-300 hover:bg-white/10"
+                >
+                  Limpiar
+                </button>
+              )}
+              {rangeInvalid && <p className="self-center text-xs text-rose-300">Rango inválido: «Desde» &gt; «Hasta».</p>}
+              {useCustom && <p className="self-center text-xs text-accent-blue">Mostrando rango personalizado.</p>}
             </div>
-            {detail.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-400">No hay líneas para el filtro actual.</p>
-            ) : (
-              <>
-                {/* Tabla en tablet/escritorio; tarjetas en móvil (sin scroll lateral). */}
-                <div className="hidden overflow-x-auto md:block">
-                  <table className="w-full min-w-[720px] text-sm">
-                    <thead className="bg-white/5 text-left text-xs uppercase text-slate-400">
-                      <tr>
-                        <th className="px-4 py-2 font-medium">Cliente</th>
-                        <th className="px-4 py-2 font-medium">Periodo</th>
-                        <th className="px-4 py-2 font-medium">Tipo</th>
-                        <th className="px-4 py-2 text-right font-medium">Total</th>
-                        <th className="px-4 py-2 text-right font-medium">Cumplidas</th>
-                        <th className="px-4 py-2 text-right font-medium">% Cumpl.</th>
-                        <th className="px-4 py-2 text-right font-medium">En riesgo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.slice(0, 16).map((r) => (
-                        <tr key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="border-t border-white/10 hover:bg-white/5">
-                          <td className="max-w-52 truncate px-4 py-2 font-medium text-slate-100" title={r.cliente}>
-                            {r.cliente}
-                          </td>
-                          <td className="px-4 py-2 text-slate-300">{r.periodo}</td>
-                          <td className="px-4 py-2 text-slate-300">{r.tipo}</td>
-                          <td className="px-4 py-2 text-right tabular-nums text-slate-400">{r.total}</td>
-                          <td className="px-4 py-2 text-right tabular-nums text-slate-400">{r.cumplidas}</td>
-                          <td className="px-4 py-2 text-right">
-                            <CompliancePct pct={r.cumplimientoPct} />
-                          </td>
-                          <td className="px-4 py-2 text-right tabular-nums font-semibold text-rose-400">
-                            {r.enRiesgo || <span className="text-slate-600">—</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+          </details>
 
-                <div className="space-y-2 p-3 md:hidden">
-                  {detail.slice(0, 16).map((r) => (
-                    <div key={`${r.cliente}|${r.periodo}|${r.tipo}`} className="rounded-lg border border-white/10 bg-white/5 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="min-w-0 truncate font-medium text-slate-100" title={r.cliente}>
-                          {r.cliente}
-                        </p>
-                        <CompliancePct pct={r.cumplimientoPct} />
-                      </div>
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        {r.periodo} · {r.tipo}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
-                        <span>Total: <strong className="tabular-nums text-slate-200">{r.total}</strong></span>
-                        <span>Cumplidas: <strong className="tabular-nums text-slate-200">{r.cumplidas}</strong></span>
-                        <span>
-                          En riesgo:{' '}
-                          {r.enRiesgo ? (
-                            <strong className="tabular-nums text-rose-400">{r.enRiesgo}</strong>
-                          ) : (
-                            <span className="text-slate-600">—</span>
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
+          {/* KPIs de la semana seleccionada. */}
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            <KpiCard tone="dark" label="Preparación prom." value={fmtPct(kpis.avgPreparation)} icon={Activity} accent={accentForPct(kpis.avgPreparation)} />
+            <KpiCard tone="dark" label="Listas p/ activación" value={kpis.listasParaActivacion} icon={Rocket} accent="blue" />
+            <KpiCard tone="dark" label="Preparación pend." value={kpis.preparacionPendiente} icon={Clock} accent="orange" />
+            <KpiCard tone="dark" label="Checks compl./oblig." value={`${kpis.checksCompletados}/${kpis.checksObligatorios}`} icon={ListChecks} accent="teal" />
+            <KpiCard tone="dark" label="Cierre operativo prom." value={fmtPct(kpis.avgClosing)} icon={ClipboardCheck} accent="violet" />
+            <KpiCard tone="dark" label="Cerradas" value={kpis.cerradas} icon={CheckCircle2} accent="green" />
+            <KpiCard tone="dark" label="Preparación a tiempo" value={fmtPct(kpis.preparacionATiempoPct)} icon={Timer} accent={accentForPct(kpis.preparacionATiempoPct)} />
+            <KpiCard tone="dark" label="Cierre a tiempo" value={fmtPct(kpis.cierreATiempoPct)} icon={Timer} accent={accentForPct(kpis.cierreATiempoPct)} />
+            <KpiCard tone="dark" label="Fuera de SLA" value={kpis.fueraDeSla} icon={AlertTriangle} accent="red" />
+            <KpiCard tone="dark" label="Clientes" value={kpis.clientes} icon={Users} accent="blue" />
+            <KpiCard tone="dark" label="Creatividades" value={kpis.totalCreatives} icon={Image} accent="teal" />
+          </div>
+
+          {/* Avance por check + distribución por estado. */}
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <ChartCard title="Avance por check" subtitle="Completados vs pendientes (clic en pendientes para ver líneas)" isEmpty={checkProgress.length === 0}>
+              <CheckProgressChart data={checkProgress} onSelectCheck={(check: CheckKey) => drill({ pendingCheck: check })} />
+            </ChartCard>
+            <ChartCard title="Distribución por estado" subtitle="Creatividades por estado operativo (clic para ver líneas)" isEmpty={kpis.totalCreatives === 0}>
+              <StatusDistributionChart counts={kpis.statusCounts} onSelectStatus={(status: OperationalStatus) => drill({ status })} />
+            </ChartCard>
+          </div>
+
+          {/* Preparación por cliente + evolución histórica. */}
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <ChartCard title="Preparación por cliente" subtitle="Promedio de preparación (mayor pendiente primero)" isEmpty={prepByClient.length === 0}>
+              <PreparationByClientChart data={prepByClient} onSelectClient={(cliente) => drill({ cliente })} />
+            </ChartCard>
+            <ChartCard
+              title="Evolución histórica"
+              subtitle="Avance diario desde el lunes previo a la activación"
+              isEmpty={evolution.points.length === 0}
+            >
+              {evolution.insufficient && (
+                <p className="mb-2 text-[11px] text-amber-300/80">
+                  Historial limitado: se reconstruye con los timestamps disponibles de los checks.
+                </p>
+              )}
+              <HistoricalEvolutionChart current={evolution.points} previous={previousEvolution.points} />
+            </ChartCard>
+          </div>
+
+          {/* Matriz cliente × check. */}
+          <section className="glass mt-6 overflow-hidden p-0" aria-label="Matriz cliente por check">
+            <div className="border-b border-white/10 p-5">
+              <h2 className="text-sm font-semibold text-slate-100">Matriz cliente × check</h2>
+              <p className="text-xs text-slate-400">% completado de cada check por cliente</p>
+            </div>
+            {clientCheckMatrix.rows.length === 0 ? (
+              <p className="p-8 text-center text-sm text-slate-400">No hay creatividades en la semana seleccionada.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead className="bg-white/5 text-left text-xs uppercase text-slate-400">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Cliente</th>
+                      {CHECK_ORDER.map((check) => (
+                        <th key={check} className="px-2 py-2 text-center font-medium">{CHECK_LABELS[check]}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientCheckMatrix.rows.slice(0, 20).map((row) => (
+                      <tr key={String(row.cliente)} className="border-t border-white/10">
+                        <td className="max-w-52 truncate px-4 py-2 font-medium text-slate-100" title={String(row.cliente)}>
+                          {String(row.cliente)}
+                        </td>
+                        {CHECK_ORDER.map((check) => {
+                          const pct = Number(row[check] ?? 0);
+                          return (
+                            <td key={check} className="px-2 py-1.5 text-center">
+                              <span className={`inline-block min-w-[42px] rounded-md px-2 py-0.5 text-[11px] font-semibold tabular-nums ${heatTone(pct)}`}>
+                                {Number.isInteger(pct) ? pct : pct.toFixed(0)}%
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
 
-          {lines.length === 0 && (
+          {creatives.length === 0 && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
-              <p className="text-sm font-medium text-slate-200">La base de datos está vacía</p>
-              <p className="mt-1 text-xs text-slate-400">
-                Cuando se procese una importación, el cumplimiento aparecerá aquí.
-              </p>
+              <p className="text-sm font-medium text-slate-200">No hay creatividades Ecommerce activas</p>
+              <p className="mt-1 text-xs text-slate-400">Cuando se procese una importación Ecommerce, el avance aparecerá aquí.</p>
             </div>
           )}
         </div>
@@ -401,40 +349,22 @@ export function DashboardPage() {
   );
 }
 
-function CompliancePct({ pct }: { pct: number }) {
-  const tone =
-    pct >= 90
-      ? 'bg-emerald-400/15 text-emerald-300'
-      : pct >= 60
-        ? 'bg-amber-400/15 text-amber-300'
-        : 'bg-rose-400/15 text-rose-300';
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${tone}`}>{pct}%</span>;
-}
-
 function ChartCard({
   title,
   subtitle,
   isEmpty,
-  emptyLabel,
-  className,
   children,
 }: {
   title: string;
   subtitle?: string;
   isEmpty: boolean;
-  emptyLabel?: string;
-  className?: string;
   children: ReactNode;
 }) {
   return (
-    <section className={`glass p-5 ${className ?? ''}`} aria-label={title}>
+    <section className="glass p-5" aria-label={title}>
       <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
       {subtitle && <p className="mb-3 text-xs text-slate-400">{subtitle}</p>}
-      {isEmpty ? (
-        <p className="py-12 text-center text-sm text-slate-500">{emptyLabel ?? 'Sin datos en el periodo'}</p>
-      ) : (
-        children
-      )}
+      {isEmpty ? <p className="py-12 text-center text-sm text-slate-500">Sin datos en la semana</p> : children}
     </section>
   );
 }

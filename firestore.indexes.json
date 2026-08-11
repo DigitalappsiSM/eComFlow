@@ -13,6 +13,16 @@
       "collectionGroup": "campaign_lines",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "tipo_operacion", "order": "ASCENDING" },
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "is_current", "order": "ASCENDING" },
+        { "fieldPath": "fecha_fijacion", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "campaign_lines",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "active", "order": "ASCENDING" },
         { "fieldPath": "is_current", "order": "ASCENDING" },
         { "fieldPath": "fecha_fijacion", "order": "DESCENDING" }
