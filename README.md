@@ -37,11 +37,16 @@ Además del alcance de la especificación, se adaptó a los **datos reales**:
   digitales (ECOMMERCE, DIGITAL SIGNAGE, TOMATURNOS).
 - **Filtros dinámicos** (Periodo, Cadena, Tipo, Cliente, Estado + búsqueda) en
   Dashboard y Seguimiento operativo.
-- **Dashboard de cumplimiento operativo**: estatus REAL basado en el avance de
-  checks (une líneas con sus operaciones). KPIs de avance promedio, en riesgo, en
-  proceso, cumplidas y % a tiempo; gráficos Recharts con **conteos apilados por
-  estado** (por cliente y por periodo), avance por cliente, semáforo y cuellos de
-  botella por check, más tabla de detalle. Ver
+- **Dashboard de Avance Operativo Ecommerce**: mide el avance REAL de
+  preparación y cierre **por creatividad**, en **semanas de viernes a jueves**
+  (cuatro tarjetas seleccionables, actual por defecto). Separa preparación
+  (correo, artes, validación, link, Ad server) de cierre (testigos App/Web), con
+  fechas límite en `America/Mexico_City`, estados operativos por creatividad y
+  KPIs que reaccionan a cada check (y muestran `No aplica` en vez de `0%` cuando
+  no vence ningún plazo). Consolida en memoria los periodos diarios de La Comer
+  (sin escribir Firestore) y permite **drill-down** a Seguimiento operativo por
+  URL. Gráficos Recharts: avance por check, preparación por cliente, matriz
+  cliente × check, distribución por estado y evolución histórica. Ver
   [`docs/dashboard-operativo.md`](docs/dashboard-operativo.md).
 - **Correo de especificaciones Ecommerce** (`/campanas`): generador
   **filtro-primero** que agrega líneas Ecommerce de varias campañas (por cliente,

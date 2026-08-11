@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/States';
 import { StatusBadge } from '@/components/operations/StatusBadge';
@@ -10,6 +11,7 @@ import { computeStatus, type CampaignStatus } from '@/domain/campaign-status';
 import { CHECK_KEYS, type CheckKey } from '@/domain/progress';
 import { isCheckRequiredForLine, requiredChecksForLine } from '@/domain/operation-rules';
 import { todayIso } from '@/lib/dates';
+import { parseDrilldownParams, STATUS_LABELS as ECOMMERCE_STATUS_LABELS } from '@/domain/ecommerce-dashboard';
 import type { OperationRow } from '@/repositories/operations.repository';
 
 /** Columnas ordenables de la tabla operativa. */
@@ -100,6 +102,14 @@ const CONTINUITY_LABELS: Record<string, string> = {
   continua: 'Continua',
 };
 
+function DrilldownChip({ label }: { label: string }) {
+  return (
+    <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-accent-blue ring-1 ring-blue-200">
+      {label}
+    </span>
+  );
+}
+
 function OperationBadge({ value }: { value: string | null | undefined }) {
   const label = value || 'Sin tipo';
   const tone = label === 'DIGITAL SIGNAGE' ? 'bg-violet-50 text-accent-violet' : 'bg-blue-50 text-accent-blue';
@@ -113,7 +123,10 @@ function ContinuityBadge({ value }: { value: string | null | undefined }) {
 }
 
 export function OperationsPage() {
-  const ops = useOperations();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Filtros iniciales del drill-down del dashboard (solo al montar, §11).
+  const initialDrilldown = useMemo(() => parseDrilldownParams(searchParams), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const ops = useOperations(500, initialDrilldown);
   const { can } = usePermissions();
   const canWrite = can('operations.write');
   const [selected, setSelected] = useState<OperationRow | null>(null);
@@ -219,6 +232,29 @@ export function OperationsPage() {
           consultar otras fechas.
         </p>
       </div>
+
+      {(ops.pendingCheck || ops.statusFilter || ops.filters.cliente || ops.filters.tipo) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-sm">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Filtros del dashboard:</span>
+          {ops.filters.tipo && <DrilldownChip label={`Tipo: ${ops.filters.tipo}`} />}
+          {ops.filters.cliente && <DrilldownChip label={`Cliente: ${ops.filters.cliente}`} />}
+          {(ops.fijacionDesde || ops.fijacionHasta) && (
+            <DrilldownChip label={`Semana: ${ops.fijacionDesde || '…'} → ${ops.fijacionHasta || '…'}`} />
+          )}
+          {ops.pendingCheck && <DrilldownChip label={`Check pendiente: ${CHECK_LABELS[ops.pendingCheck]}`} />}
+          {ops.statusFilter && <DrilldownChip label={`Estado: ${ECOMMERCE_STATUS_LABELS[ops.statusFilter]}`} />}
+          <button
+            type="button"
+            onClick={() => {
+              ops.clearDrilldown();
+              setSearchParams({}, { replace: true });
+            }}
+            className="focus-ring ml-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Limpiar filtros del dashboard
+          </button>
+        </div>
+      )}
 
       <FilterBar
         fields={ops.filterFields}

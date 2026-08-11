@@ -1,104 +1,191 @@
-# Dashboard de cumplimiento operativo
+# Dashboard de Avance Operativo Ecommerce
 
-El dashboard principal (`/`) muestra el **estatus real de operación** por cliente
-y por periodo: qué está **cumplido**, qué está **en riesgo** (venció sin
-completarse), qué está **en proceso** y dónde están los **cuellos de botella**.
+El dashboard principal (`/`) mide el **avance real de preparación y cierre por
+creatividad** de la operación **Ecommerce**, organizado en **semanas de viernes
+a jueves**. Cada creatividad reacciona a **cada check** (no sólo al completar los
+siete) y las fechas límite se comparan en `America/Mexico_City`.
 
-A diferencia de un panel de conteos, aquí el estado se basa en el **avance real
-de los checks** (correo, artes, validación, link, kevel, testigos), no solo en
-fechas. **Todas las métricas se calculan en el cliente** con funciones puras
-(`src/domain/dashboard-metrics.ts`); no hay agregaciones en servidor ni se lee
-ningún Excel.
+La lógica de negocio vive en una capa de dominio **pura y testable**
+(`src/domain/ecommerce-dashboard/`), separada de la lectura de Firestore
+(`src/repositories/ecommerce-dashboard.repository.ts`) y de la presentación
+React (`src/pages/dashboard/DashboardPage.tsx`,
+`src/components/dashboard/EcommerceDashboardCharts.tsx`).
+
+## Alcance
+
+Sólo se consideran líneas con:
+
+```text
+tipo_operacion == "ECOMMERCE"
+active == true
+is_current == true
+cancelled != true
+```
+
+La **unidad de medición es la creatividad**, no la campaña ni el periodo diario.
+Todos los checks aplicables pesan igual.
 
 ## Flujo de datos
 
-1. `useDashboardData` → `fetchOperationalLinesForDashboard` carga de Firestore
-   las líneas `active == true` y `is_current == true` (tope 1500) y **une cada
-   línea con su operación** (`campaign_operations`, por `campaign_line_id`, en
-   lotes de 10 en paralelo).
-2. Cada línea se proyecta a `MetricLine` con su **avance real**: `progress`,
-   `complete`, `pendingChecks`, `completedAtIso` (fecha en que quedó completa) y
-   `responsable`.
-3. `DashboardPage` aplica los filtros en memoria y calcula el cumplimiento.
+1. `useEcommerceDashboard` → `fetchEcommerceDashboardLines` consulta **sólo
+   Ecommerce** y **pagina hasta recuperar todas las líneas** (sin el antiguo tope
+   de 1,500). Une cada línea con su `campaign_operations` en lotes de 10.
+2. Las líneas se proyectan a `RawDashboardLine` (timestamps ya como epoch ms) y se
+   **consolidan** en `DashboardCreative` (`consolidateCreatives`).
+3. `DashboardPage` filtra por la semana seleccionada y calcula KPIs, gráficas y
+   drill-down con funciones puras.
 
-## Checks obligatorios por tipo
+La recarga ocurre: al **entrar** al dashboard, al **volver** desde Seguimiento
+operativo (la página se re-monta) y con el botón **«Actualizar»**. Se muestra la
+**fecha/hora de la última actualización**. No hay listeners de tiempo real.
 
-El conjunto de checks obligatorios depende del tipo de operación
-(`src/domain/operation-rules.ts`):
+## Ventanas semanales (viernes→jueves)
 
-- **DIGITAL SIGNAGE**: solo **Artes**.
-- **ECOMMERCE / TOMATURNOS / otros**: los **7** checks.
+Se muestran siempre cuatro tarjetas (`computeFourWeeks`), con la **actual
+seleccionada** por defecto. Ejemplo con hoy = 11 ago 2026:
 
-Una línea está **cumplida** cuando **todos sus checks obligatorios** están
-completos.
+| Tarjeta | Rango |
+|---------|-------|
+| Semana anterior | 31 jul – 6 ago |
+| Semana actual | 7 – 13 ago |
+| Próxima semana | 14 – 20 ago |
+| Segunda semana | 21 – 27 ago |
 
-## Estados de cumplimiento
+Al pulsar una tarjeta, todos los KPIs, gráficas y tablas se recalculan. El
+**rango personalizado** existe como opción avanzada (no como control principal).
 
-`complianceStatusOf(line, hoy)` combina completitud y periodo operativo
-(`periodo_inicio/fin`, con reserva a las fechas de campaña):
+## Etapas y checks (§4)
 
-| Estado | Regla |
-|--------|-------|
-| **Cumplida** | Todos los checks obligatorios completos. |
-| **En riesgo** | Periodo **vencido** y la línea **incompleta** (SLA incumplido). |
-| **En proceso** | Periodo **en curso** y la línea incompleta. |
-| **Futura** | Periodo **futuro** y la línea incompleta. |
+| Etapa | Checks |
+|-------|--------|
+| **Preparación** | `correo_enviado`, `artes`, `validacion`, `link`, `kevel` (**Ad server**) |
+| **Cierre operativo** | `testigos_app`, `testigos_web` |
 
-**A tiempo** (`completedOnTime`): la línea está cumplida y se completó a más
-tardar al **fin de su periodo** (`completedAtIso <= periodo_fin`). Si no hay
-fecha de completado, se asume a tiempo. Las líneas **canceladas** se excluyen de
-todos los cálculos.
+```text
+preparationProgress = prep completados / prep aplicables
+closingProgress     = testigos completados / testigos aplicables
+totalProgress       = todos completados / todos aplicables
+```
 
-## KPIs
+**No se penalizan checks que no aplican**: el denominador se ajusta automáticamente
+(p. ej. `SPONSORED PRODUCT` de La Comer no requiere `artes`, resuelto vía el
+adaptador de retailer, no por condiciones dispersas `cadena === "LA COMER"`).
 
-Se muestran métricas que **siempre tienen valor** (avance y conteos), no solo el
-% de "todo completo" que en la práctica suele ser bajo.
+## Fechas límite (SLA, §5)
+
+Comparación de timestamps en `America/Mexico_City`.
+
+- **Ecommerce general** (semana viernes→jueves):
+  - Preparación a tiempo si todo se completó hasta el **viernes de activación**,
+    inclusive.
+  - Testigos a tiempo si ambos se completaron hasta el **lunes inmediato
+    posterior** a ese viernes, inclusive.
+- **La Comer** (inicia cualquier día):
+  - Preparación hasta la **primera fecha real de activación**, inclusive.
+  - Testigos hasta el **primer lunes posterior** a esa primera activación,
+    inclusive.
+
+## Estados operativos (§7)
+
+`operationalStatusOf` clasifica cada creatividad en: **Sin iniciar**, **En
+preparación**, **Lista para activación**, **Lista con retraso**, **En ventana de
+testigos**, **Testigos vencidos**, **Cerrada a tiempo**, **Cerrada con retraso**.
+Una creatividad **futura con preparación completa** aparece como **Lista para
+activación** (no simplemente «Futura»).
+
+## KPIs de la semana seleccionada (§8)
 
 | KPI | Qué mide |
 |-----|----------|
-| **Avance prom.** | Promedio del avance de checks (0–100 %; verde ≥90, ámbar ≥60, rojo <60). |
-| **En riesgo** | Líneas vencidas aún incompletas (pendientes de cierre). |
-| **En proceso** | Líneas en curso todavía incompletas. |
-| **Cumplidas** | Nº de líneas con todos sus checks obligatorios completos. |
-| **% A tiempo** | Líneas completadas a tiempo ÷ líneas cuyo periodo ya venció. |
-| **Líneas** | Total de líneas en el filtro actual (excluye canceladas). |
-| **Clientes** | Clientes distintos en el filtro actual. |
-| **Periodos** | Periodos (semana/catorcena) distintos en el filtro actual. |
+| **Preparación prom.** | Promedio de `preparationProgress`. |
+| **Listas p/ activación** | Creatividades con preparación completa aún sin activar. |
+| **Preparación pend.** | Creatividades con preparación incompleta. |
+| **Checks compl./oblig.** | Checks completados sobre checks obligatorios aplicables. |
+| **Cierre operativo prom.** | Promedio de `closingProgress`. |
+| **Cerradas** | Creatividades con testigos completos. |
+| **Preparación a tiempo** | De las que ya vencieron, las completadas en plazo. `No aplica` si aún no vence ninguna. |
+| **Cierre a tiempo** | Ídem para testigos. |
+| **Fuera de SLA** | Vencidas sin completar o cerradas con retraso. |
+| **Clientes** | Clientes distintos. |
+| **Creatividades** | Total en la semana. |
 
-## Gráficos y tabla (Recharts)
+Reglas de presentación:
 
-Las gráficas usan **conteos por estado** y **avance**, que siempre se ven —a
-diferencia de un "% cumplido" que sale vacío cuando casi nada está al 100 %.
+- Si **no venció** ninguna fecha límite, se muestra **`No aplica`** en vez de `0%`.
+- Porcentajes con **un decimal** cuando el redondeo entero oculte cambios.
+- Los KPIs reaccionan a **cada check**, no sólo al completar los siete.
 
-- **Estado por cliente** — barras **apiladas** con las líneas por estado
-  (Cumplidas / En proceso / En riesgo / Futuras), top 10, mayor riesgo primero.
-- **Semáforo de cumplimiento** — dona Cumplidas / En proceso / En riesgo / Futuras.
-- **Estado por periodo** — barras apiladas por semana/catorcena (cronológico).
-- **Cuellos de botella** — barras del nº de líneas con cada check obligatorio
-  pendiente (dónde se atora la operación).
-- **Avance por cliente** — barras del **avance promedio (%)** por cliente, menor
-  primero, coloreadas por umbral.
-- **Detalle de cumplimiento** — tabla por Cliente · Periodo · Tipo con total,
-  cumplidas, % de cumplimiento y líneas en riesgo (mayor riesgo primero).
+## Gráficas (Recharts, tema oscuro)
 
-## Filtros
+- **Comparativo de cuatro semanas** — tarjetas con preparación, listas,
+  pendientes, cierre, fuera de SLA y **variación** contra la semana anterior.
+- **Avance por check** — completados vs pendientes (Correo, Artes, Validación,
+  Link, Ad server, Testigos App, Testigos Web).
+- **Preparación por cliente** — % promedio, **mayor pendiente primero**.
+- **Matriz cliente × check** — % completado de cada check por cliente.
+- **Distribución por estado** — creatividades por estado operativo.
+- **Evolución histórica** — avance diario desde el lunes previo a la activación,
+  preparación hasta la activación y testigos hasta el lunes límite, con
+  comparación contra la semana anterior. Usa los timestamps reales de los checks;
+  si no hay historial suficiente, muestra una advertencia discreta.
 
-Se derivan de los datos y se aplican en memoria: **Periodo, Mes, Cadena, Tipo,
-Cliente, Cumplimiento** (Cumplida / En riesgo / En proceso / Futura), **Estado**
-operativo (Vencido / En curso / Futuro) y **Continuidad** (Fijación / Continua).
-El botón **Limpiar** restablece todo; el contador muestra "X de Y líneas".
+## Tratamiento especial de La Comer (§6)
 
-## Validación en producción
+La Comer carga **periodos diarios** que son **fechas de activación**, no líneas
+independientes. `consolidateCreatives` normaliza **en memoria** (nunca escribe
+Firestore) agrupando por:
 
-1. Abrir **https://digitalappsism.github.io/eComFlow/** (dashboard es la ruta `/`).
-2. Recargar fuerte con **Ctrl + Shift + R**.
-3. Verificar que aparece **"Cumplimiento operativo"** y que los KPIs muestran
-   porcentajes (no solo conteos).
-4. Confirmar que **En riesgo** coincide con la sección roja del semáforo y con la
-   suma de la columna **En riesgo** de la tabla.
-5. Cruzar contra **Seguimiento operativo**: una línea con todos sus checks
-   marcados debe contar como **Cumplida**; una con periodo vencido y checks
-   pendientes debe salir **En riesgo**.
-6. Probar los filtros (sobre todo **Cumplimiento**, **Cliente** y **Periodo**) y
-   ver que KPIs, gráficos y tabla reaccionan.
-7. Comprobar el comportamiento **responsive** y los **estados vacíos**.
+```text
+cliente/campaña + artículo/placement + Creatividad ID
+```
+
+Reglas aplicadas:
+
+- `CARRUSEL HOME` y `SPONSORED PRODUCT` → **dos** creatividades.
+- 20 periodos diarios del mismo artículo e ID → **una** creatividad.
+- Cambio de **Creatividad ID** → **otra** línea.
+- Título, descripción, periodo diario y fechas de fijación/retirada **no**
+  separan la identidad.
+- Fechas consolidadas en `activationDates`, respetando **huecos reales** (no se
+  inventan días intermedios). Cuando falta `activation_dates`, se derivan de
+  `periodo_original`, `periodo_inicio` y `periodo_fin`.
+- Una creatividad cuenta **como máximo una vez por semana**; si participa en
+  varias, se muestra **continua** sin reiniciar checks.
+
+**Consolidación de checks históricos**: por cada check gana el valor de la
+actualización **más reciente** (`checks.<key>.updated_at`; si falta, el
+`updated_at` de la operación). Se conserva `legacyLineIds` para historial y
+drill-down. No se modifica ni desactiva ninguna línea.
+
+## Drill-down (§11)
+
+Las gráficas y KPIs accionables abren Seguimiento operativo con filtros
+precargados por URL, p. ej.:
+
+```text
+/operacion?tipo=ECOMMERCE&weekStart=2026-08-14&weekEnd=2026-08-20&cliente=MABE&pendingCheck=artes&status=en_preparacion
+```
+
+`OperationsPage`/`useOperations` leen `URLSearchParams` (`parseDrilldownParams`),
+aplican semana, cliente, estado y check pendiente, muestran **chips** de los
+filtros recibidos y permiten **limpiarlos**. Sin parámetros, el comportamiento es
+el de siempre. Para agrupaciones históricas de La Comer, el drill-down evalúa las
+líneas fuente individuales; no modifica checks de forma masiva.
+
+## Rendimiento (§10)
+
+- Sin límite arbitrario: `fetchAllPages` recorre todas las páginas Ecommerce.
+- Join con `campaign_operations` en lotes seguros de 10.
+- Índice compuesto requerido (en `firestore.indexes.json`):
+  `campaign_lines (tipo_operacion ASC, active ASC, is_current ASC, fecha_fijacion ASC)`.
+- Sin listeners de tiempo real; recarga bajo demanda.
+
+## Pruebas
+
+`src/tests/ecommerce-dashboard.test.ts` cubre los 20 escenarios obligatorios
+(§13): ventanas semanales, fechas límite a tiempo/con retraso, «No aplica» en
+periodos futuros, reacción por check, Sponsored Product sin Artes, consolidación
+de La Comer (20 diarios → 1, Carrusel + Sponsored → 2, nueva Creatividad ID,
+huecos, sin `activation_dates`, timestamp más reciente, continuidad multi-semana),
+inicio en día distinto al viernes, drill-down por URL, paginación sin truncamiento
+y métricas vacías.

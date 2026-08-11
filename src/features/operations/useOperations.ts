@@ -14,6 +14,11 @@ import { requiredChecksForLine } from '@/domain/operation-rules';
 import { campaignLineWindow, isInvalidRange, windowIntersects } from '@/domain/operational-window';
 import { getMonthWindow, todayIso } from '@/lib/dates';
 import { distinctOptions, type FilterValues } from '@/components/filters/filter-utils';
+import {
+  rowEcommerceStatus,
+  type DrilldownFilters,
+  type OperationalStatus,
+} from '@/domain/operations-drilldown';
 
 type Status = 'loading' | 'error' | 'ready';
 
@@ -21,18 +26,27 @@ type Status = 'loading' | 'error' | 'ready';
 // actual y siguiente), acotando por la fecha de retirada para no cargar todo el
 // histórico ni perder campañas continuas. El tope por página vuelve a ser
 // moderado porque la ventana ya limita el volumen; se pagina con "Cargar más".
-export function useOperations(pageSize = 500) {
+export function useOperations(pageSize = 500, initialFilters: DrilldownFilters = {}) {
   const { firebaseUser, appUser } = useAuth();
   const [status, setStatus] = useState<Status>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const [rows, setRows] = useState<OperationRow[]>([]);
   const [cursor, setCursor] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const [filters, setFilters] = useState<FilterValues>({});
+  // Filtros iniciales desde el drill-down del dashboard (parámetros de URL, §11).
+  const [filters, setFilters] = useState<FilterValues>(() => {
+    const f: FilterValues = {};
+    if (initialFilters.tipo) f.tipo = initialFilters.tipo;
+    if (initialFilters.cliente) f.cliente = initialFilters.cliente;
+    return f;
+  });
   const [search, setSearch] = useState('');
   // Rango de fijación (mismo filtro que el correo Ecommerce): ISO yyyy-mm-dd.
-  const [fijacionDesde, setFijacionDesde] = useState('');
-  const [fijacionHasta, setFijacionHasta] = useState('');
+  const [fijacionDesde, setFijacionDesde] = useState(initialFilters.weekStart ?? '');
+  const [fijacionHasta, setFijacionHasta] = useState(initialFilters.weekEnd ?? '');
+  // Filtros de drill-down específicos del avance operativo Ecommerce.
+  const [pendingCheck, setPendingCheck] = useState<CheckKey | null>(initialFilters.pendingCheck ?? null);
+  const [statusFilter, setStatusFilter] = useState<OperationalStatus | null>(initialFilters.status ?? null);
   const [savingLineId, setSavingLineId] = useState<string | null>(null);
   const [bulkStatus, setBulkStatus] = useState<'idle' | 'saving'>('idle');
 
@@ -172,6 +186,13 @@ export function useOperations(pageSize = 500) {
       if (filters.continuidad && (r.line.tipo_campana_periodo ?? '') !== filters.continuidad) return false;
       if (filters.cliente && (r.line.cliente_original ?? '') !== filters.cliente) return false;
       if (filters.estado && statusLabelOf(r) !== filters.estado) return false;
+      // Drill-down: check pendiente concreto (§11).
+      if (pendingCheck) {
+        const req = requiredChecksForLine(r.line);
+        if (!req.includes(pendingCheck) || r.checks[pendingCheck]) return false;
+      }
+      // Drill-down: estado operativo Ecommerce (§11).
+      if (statusFilter && rowEcommerceStatus(r.line, r.checks, today) !== statusFilter) return false;
       // Rango operativo (§12): cruce con la ventana activación → periodo → fechas.
       if (!windowIntersects(campaignLineWindow(r.line), windowFrom, windowTo)) return false;
       if (q !== '') {
@@ -194,7 +215,7 @@ export function useOperations(pageSize = 500) {
       }
       return true;
     });
-  }, [rows, search, filters, statusLabelOf, windowFrom, windowTo]);
+  }, [rows, search, filters, statusLabelOf, windowFrom, windowTo, pendingCheck, statusFilter, today]);
 
   // El periodo operativo de una línea ya venció. Usa periodo_fin si existe (el
   // periodo operativo vence antes que la campaña global); si no, fecha_retirada.
@@ -304,11 +325,23 @@ export function useOperations(pageSize = 500) {
     setFijacionDesde,
     setFijacionHasta,
     rangeInvalid: isInvalidRange(fijacionDesde, fijacionHasta),
+    // Filtros de drill-down activos (para mostrar chips y poder limpiarlos, §11).
+    pendingCheck,
+    statusFilter,
     clearFilters: () => {
       setFilters({});
       setSearch('');
       setFijacionDesde('');
       setFijacionHasta('');
+      setPendingCheck(null);
+      setStatusFilter(null);
+    },
+    clearDrilldown: () => {
+      setFilters((f) => ({ ...f, tipo: '', cliente: '' }));
+      setFijacionDesde('');
+      setFijacionHasta('');
+      setPendingCheck(null);
+      setStatusFilter(null);
     },
     isLineExpired,
     savingLineId,
