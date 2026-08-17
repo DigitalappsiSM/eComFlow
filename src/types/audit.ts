@@ -22,7 +22,10 @@ export type ChangeType =
   | 'creativity_detected'
   | 'replacement_confirmed'
   | 'replacement_rejected'
-  | 'status_changed';
+  | 'status_changed'
+  // Conciliación de fuente EKON (§10): la línea dejó de aparecer / reapareció.
+  | 'source_missing'
+  | 'source_restored';
 
 export type EntityType =
   | 'campaign_group'

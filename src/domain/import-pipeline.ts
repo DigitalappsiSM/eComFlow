@@ -11,6 +11,7 @@
 import type { CampaignIdentity } from './identity';
 import { buildIdentity } from './identity';
 import { classifyRow, type ExistingLineRef, type ImportResult } from './import-classification';
+import type { ImportReconciliationPlan, PresenceAction } from './reconciliation';
 import type { IdentityStrategy, PeriodGranularity } from './retailers/types';
 import type { PlacementIndex } from './placement-index';
 import {
@@ -52,6 +53,20 @@ export interface RowPlan {
   existingGroupId?: string | null;
   existingSpaceId?: string | null;
   existingLineId?: string | null;
+  /**
+   * Acción de PRESENCIA sobre una línea entrante que ya existe (§6):
+   *  - 'touch'   → refresca presencia/last_seen_at sin tocar contenido.
+   *  - 'restore' → reactiva una línea que estaba `not_in_source`.
+   * Ausente cuando la fila crea una línea nueva o no aplica.
+   */
+  presenceAction?: PresenceAction;
+  /** Estado de la línea existente coincidente (para presencia/restauración). */
+  existingLine?: {
+    active: boolean;
+    inactiveReason?: string | null;
+    sourceStatus?: string | null;
+    cancelled?: boolean;
+  };
   /** Datos adicionales específicos de plantilla (p. ej. Ekon). */
   extra?: {
     placementName?: string;
@@ -103,6 +118,12 @@ export interface ImportPlan {
   summary: ImportSummary;
   /** Filas de material agrupadas en una misma línea (plantilla Ekon). */
   mergedRows?: number;
+  /**
+   * Conciliación de fuente EKON (§6). Sección SEPARADA de las filas: describe
+   * ausencias (líneas que ya no aparecen) y restauraciones. Sólo la produce el
+   * pipeline EKON; las ausencias no tienen fila de origen.
+   */
+  reconciliation?: ImportReconciliationPlan;
 }
 
 function rejectRow(

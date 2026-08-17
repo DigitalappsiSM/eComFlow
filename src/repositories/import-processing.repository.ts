@@ -31,12 +31,24 @@ import { memoizeAsync } from '@/lib/memoize';
 import type { ImportStoreLookup } from '@/domain/import-pipeline';
 import type { ImportPlan, RowPlan } from '@/domain/import-pipeline';
 import type { ExistingLineRef } from '@/domain/import-classification';
+import {
+  lineInScope,
+  shouldApplyReconciliation,
+  type ReconciliationCandidate,
+  type ScopeCandidateLine,
+  type ScopeFilter,
+} from '@/domain/reconciliation';
+import { adapterForLine } from '@/domain/retailers/registry';
+import { normalizeChain } from '@/domain/retailers/default.adapter';
 import type { CampaignLine } from '@/types/campaign';
 import type { Placement, PlacementRequirement } from '@/types/placement';
 import type { ImportScope } from '@/types/import';
 import type { IsoDate } from '@/lib/dates';
 import { computeProgress } from '@/domain/progress';
 import { initialChecksForImportedLine, requiredChecksForLine } from '@/domain/operation-rules';
+
+/** Tope de lectura de la conciliación para no descargar la colección entera. */
+const RECONCILIATION_READ_LIMIT = 3000;
 
 // ----------------------------- Lookups ------------------------------------
 
@@ -66,6 +78,11 @@ export function buildFirestoreLookup(db: Firestore = requireDb()): ImportStoreLo
       contentHash: l.content_hash,
       isCurrent: l.is_current,
       active: l.active,
+      // Proyección para presencia/restauración (§7): detectar bajas
+      // `not_in_source` sin cargar toda la entidad.
+      inactiveReason: l.inactive_reason ?? null,
+      sourceStatus: l.source_status ?? null,
+      cancelled: l.cancelled ?? false,
     };
   });
   const getSpaceLines = memoizeAsync<string, ExistingLineRef[]>(async (spaceId) => {
@@ -110,6 +127,87 @@ export async function findImportByFileHash(
   );
   const snap = await getDocs(q);
   return !snap.empty;
+}
+
+// ------------------------- Conciliación de fuente -------------------------
+
+/** Construye el filtro de alcance normalizado a partir del alcance detectado. */
+export function buildScopeFilter(scope: ImportScope): ScopeFilter {
+  return {
+    coveredPeriods: scope.covered_periods ?? [],
+    chainKeys: new Set((scope.scope_chains ?? []).map((c) => normalizeChain(c))),
+    operationTypes: new Set(scope.scope_operation_types ?? []),
+    windowStart: scope.scope_start_date,
+    windowEnd: scope.scope_end_date,
+  };
+}
+
+function toScopeCandidateLine(l: CampaignLine): ScopeCandidateLine {
+  const identityStrategy = l.identity_strategy ?? adapterForLine(l).identityStrategy;
+  const candidate: ReconciliationCandidate = {
+    campaignLineId: l.campaign_line_id,
+    campaignSpaceId: l.campaign_space_id,
+    campaignGroupId: l.campaign_group_id,
+    clienteOriginal: l.cliente_original,
+    numeroCampanaOriginal: l.numero_campaña_original,
+    placementName: l.placement_name_snapshot,
+    creatividadIdOriginal: l.creatividad_id_original,
+    periodoOriginal: l.periodo_original ?? null,
+    periodoInicio: l.periodo_inicio ?? null,
+    periodoFin: l.periodo_fin ?? null,
+    cadena: l.cadena ?? null,
+    tipoOperacion: l.tipo_operacion ?? null,
+  };
+  return {
+    candidate,
+    identityStrategy,
+    cadenaKey: normalizeChain(l.cadena ?? ''),
+    tipoOperacion: l.tipo_operacion ?? null,
+    periodoCodigo: l.periodo_codigo ?? null,
+    periodoInicio: l.periodo_inicio ?? null,
+    periodoFin: l.periodo_fin ?? null,
+    activationStart: l.activation_start ?? null,
+    activationEnd: l.activation_end ?? null,
+  };
+}
+
+/**
+ * Líneas activas/actuales que pertenecen al alcance confirmado (§7). Consulta
+ * por la ventana de `periodo_inicio` (no descarga toda la colección) y aplica la
+ * membresía exacta/contención en memoria. Incluye ambas estrategias de
+ * identidad: `period_range` por periodo exacto y `campaign_range` por contención
+ * de su rango de activación en la ventana confirmada.
+ */
+export async function fetchActiveLinesInScope(
+  scope: ImportScope,
+  db: Firestore = requireDb(),
+): Promise<ScopeCandidateLine[]> {
+  const filter = buildScopeFilter(scope);
+  if (
+    filter.coveredPeriods.length === 0 ||
+    !filter.windowStart ||
+    !filter.windowEnd ||
+    filter.operationTypes.size === 0
+  ) {
+    return [];
+  }
+
+  const q = query(
+    collection(db, COLLECTIONS.campaignLines),
+    where('active', '==', true),
+    where('is_current', '==', true),
+    where('periodo_inicio', '>=', filter.windowStart),
+    where('periodo_inicio', '<=', filter.windowEnd),
+    limit(RECONCILIATION_READ_LIMIT),
+  );
+  const snap = await getDocs(q);
+
+  const result: ScopeCandidateLine[] = [];
+  snap.forEach((d) => {
+    const line = toScopeCandidateLine(d.data() as CampaignLine);
+    if (lineInScope(line, filter)) result.push(line);
+  });
+  return result;
 }
 
 // ------------------------- Requerimientos ---------------------------------
@@ -164,7 +262,14 @@ export interface RunImportContext {
 export interface RunImportResult {
   importId: string;
   status: 'processed' | 'partially_processed';
+  /** Líneas dadas de baja lógica por ausencia (conciliación autoritativa). */
+  missingRows: number;
+  /** Líneas restauradas por reaparición. */
+  restoredRows: number;
+  reconciliationStatus: 'skipped' | 'blocked' | 'completed';
 }
+
+const PROCESSING_VERSION = 'v2-source-reconciliation';
 
 type Op =
   | { kind: 'set'; path: [string, string]; data: Record<string, unknown> }
@@ -259,7 +364,12 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
     started_at: now(),
     finished_at: null,
     last_confirmed_batch: 0,
-    processing_version: 'v1',
+    processing_version: PROCESSING_VERSION,
+    // Conciliación (se actualizan al cerrar; base retrocompatible).
+    missing_rows: 0,
+    restored_rows: 0,
+    reconciliation_status: 'skipped' as const,
+    reconciliation_blocked_reasons: plan.reconciliation?.blockedReasons ?? [],
   };
   const startBatch = writeBatch(db);
   startBatch.set(importRef, importBase);
@@ -308,6 +418,12 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
   const touchedGroups = new Set<string>();
   const touchedSpaces = new Set<string>();
 
+  // Presencia/restauración (§9.3–§9.4): las filas `unchanged` refrescan
+  // presencia (touch); las líneas `not_in_source` que reaparecen se restauran.
+  const touchLineIds = new Set<string>();
+  interface RestoreTarget { lineId: string; groupId: string; spaceId: string; previousSourceStatus: string | null }
+  const restoreTargets: RestoreTarget[] = [];
+
   for (const row of plan.rows) {
     // import_rows: SIEMPRE (incluye rechazos) con id determinista.
     const importRowId = `${importId}__${row.rowNumber}`;
@@ -333,6 +449,20 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
         created_by: user.uid,
       },
     });
+
+    // Presencia/restauración de líneas ENTRANTES existentes (§6). Se resuelve
+    // en fases posteriores; aquí sólo se recolectan los objetivos.
+    if (row.identity && row.presenceAction === 'restore') {
+      restoreTargets.push({
+        lineId: row.identity.campaignLineKey,
+        groupId: row.identity.campaignGroupKey,
+        spaceId: row.identity.campaignSpaceKey,
+        previousSourceStatus: row.existingLine?.sourceStatus ?? 'not_in_source',
+      });
+    } else if (row.identity && row.result === 'unchanged') {
+      // `unchanged` presente en el archivo → touch de presencia (§3.5).
+      touchLineIds.add(row.identity.campaignLineKey);
+    }
 
     if (
       row.result === 'rejected' ||
@@ -474,6 +604,13 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
           is_current: true,
           active: true,
           present_in_latest_import: true,
+          // Conciliación de fuente (§3): la línea entrante está presente.
+          identity_strategy: row.extra?.identityStrategy ?? null,
+          source_status: 'present',
+          inactive_reason: null,
+          missing_since_import_id: null,
+          missing_detected_at: null,
+          last_seen_at: now(),
           replaces_campaign_line_id: null,
           replaced_by_campaign_line_id: null,
           replacement_status: row.result === 'creativity_change' ? 'pending_review' : 'not_applicable',
@@ -608,6 +745,12 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
           ...periodo,
           content_hash: id.contentHash,
           present_in_latest_import: true,
+          // Touch de presencia (§3.5): la línea sigue presente en la fuente. No
+          // se toca `active` ni `cancelled`; si estaba `not_in_source` la fase
+          // de restauración la reactiva por separado.
+          identity_strategy: row.extra?.identityStrategy ?? null,
+          source_status: row.presenceAction === 'restore' ? 'restored' : 'present',
+          last_seen_at: now(),
           updated_at: now(),
           updated_by: user.uid,
           last_import_id: importId,
@@ -617,45 +760,272 @@ export async function runImport(ctx: RunImportContext): Promise<RunImportResult>
     }
   }
 
-  // 3-4) Ejecutar las escrituras. El registro imports/{id} ya existe, así que un
-  // error en fase de ejecución se marca como `failed` (best-effort) conservando
-  // la fase; el error original se propaga siempre.
-  try {
-    // 3) Confirmar en lotes con progreso.
-    let confirmed = 0;
-    let batchNo = 0;
-    for (let i = 0; i < ops.length; i += WRITE_LIMIT) {
-      const slice = ops.slice(i, i + WRITE_LIMIT);
+  // Ejecución por FASES (§9). El registro imports/{id} ya existe: un error en
+  // cualquier fase se marca `failed` (best-effort) conservando la fase; el error
+  // original se propaga siempre. El orden garantiza que NO se desactiva nada
+  // antes de confirmar los upserts entrantes.
+  let batchNo = 0;
+  const commitOps = async (phase: string, phaseOps: Op[]): Promise<void> => {
+    for (let i = 0; i < phaseOps.length; i += WRITE_LIMIT) {
+      const slice = phaseOps.slice(i, i + WRITE_LIMIT);
       const batch = writeBatch(db);
       for (const op of slice) {
         const ref = doc(db, op.path[0], op.path[1]);
         if (op.kind === 'set') batch.set(ref, op.data);
         else batch.update(ref, op.data);
       }
-      await commitPhase('escribir lote', batch);
-      confirmed += slice.length;
+      await commitPhase(phase, batch);
       batchNo += 1;
-      ctx.onProgress?.(confirmed, ops.length, batchNo);
+    }
+  };
+
+  const changeHistoryLineOp = (fields: {
+    groupId: string;
+    spaceId: string;
+    lineId: string;
+    changeType: string;
+    previous: unknown;
+    next: unknown;
+  }): Op => {
+    const cid = doc(collection(db, COLLECTIONS.changeHistory)).id;
+    return {
+      kind: 'set',
+      path: [COLLECTIONS.changeHistory, cid],
+      data: {
+        change_id: cid,
+        entity_type: 'campaign_line',
+        entity_id: fields.lineId,
+        campaign_group_id: fields.groupId,
+        campaign_space_id: fields.spaceId,
+        campaign_line_id: fields.lineId,
+        import_id: importId,
+        change_type: fields.changeType,
+        field_name: 'source_status',
+        previous_value: fields.previous,
+        new_value: fields.next,
+        origin: 'excel_import',
+        created_at: now(),
+        created_by: user.uid,
+        created_by_email: user.email,
+      },
+    };
+  };
+
+  const coverageMode = ctx.scope.coverage_mode ?? 'additive';
+  const reconciliation = plan.reconciliation;
+  const reconcileEligible = reconciliation?.eligible ?? false;
+  const doReconcile = shouldApplyReconciliation(coverageMode, reconcileEligible);
+
+  // Espacios/grupos afectados por bajas o restauraciones → recálculo de actividad.
+  const affectedSpaces = new Set<string>();
+  const affectedGroups = new Set<string>();
+  let restoredRows = 0;
+  let missingRows = 0;
+
+  try {
+    // Fase 1 (§9.2): escribir/actualizar entidades presentes en el archivo.
+    await commitOps('escribir filas entrantes', ops);
+    ctx.onProgress?.(ops.length, ops.length, batchNo);
+
+    // Fase 2 (§9.3): touch de presencia de filas `unchanged`.
+    const touchOps: Op[] = [];
+    for (const lineId of touchLineIds) {
+      touchOps.push({
+        kind: 'update',
+        path: [COLLECTIONS.campaignLines, lineId],
+        data: {
+          present_in_latest_import: true,
+          source_status: 'present',
+          last_seen_at: now(),
+          updated_at: now(),
+          updated_by: user.uid,
+          last_import_id: importId,
+        },
+      });
+    }
+    await commitOps('actualizar presencia', touchOps);
+
+    // Fase 3 (§9.4): restaurar líneas `not_in_source` que reaparecieron. Sólo
+    // se restaura si TODAVÍA estaba inactiva por esa razón (idempotencia §9).
+    if (restoreTargets.length > 0) {
+      const snaps = await Promise.all(
+        restoreTargets.map((t) => getDoc(doc(db, COLLECTIONS.campaignLines, t.lineId))),
+      );
+      const restoreOps: Op[] = [];
+      restoreTargets.forEach((t, i) => {
+        const snap = snaps[i]!;
+        if (!snap.exists()) return;
+        const l = snap.data() as CampaignLine;
+        if (l.active === true || l.inactive_reason !== 'not_in_source') return; // ya restaurada
+        restoreOps.push({
+          kind: 'update',
+          path: [COLLECTIONS.campaignLines, t.lineId],
+          data: {
+            active: true,
+            source_status: 'restored',
+            inactive_reason: null,
+            present_in_latest_import: true,
+            restored_in_import_id: importId,
+            restored_at: now(),
+            missing_since_import_id: null,
+            missing_detected_at: null,
+            last_seen_at: now(),
+            updated_at: now(),
+            updated_by: user.uid,
+            last_import_id: importId,
+          },
+        });
+        restoreOps.push(
+          changeHistoryLineOp({
+            groupId: t.groupId,
+            spaceId: t.spaceId,
+            lineId: t.lineId,
+            changeType: 'source_restored',
+            previous: 'not_in_source',
+            next: 'restored',
+          }),
+        );
+        affectedSpaces.add(t.spaceId);
+        affectedGroups.add(t.groupId);
+        restoredRows += 1;
+      });
+      await commitOps('restaurar líneas', restoreOps);
     }
 
-    // 4) Finalizar el registro de importación (§22).
+    // Fase 4 (§9.5): conciliar ausencias. SÓLO en modo autoritativo elegible.
+    if (doReconcile && reconciliation && reconciliation.missing.length > 0) {
+      const missing = reconciliation.missing;
+      const snaps = await Promise.all(
+        missing.map((m) => getDoc(doc(db, COLLECTIONS.campaignLines, m.campaignLineId))),
+      );
+      const deactivateOps: Op[] = [];
+      missing.forEach((m, i) => {
+        const snap = snaps[i]!;
+        if (!snap.exists()) return;
+        const l = snap.data() as CampaignLine;
+        // Idempotencia: sólo dar de baja si TODAVÍA estaba activa/presente.
+        if (l.active !== true) return;
+        const previousSourceStatus = l.source_status ?? 'present';
+        deactivateOps.push({
+          kind: 'update',
+          path: [COLLECTIONS.campaignLines, m.campaignLineId],
+          data: {
+            active: false,
+            source_status: 'not_in_source',
+            inactive_reason: 'not_in_source',
+            present_in_latest_import: false,
+            missing_since_import_id: importId,
+            missing_detected_at: now(),
+            updated_at: now(),
+            updated_by: user.uid,
+            last_import_id: importId,
+            // NO se tocan: is_current, cancelled, claves, operación, checks.
+          },
+        });
+        deactivateOps.push(
+          changeHistoryLineOp({
+            groupId: m.campaignGroupId,
+            spaceId: m.campaignSpaceId,
+            lineId: m.campaignLineId,
+            changeType: 'source_missing',
+            previous: previousSourceStatus,
+            next: 'not_in_source',
+          }),
+        );
+        affectedSpaces.add(m.campaignSpaceId);
+        affectedGroups.add(m.campaignGroupId);
+        missingRows += 1;
+      });
+      await commitOps('conciliar ausencias EKON', deactivateOps);
+    }
+
+    // Fase 5 (§11): recalcular actividad de espacios y grupos afectados. Un padre
+    // queda activo si conserva al menos un hijo activo; sólo se registra el
+    // cambio de actividad cuando el valor realmente cambia.
+    if (affectedSpaces.size > 0 || affectedGroups.size > 0) {
+      const parentOps: Op[] = [];
+      for (const spaceId of affectedSpaces) {
+        const [snap, childActive] = await Promise.all([
+          getDoc(doc(db, COLLECTIONS.campaignSpaces, spaceId)),
+          hasActiveChild(db, 'campaign_space_id', spaceId),
+        ]);
+        if (!snap.exists()) continue;
+        const current = (snap.data() as { active?: boolean }).active ?? false;
+        if (current === childActive) continue;
+        parentOps.push({
+          kind: 'update',
+          path: [COLLECTIONS.campaignSpaces, spaceId],
+          data: {
+            active: childActive,
+            updated_at: now(),
+            updated_by: user.uid,
+            last_import_id: importId,
+          },
+        });
+      }
+      for (const groupId of affectedGroups) {
+        const [snap, childActive] = await Promise.all([
+          getDoc(doc(db, COLLECTIONS.campaignGroups, groupId)),
+          hasActiveChild(db, 'campaign_group_id', groupId),
+        ]);
+        if (!snap.exists()) continue;
+        const current = (snap.data() as { active?: boolean }).active ?? false;
+        if (current === childActive) continue;
+        parentOps.push({
+          kind: 'update',
+          path: [COLLECTIONS.campaignGroups, groupId],
+          data: {
+            active: childActive,
+            updated_at: now(),
+            updated_by: user.uid,
+            last_import_id: importId,
+          },
+        });
+      }
+      await commitOps('recalcular jerarquía', parentOps);
+    }
+
+    // Fase 6 (§9.7, §22): cerrar el registro de importación.
     const status: RunImportResult['status'] =
       plan.summary.rejected > 0 && plan.summary.valid > 0
         ? 'partially_processed'
         : 'processed';
+    const reconciliationStatus: RunImportResult['reconciliationStatus'] =
+      coverageMode === 'authoritative' ? (reconcileEligible ? 'completed' : 'blocked') : 'skipped';
     const finishBatch = writeBatch(db);
     finishBatch.update(importRef, {
       status,
       finished_at: now(),
       last_confirmed_batch: batchNo,
+      missing_rows: missingRows,
+      restored_rows: restoredRows,
+      reconciliation_status: reconciliationStatus,
+      reconciliation_blocked_reasons: reconciliation?.blockedReasons ?? [],
       updated_at: now(),
       updated_by: user.uid,
     });
     await commitPhase('cerrar importación', finishBatch);
+    ctx.onProgress?.(ops.length, ops.length, batchNo);
 
-    return { importId, status };
+    return { importId, status, missingRows, restoredRows, reconciliationStatus };
   } catch (err) {
     await markImportFailed(db, importRef, user, err);
     throw err;
   }
+}
+
+/**
+ * ¿El padre (espacio o grupo) conserva al menos una línea activa? Consulta por
+ * una sola igualdad (auto-indexada) y evalúa `active` en memoria para no exigir
+ * un índice compuesto nuevo. Acota la lectura por seguridad.
+ */
+async function hasActiveChild(
+  db: Firestore,
+  field: 'campaign_space_id' | 'campaign_group_id',
+  parentId: string,
+): Promise<boolean> {
+  const snap = await getDocs(
+    query(collection(db, COLLECTIONS.campaignLines), where(field, '==', parentId), limit(500)),
+  );
+  return snap.docs.some((d) => (d.data() as { active?: boolean }).active === true);
 }

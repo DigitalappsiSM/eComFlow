@@ -16,6 +16,8 @@
  * cambio detectado pendiente de revisión.
  */
 
+import type { SourceStatus } from '@/types/campaign';
+
 export type ImportResult =
   | 'new_campaign'
   | 'new_space'
@@ -35,6 +37,11 @@ export interface ExistingLineRef {
   contentHash: string;
   isCurrent: boolean;
   active: boolean;
+  // --- Conciliación de fuente EKON (§6): sólo lo necesario para decidir
+  // presencia/restauración. Opcionales: documentos históricos no los tienen. ---
+  inactiveReason?: string | null;
+  sourceStatus?: SourceStatus | null;
+  cancelled?: boolean;
 }
 
 export interface ExistingState {

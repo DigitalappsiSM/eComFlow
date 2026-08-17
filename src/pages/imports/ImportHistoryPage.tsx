@@ -18,6 +18,12 @@ const STATUS_STYLES: Partial<Record<ImportStatus, string>> = {
   processing: 'bg-blue-50 text-accent-blue',
 };
 
+const RECONCILIATION_LABELS: Record<'skipped' | 'blocked' | 'completed', string> = {
+  skipped: 'No aplicada',
+  blocked: 'Bloqueada',
+  completed: 'Conciliado',
+};
+
 function fmtDate(ts: ImportRecord['uploaded_at']): string {
   const anyTs = ts as { toDate?: () => Date } | null;
   if (anyTs?.toDate) return anyTs.toDate().toLocaleString('es-MX');
@@ -67,6 +73,9 @@ export function ImportHistoryPage() {
                   <th className="px-4 py-3 font-medium">Actualizados</th>
                   <th className="px-4 py-3 font-medium">Sin cambios</th>
                   <th className="px-4 py-3 font-medium">Rechazados</th>
+                  <th className="px-4 py-3 font-medium" title="Líneas dadas de baja por ausencia">No incluidas</th>
+                  <th className="px-4 py-3 font-medium" title="Líneas restauradas al reaparecer">Restauradas</th>
+                  <th className="px-4 py-3 font-medium">Conciliación</th>
                   <th className="px-4 py-3 font-medium">Estado</th>
                 </tr>
               </thead>
@@ -80,6 +89,11 @@ export function ImportHistoryPage() {
                     <td className="px-4 py-3 tabular-nums">{imp.updated_rows}</td>
                     <td className="px-4 py-3 tabular-nums">{imp.unchanged_rows}</td>
                     <td className="px-4 py-3 tabular-nums">{imp.rejected_rows}</td>
+                    <td className="px-4 py-3 tabular-nums text-red-600">{imp.missing_rows ?? 0}</td>
+                    <td className="px-4 py-3 tabular-nums text-accent-green">{imp.restored_rows ?? 0}</td>
+                    <td className="px-4 py-3 text-xs text-slate-500" title={(imp.reconciliation_blocked_reasons ?? []).join(' · ') || undefined}>
+                      {RECONCILIATION_LABELS[imp.reconciliation_status ?? 'skipped']}
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -124,6 +138,9 @@ export function ImportHistoryPage() {
                   <span>Actualizados: <strong className="tabular-nums text-slate-700">{imp.updated_rows}</strong></span>
                   <span>Sin cambios: <strong className="tabular-nums text-slate-700">{imp.unchanged_rows}</strong></span>
                   <span>Rechazados: <strong className="tabular-nums text-slate-700">{imp.rejected_rows}</strong></span>
+                  <span>No incluidas: <strong className="tabular-nums text-red-600">{imp.missing_rows ?? 0}</strong></span>
+                  <span>Restauradas: <strong className="tabular-nums text-accent-green">{imp.restored_rows ?? 0}</strong></span>
+                  <span>Conciliación: <strong className="text-slate-700">{RECONCILIATION_LABELS[imp.reconciliation_status ?? 'skipped']}</strong></span>
                 </div>
                 {imp.status === 'failed' && imp.failure_reason && (
                   <p className="mt-2 text-xs text-red-600">{imp.failure_reason}</p>

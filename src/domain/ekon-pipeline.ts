@@ -11,6 +11,7 @@
 import { buildIdentity } from './identity';
 import { normalizeKey, normalizeSlugKey } from './normalization';
 import { classifyRow } from './import-classification';
+import { decidePresenceAction } from './reconciliation';
 import { DEFAULT_DIGITAL_TIPOS, type TipoClassifier } from './articulo-tipos';
 import { resolveRetailerAdapter } from './retailers/registry';
 import type {
@@ -322,6 +323,19 @@ export async function buildEkonImportPlan(
     plan.existingGroupId = groupId;
     plan.existingSpaceId = spaceId;
     plan.existingLineId = line?.id ?? null;
+
+    // Presencia/restauración (§6): si la línea entrante ya existe, decide si
+    // sólo se refresca (touch) o se reactiva una baja `not_in_source` (restore).
+    if (line) {
+      plan.existingLine = {
+        active: line.active,
+        inactiveReason: line.inactiveReason ?? null,
+        sourceStatus: line.sourceStatus ?? null,
+        cancelled: line.cancelled ?? false,
+      };
+      const action = decidePresenceAction(line);
+      if (action) plan.presenceAction = action;
+    }
   }
 
   const rows = [...byLineKey.values(), ...rejected].sort((a, b) => a.rowNumber - b.rowNumber);
