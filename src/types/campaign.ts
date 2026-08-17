@@ -2,7 +2,18 @@
 
 import type { Timestamp } from 'firebase/firestore';
 import type { IsoDate } from '@/lib/dates';
-import type { PeriodGranularity } from '@/domain/retailers/types';
+import type { IdentityStrategy, PeriodGranularity } from '@/domain/retailers/types';
+
+/**
+ * Estado de una línea respecto a la última exportación EKON confirmada (§3.2).
+ * Es INDEPENDIENTE de `cancelled` (decisión manual de negocio):
+ *  - 'present'       → apareció en la última exportación de su alcance.
+ *  - 'not_in_source' → dejó de aparecer en una exportación autoritativa y se dio
+ *                      de baja lógica (active=false), conservando todo su avance.
+ *  - 'restored'      → reapareció y fue reactivada (valor informativo; una
+ *                      importación posterior lo normaliza a 'present').
+ */
+export type SourceStatus = 'present' | 'not_in_source' | 'restored';
 
 export interface AuditFields {
   created_at: Timestamp | null;
@@ -93,6 +104,24 @@ export interface CampaignLine extends AuditFields {
   anunciante: string;
   required_pieces: number;
   cancelled: boolean;
+
+  // --- Conciliación de fuente EKON (§3). Opcionales: los documentos históricos
+  // no los tienen y se leen como `present`/activos. `is_current` y `cancelled`
+  // NUNCA se tocan por esta lógica. ---
+  /** Estrategia de identidad del retailer (period_range | campaign_range). */
+  identity_strategy?: IdentityStrategy | null;
+  /** Presencia en la última exportación EKON de su alcance. */
+  source_status?: SourceStatus | null;
+  /** Motivo de la baja lógica; sólo `'not_in_source'` se restaura solo. */
+  inactive_reason?: string | null;
+  /** Importación en la que se detectó la ausencia. */
+  missing_since_import_id?: string | null;
+  missing_detected_at?: Timestamp | null;
+  /** Importación en la que reapareció y se restauró. */
+  restored_in_import_id?: string | null;
+  restored_at?: Timestamp | null;
+  /** Última vez que la línea se vio en una exportación (touch de presencia). */
+  last_seen_at?: Timestamp | null;
 
   // --- Multi-retailer / consolidación de activaciones diarias (opcionales para
   // documentos históricos; se escriben en importaciones nuevas). ---

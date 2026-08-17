@@ -22,6 +22,26 @@ export type ImportScopeType =
   | 'date_range'
   | 'campaign';
 
+/**
+ * Periodo exacto detectado en una exportación EKON (§4.2). No se infiere por
+ * min/max: cada periodo discreto (semana/catorcena) que aparece en el archivo
+ * se lista de forma explícita para no desactivar periodos intermedios ausentes.
+ */
+export interface ImportCoveredPeriod {
+  code: string;
+  type: 'semana' | 'catorcena' | 'otro';
+  start: IsoDate;
+  end: IsoDate;
+}
+
+/**
+ * Modo de cobertura de una importación:
+ *  - 'additive'      → nunca desactiva nada (modo seguro por defecto).
+ *  - 'authoritative' → trata el archivo como fotografía completa del alcance
+ *                      detectado y da de baja lógica las líneas ausentes (§4.4).
+ */
+export type ImportCoverageMode = 'additive' | 'authoritative';
+
 export interface ImportScope {
   scope_type: ImportScopeType;
   scope_clients: string[];
@@ -29,6 +49,14 @@ export interface ImportScope {
   scope_end_date: IsoDate | null;
   scope_campaigns: string[];
   is_complete_scope: boolean;
+
+  // --- Conciliación de fuente EKON (opcionales; documentos históricos no los
+  // tienen y se leen como ausentes). ---
+  source_system?: 'ekon' | 'generic';
+  coverage_mode?: ImportCoverageMode;
+  covered_periods?: ImportCoveredPeriod[];
+  scope_chains?: string[];
+  scope_operation_types?: string[];
 }
 
 export interface ImportRecord {
@@ -58,6 +86,16 @@ export interface ImportRecord {
   processing_version: string;
   /** Motivo acotado del fallo (fase + mensaje) cuando status === 'failed'. */
   failure_reason?: string | null;
+
+  // --- Conciliación de fuente EKON (opcionales, retrocompatibles). ---
+  /** Líneas dentro del alcance que dejaron de aparecer y se dieron de baja. */
+  missing_rows?: number;
+  /** Líneas ausentes previas que reaparecieron y se restauraron. */
+  restored_rows?: number;
+  /** Resultado de la conciliación de fuente en esta importación. */
+  reconciliation_status?: 'skipped' | 'blocked' | 'completed';
+  /** Motivos por los que la conciliación autoritativa no fue elegible. */
+  reconciliation_blocked_reasons?: string[];
 }
 
 export interface ImportRow {

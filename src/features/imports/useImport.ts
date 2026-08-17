@@ -5,6 +5,13 @@ import { loadFile, validateFileMeta, type LoadedFile } from '@/lib/file-reader';
 import { extractSingleTable, type ExtractedTable } from '@/lib/excel';
 import { buildImportPlan, type ImportPlan } from '@/domain/import-pipeline';
 import { buildEkonImportPlan } from '@/domain/ekon-pipeline';
+import { deriveEkonScope } from '@/domain/import-scope';
+import {
+  assembleReconciliationPlan,
+  incomingLineIds,
+  restoreLineIds,
+  type ScopeCandidateLine,
+} from '@/domain/reconciliation';
 import { validateEkonHeaders, EKON_COLUMNS } from '@/schemas/ekon.schema';
 import {
   articuloKey,
@@ -16,6 +23,7 @@ import { buildPlacementIndex } from '@/domain/placement-index';
 import { fetchPlacements } from '@/repositories/placements.repository';
 import {
   buildFirestoreLookup,
+  fetchActiveLinesInScope,
   fetchPlacementCatalog,
   findImportByFileHash,
   runImport,
@@ -23,7 +31,7 @@ import {
 } from '@/repositories/import-processing.repository';
 import { fetchArticuloTipos, saveArticuloTipos } from '@/repositories/settings.repository';
 import { DEFAULT_APP_SETTINGS } from '@/types/operations';
-import type { ImportScope } from '@/types/import';
+import type { ImportCoverageMode, ImportScope } from '@/types/import';
 
 export interface ImportProgress {
   confirmed: number;
@@ -90,6 +98,28 @@ export function useImport() {
         setState({ step: 'rejected', reason: plan.generalRejection });
         return;
       }
+
+      // Conciliación de fuente EKON (§8): deriva el alcance exacto, lee las
+      // líneas activas dentro de él y calcula ausencias/restauraciones. Un fallo
+      // de la consulta NO bloquea la importación aditiva: sólo marca la
+      // conciliación autoritativa como no elegible con su motivo.
+      const derived = deriveEkonScope(plan.rows);
+      const blockedReasons = [...derived.blockedReasons];
+      let existingInScope: ScopeCandidateLine[] = [];
+      try {
+        existingInScope = await fetchActiveLinesInScope(derived.scope as ImportScope);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        blockedReasons.push(`La consulta de comparación con Firestore falló: ${msg}`);
+      }
+      plan.reconciliation = assembleReconciliationPlan({
+        detectedScope: derived.scope as ImportScope,
+        blockedReasons,
+        incoming: incomingLineIds(plan.rows),
+        restoreIds: restoreLineIds(plan.rows),
+        existingInScope,
+      });
+
       setState({ step: 'preview', file: loaded, plan, alreadyImported });
     },
     [],
@@ -195,7 +225,7 @@ export function useImport() {
   );
 
   const confirm = useCallback(
-    async (scope: ImportScope = DEFAULT_SCOPE) => {
+    async (coverageMode: ImportCoverageMode = 'additive') => {
       if (state.step !== 'preview') return;
       if (!isOnline()) {
         setState({ step: 'error', message: 'Sin conexión: no se puede confirmar la importación.' });
@@ -207,6 +237,16 @@ export function useImport() {
       }
 
       const { file, plan } = state;
+      // Alcance efectivo: el alcance detectado + el modo confirmado por el
+      // usuario. Sin conciliación (plantilla no EKON) se usa el alcance seguro.
+      const detected = plan.reconciliation?.detectedScope;
+      const scope: ImportScope = detected
+        ? {
+            ...detected,
+            coverage_mode: coverageMode,
+            is_complete_scope: coverageMode === 'authoritative',
+          }
+        : { ...DEFAULT_SCOPE, coverage_mode: coverageMode };
       setState({ step: 'confirming', progress: { confirmed: 0, total: 0, batch: 0 } });
       try {
         const catalog = await fetchPlacementCatalog();
