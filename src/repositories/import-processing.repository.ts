@@ -33,6 +33,7 @@ import type { ImportPlan, RowPlan } from '@/domain/import-pipeline';
 import type { ExistingLineRef } from '@/domain/import-classification';
 import {
   lineInScope,
+  reconcilableOperationTypes,
   shouldApplyReconciliation,
   type ReconciliationCandidate,
   type ScopeCandidateLine,
@@ -48,7 +49,7 @@ import { computeProgress } from '@/domain/progress';
 import { initialChecksForImportedLine, requiredChecksForLine } from '@/domain/operation-rules';
 
 /** Tope de lectura de la conciliación para no descargar la colección entera. */
-const RECONCILIATION_READ_LIMIT = 3000;
+const RECONCILIATION_READ_LIMIT = 6000;
 
 // ----------------------------- Lookups ------------------------------------
 
@@ -131,12 +132,16 @@ export async function findImportByFileHash(
 
 // ------------------------- Conciliación de fuente -------------------------
 
-/** Construye el filtro de alcance normalizado a partir del alcance detectado. */
+/**
+ * Construye el filtro de alcance normalizado a partir del alcance detectado. Los
+ * tipos de operación se restringen a los CONCILIABLES (ECOMMERCE, DIGITAL
+ * SIGNAGE, TOMATURNOS): sólo esos pueden marcarse como no incluidos al faltar.
+ */
 export function buildScopeFilter(scope: ImportScope): ScopeFilter {
   return {
     coveredPeriods: scope.covered_periods ?? [],
     chainKeys: new Set((scope.scope_chains ?? []).map((c) => normalizeChain(c))),
-    operationTypes: new Set(scope.scope_operation_types ?? []),
+    operationTypes: reconcilableOperationTypes(scope.scope_operation_types ?? []),
     windowStart: scope.scope_start_date,
     windowEnd: scope.scope_end_date,
   };
@@ -173,10 +178,13 @@ function toScopeCandidateLine(l: CampaignLine): ScopeCandidateLine {
 
 /**
  * Líneas activas/actuales que pertenecen al alcance confirmado (§7). Consulta
- * por la ventana de `periodo_inicio` (no descarga toda la colección) y aplica la
- * membresía exacta/contención en memoria. Incluye ambas estrategias de
- * identidad: `period_range` por periodo exacto y `campaign_range` por contención
- * de su rango de activación en la ventana confirmada.
+ * por `active + is_current` (mismo patrón que el dashboard, SIN índice compuesto
+ * nuevo) y aplica la membresía exacta/contención en memoria. Incluye ambas
+ * estrategias de identidad: `period_range` por periodo exacto y `campaign_range`
+ * por contención de su rango de activación en la ventana confirmada.
+ *
+ * El tope de lectura acota la descarga; si se truncara, sólo se dejarían de
+ * detectar ausencias (dirección segura: nunca desactiva de más).
  */
 export async function fetchActiveLinesInScope(
   scope: ImportScope,
@@ -196,8 +204,6 @@ export async function fetchActiveLinesInScope(
     collection(db, COLLECTIONS.campaignLines),
     where('active', '==', true),
     where('is_current', '==', true),
-    where('periodo_inicio', '>=', filter.windowStart),
-    where('periodo_inicio', '<=', filter.windowEnd),
     limit(RECONCILIATION_READ_LIMIT),
   );
   const snap = await getDocs(q);

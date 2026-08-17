@@ -33,6 +33,26 @@ const PERSISTIBLE_RESULTS = new Set<RowPlan['result']>([
   'possible_replacement',
 ]);
 
+/**
+ * Tipos de operación que PUEDEN conciliarse (marcarse como no incluidos al
+ * faltar). El resto se importa normalmente pero nunca se desactiva por ausencia.
+ * Decisión de negocio (fija en código; editar aquí para ampliarla).
+ */
+export const RECONCILABLE_OPERATION_TYPES: ReadonlySet<string> = new Set([
+  'ECOMMERCE',
+  'DIGITAL SIGNAGE',
+  'TOMATURNOS',
+]);
+
+/** Subconjunto de tipos detectados que además son conciliables. */
+export function reconcilableOperationTypes(detected: Iterable<string>): Set<string> {
+  const out = new Set<string>();
+  for (const t of detected) {
+    if (RECONCILABLE_OPERATION_TYPES.has(t)) out.add(t);
+  }
+  return out;
+}
+
 /** Acción de presencia sobre una línea entrante que ya existe (§6). */
 export type PresenceAction = 'touch' | 'restore';
 

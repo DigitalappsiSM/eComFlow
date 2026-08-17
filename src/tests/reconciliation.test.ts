@@ -4,6 +4,8 @@ import {
   computeMissing,
   decidePresenceAction,
   lineInScope,
+  reconcilableOperationTypes,
+  RECONCILABLE_OPERATION_TYPES,
   shouldApplyReconciliation,
   type ReconciliationCandidate,
   type ScopeCandidateLine,
@@ -180,6 +182,28 @@ describe('retailers: period_range vs campaign_range (§5, §16)', () => {
     const inScope = [pr, crOut].filter((l) => lineInScope(l, filter));
     const missing = computeMissing(inScope, new Set());
     expect(missing.map((m) => m.campaignLineId)).toEqual(['pr_soriana']);
+  });
+});
+
+describe('tipos conciliables (solo ECOMMERCE/DIGITAL SIGNAGE/TOMATURNOS)', () => {
+  it('conserva sólo los tipos conciliables y descarta el resto', () => {
+    const detected = ['ECOMMERCE', 'DIGITAL SIGNAGE', 'TOMATURNOS', 'GRAFICA', 'OTRO'];
+    const kept = reconcilableOperationTypes(detected);
+    expect([...kept].sort()).toEqual(['DIGITAL SIGNAGE', 'ECOMMERCE', 'TOMATURNOS']);
+    expect(kept.has('GRAFICA')).toBe(false);
+  });
+
+  it('los tres tipos acordados son conciliables', () => {
+    expect(RECONCILABLE_OPERATION_TYPES.has('ECOMMERCE')).toBe(true);
+    expect(RECONCILABLE_OPERATION_TYPES.has('DIGITAL SIGNAGE')).toBe(true);
+    expect(RECONCILABLE_OPERATION_TYPES.has('TOMATURNOS')).toBe(true);
+    expect(RECONCILABLE_OPERATION_TYPES.has('GRAFICA')).toBe(false);
+  });
+
+  it('DIGITAL SIGNAGE en alcance sí puede marcarse ausente', () => {
+    const l = line({ tipoOperacion: 'DIGITAL SIGNAGE' });
+    const filter = scopeFilter([S33], ['soriana'], ['DIGITAL SIGNAGE']);
+    expect(lineInScope(l, filter)).toBe(true);
   });
 });
 
