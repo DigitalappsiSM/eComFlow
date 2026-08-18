@@ -4,11 +4,13 @@ import { useAuth } from '@/hooks/useAuth';
 
 /** Inicio de sesión con correo y contraseña (§27, Fase 1). */
 export function LoginPage() {
-  const { signIn, configError, firebaseUser, loading } = useAuth();
+  const { signIn, sendPasswordReset, configError, firebaseUser, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   // Sesión ya iniciada: redirigir al dashboard en lugar de quedarse en login.
   if (!loading && firebaseUser) {
@@ -18,6 +20,7 @@ export function LoginPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setResetSent(false);
     setSubmitting(true);
     try {
       await signIn(email, password);
@@ -29,6 +32,42 @@ export function LoginPage() {
       );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleReset() {
+    setError(null);
+    setResetSent(false);
+    if (!email.trim()) {
+      setError('Ingrese su correo electrónico para recibir el enlace de restablecimiento.');
+      return;
+    }
+    setResetting(true);
+    try {
+      await sendPasswordReset(email.trim());
+      // No revelamos si el correo existe o no, por seguridad.
+      setResetSent(true);
+    } catch (err) {
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? String((err as { code: unknown }).code)
+          : '';
+      if (code === 'auth/user-not-found') {
+        // Cuenta inexistente: confirmación genérica para no filtrar qué
+        // correos están registrados (no enumeración).
+        setResetSent(true);
+      } else if (code === 'auth/invalid-email') {
+        setError('El correo electrónico no es válido.');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Demasiados intentos. Espere unos minutos e inténtelo de nuevo.');
+      } else {
+        // Fallo operativo real (red, método deshabilitado, cuota, plantilla
+        // inválida): NO afirmamos que se envió. Mensaje genérico que permite
+        // reintentar sin revelar si el correo existe.
+        setError('No se pudo enviar el enlace de restablecimiento. Inténtelo de nuevo más tarde.');
+      }
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -86,12 +125,28 @@ export function LoginPage() {
             </p>
           )}
 
+          {resetSent && (
+            <p role="status" className="text-xs text-accent-green">
+              Si el correo está registrado, le enviamos un enlace para restablecer su contraseña.
+              Revise su bandeja de entrada y la carpeta de spam.
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={submitting || !!configError}
             className="focus-ring w-full rounded-lg bg-accent-blue px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
           >
             {submitting ? 'Ingresando…' : 'Iniciar sesión'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void handleReset()}
+            disabled={resetting || !!configError}
+            className="focus-ring w-full rounded-lg px-4 py-1.5 text-xs font-medium text-accent-blue hover:underline disabled:opacity-60"
+          >
+            {resetting ? 'Enviando enlace…' : '¿Olvidó su contraseña?'}
           </button>
         </form>
 

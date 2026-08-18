@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { LoginPage } from '@/pages/auth/LoginPage';
+import { ChangePasswordPage } from '@/pages/auth/ChangePasswordPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { PlacementsPage } from '@/pages/placements/PlacementsPage';
 import { NewImportPage } from '@/pages/imports/NewImportPage';
@@ -35,6 +36,8 @@ export const router = createBrowserRouter(
   { path: '/campanas/:id', element: protectedElement(<CampaignDetailPage />, 'campaigns') },
   { path: '/catalogo', element: protectedElement(<PlacementsPage />, 'catalog') },
   { path: '/configuracion', element: protectedElement(<SettingsPage />, 'settings') },
+  // Cambio de contraseña autoservicio: disponible para cualquier sesión activa.
+  { path: '/cambiar-contrasena', element: protectedElement(<ChangePasswordPage />) },
   { path: '/usuarios', element: protectedElement(<UsersPage />, 'users') },
   // --- Módulo Resultados Ecommerce (dominio independiente, §3) ---
   { path: '/resultados', element: <Navigate to="/resultados/dashboard" replace /> },

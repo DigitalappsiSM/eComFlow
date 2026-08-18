@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  EmailAuthProvider,
   onAuthStateChanged,
+  reauthenticateWithCredential,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
+  updatePassword,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { auth, firebaseError } from '@/lib/firebase';
@@ -50,6 +54,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async signOut() {
         if (!auth) return;
         await fbSignOut(auth);
+      },
+      async changePassword(currentPassword: string, newPassword: string) {
+        if (!auth) throw new Error(firebaseError ?? 'Firebase no configurado.');
+        const user = auth.currentUser;
+        if (!user?.email) throw new Error('No hay una sesión activa.');
+        // Reautenticar con la contraseña actual antes de cambiarla: Firebase
+        // exige credenciales recientes para operaciones sensibles.
+        const credential = EmailAuthProvider.credential(user.email, currentPassword);
+        await reauthenticateWithCredential(user, credential);
+        await updatePassword(user, newPassword);
+      },
+      async sendPasswordReset(email: string) {
+        if (!auth) throw new Error(firebaseError ?? 'Firebase no configurado.');
+        await sendPasswordResetEmail(auth, email);
       },
     }),
     [loading, firebaseUser, appUser],
