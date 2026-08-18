@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, ChevronDown, LogOut, Menu } from 'lucide-react';
 import { ConnectionIndicator } from './ConnectionIndicator';
+import { ThemeToggle } from './ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePendingChangesCount } from '@/features/changes/usePendingChangesCount';
@@ -44,6 +45,7 @@ export function Header({ title, description, onOpenMenu }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
+        <ThemeToggle />
         <ConnectionIndicator />
 
         {canReadChanges && (

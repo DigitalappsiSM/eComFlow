@@ -5,6 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>eComFlow Next</title>
+    <!-- Aplica el tema guardado antes de pintar (evita parpadeo claro→oscuro). -->
+    <script>
+      try {
+        if (localStorage.getItem('ecomflow-theme') === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
