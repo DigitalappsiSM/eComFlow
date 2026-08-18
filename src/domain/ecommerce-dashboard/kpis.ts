@@ -16,6 +16,7 @@ import { deadlinesFor, operationalStatusOf, preparationOnTime, closingOnTime, AL
 import { isDeadlinePassed } from './deadlines';
 import { isWithinWeek, windowOverlapsWeek } from './weeks';
 import type { DashboardCreative } from './types';
+import { expandDateRange } from '@/domain/line-cancellation';
 
 export interface DashboardWeekRange {
   start: IsoDate;
@@ -24,18 +25,31 @@ export interface DashboardWeekRange {
 
 /** ¿La creatividad participa en la semana? (contada como máximo una vez, §6). */
 export function creativeInWeek(creative: DashboardCreative, week: DashboardWeekRange): boolean {
+  // Documento histórico cancelado sin calendario: la cancelación era total y
+  // retroactiva. Los documentos nuevos siempre incluyen fechas efectivas.
+  if (creative.cancelled && creative.cancelledDates.length === 0) return false;
   if (creative.isLaComer) {
-    return creative.activationDates.some((d) => isWithinWeek(d, week));
+    return creative.activationDates.some(
+      (date) => isWithinWeek(date, week) && !creative.cancelledDates.includes(date),
+    );
   }
-  return windowOverlapsWeek({ start: creative.activationStart, end: creative.activationEnd }, week);
+  if (!windowOverlapsWeek({ start: creative.activationStart, end: creative.activationEnd }, week)) {
+    return false;
+  }
+  return expandDateRange(week.start, week.end).some(
+    (date) =>
+      date >= creative.activationStart &&
+      date <= creative.activationEnd &&
+      !creative.cancelledDates.includes(date),
+  );
 }
 
-/** Creatividades (no canceladas) que participan en la semana. */
+/** Creatividades con al menos un día activo que participan en la semana. */
 export function creativesForWeek(
   creatives: readonly DashboardCreative[],
   week: DashboardWeekRange,
 ): DashboardCreative[] {
-  return creatives.filter((c) => !c.cancelled && creativeInWeek(c, week));
+  return creatives.filter((c) => creativeInWeek(c, week));
 }
 
 /** ¿La creatividad es CONTINUA en esta semana (empezó antes)? (§6). */

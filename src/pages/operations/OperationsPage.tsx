@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/States';
 import { StatusBadge } from '@/components/operations/StatusBadge';
 import { LineDetailDrawer } from '@/components/operations/LineDetailDrawer';
+import { CancellationModal } from '@/components/operations/CancellationModal';
 import { FilterBar } from '@/components/filters/FilterBar';
 import { useOperations } from '@/features/operations/useOperations';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -12,6 +13,7 @@ import { CHECK_KEYS, type CheckKey } from '@/domain/progress';
 import { isCheckRequiredForLine, requiredChecksForLine } from '@/domain/operation-rules';
 import { todayIso } from '@/lib/dates';
 import { parseDrilldownParams, STATUS_LABELS as ECOMMERCE_STATUS_LABELS } from '@/domain/ecommerce-dashboard';
+import { cancelledOperationalDates, isLineFullyCancelled } from '@/domain/line-cancellation';
 import type { OperationRow } from '@/repositories/operations.repository';
 
 /** Columnas ordenables de la tabla operativa. */
@@ -130,6 +132,7 @@ export function OperationsPage() {
   const { can } = usePermissions();
   const canWrite = can('operations.write');
   const [selected, setSelected] = useState<OperationRow | null>(null);
+  const [cancellationTarget, setCancellationTarget] = useState<OperationRow | null>(null);
   const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
   const today = todayIso();
 
@@ -269,6 +272,18 @@ export function OperationsPage() {
         meta={`${ops.rows.length} de ${ops.totalLoaded} líneas`}
       />
 
+      {ops.cancelledCount > 0 && (
+        <label className="mb-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={ops.showCancelled}
+            onChange={(event) => ops.setShowCancelled(event.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-accent-blue"
+          />
+          Mostrar canceladas ({ops.cancelledCount})
+        </label>
+      )}
+
       {ops.status === 'loading' && <LoadingState label="Cargando líneas operativas…" />}
       {ops.status === 'error' && <ErrorState description={ops.message ?? undefined} onRetry={ops.reload} />}
 
@@ -298,7 +313,7 @@ export function OperationsPage() {
               </div>
             )}
             <div className="card hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[1450px] text-sm">
+              <table className="w-full min-w-[1550px] text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50">
                   <tr className="text-left text-xs uppercase text-slate-500">
                     <SortHeader label="Cliente / Campaña" col="cliente" sort={sort} onSort={handleSort} className="sticky left-0 bg-slate-50" />
@@ -314,6 +329,7 @@ export function OperationsPage() {
                     <th className="px-3 py-2 font-medium">Comentarios</th>
                     <SortHeader label="Avance" col="avance" sort={sort} onSort={handleSort} />
                     <SortHeader label="Estado" col="estado" sort={sort} onSort={handleSort} />
+                    <th className="px-3 py-2 font-medium">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -328,10 +344,12 @@ export function OperationsPage() {
                       requiredChecks: required,
                     });
                     const hasPendingChecks = required.some((k) => !row.checks[k]);
-                    const canMarkAll = canWrite && hasPendingChecks;
+                    const fullyCancelled = isLineFullyCancelled(row.line, today);
+                    const cancelledDays = cancelledOperationalDates(row.line).length;
+                    const canMarkAll = canWrite && hasPendingChecks && !fullyCancelled;
                     const savingLine = ops.savingLineId === row.line.campaign_line_id;
                     return (
-                      <tr key={row.line.campaign_line_id} className="border-t border-slate-100 hover:bg-slate-50">
+                      <tr key={row.line.campaign_line_id} className={`border-t border-slate-100 hover:bg-slate-50 ${fullyCancelled ? 'opacity-65' : ''}`}>
                         <td className="sticky left-0 bg-white px-3 py-2">
                           <button
                             onClick={() => setSelected(row)}
@@ -377,7 +395,7 @@ export function OperationsPage() {
                               {required ? (
                                 <button
                                   type="button"
-                                  disabled={!canWrite}
+                                  disabled={!canWrite || fullyCancelled}
                                   onClick={() => void ops.toggleCheck(row, k)}
                                   aria-pressed={row.checks[k]}
                                   aria-label={`${CHECK_LABELS[k]} ${row.checks[k] ? 'completado' : 'pendiente'}`}
@@ -385,7 +403,7 @@ export function OperationsPage() {
                                     row.checks[k]
                                       ? 'border-accent-green bg-accent-green text-white'
                                       : 'border-slate-300 bg-white text-transparent'
-                                  } ${canWrite ? 'cursor-pointer' : 'cursor-default'}`}
+                                  } ${canWrite && !fullyCancelled ? 'cursor-pointer' : 'cursor-default opacity-50'}`}
                                 >
                                   ✓
                                 </button>
@@ -401,7 +419,7 @@ export function OperationsPage() {
                           <textarea
                             key={row.comentarios ?? ''}
                             defaultValue={row.comentarios ?? ''}
-                            disabled={!canWrite}
+                            disabled={!canWrite || fullyCancelled}
                             rows={2}
                             onBlur={(e) => {
                               if (e.target.value.trim() !== (row.comentarios ?? '')) {
@@ -440,6 +458,17 @@ export function OperationsPage() {
                         <td className="px-3 py-2">
                           <StatusBadge status={status} />
                         </td>
+                        <td className="px-3 py-2">
+                          {canWrite && row.line.tipo_operacion === 'ECOMMERCE' && (
+                            <button
+                              type="button"
+                              onClick={() => setCancellationTarget(row)}
+                              className="focus-ring whitespace-nowrap rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                            >
+                              {cancelledDays > 0 ? `Gestionar (${cancelledDays})` : 'Cancelar'}
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -460,10 +489,12 @@ export function OperationsPage() {
                   requiredChecks: required,
                 });
                 const hasPendingChecks = required.some((k) => !row.checks[k]);
-                const canMarkAll = canWrite && hasPendingChecks;
+                const fullyCancelled = isLineFullyCancelled(row.line, today);
+                const cancelledDays = cancelledOperationalDates(row.line).length;
+                const canMarkAll = canWrite && hasPendingChecks && !fullyCancelled;
                 const savingLine = ops.savingLineId === row.line.campaign_line_id;
                 return (
-                  <div key={row.line.campaign_line_id} className="card p-4">
+                  <div key={row.line.campaign_line_id} className={`card p-4 ${fullyCancelled ? 'opacity-65' : ''}`}>
                     <div className="flex items-start justify-between gap-2">
                       <button onClick={() => setSelected(row)} className="focus-ring min-w-0 text-left">
                         <span className="block truncate font-semibold text-accent-blue">
@@ -503,14 +534,14 @@ export function OperationsPage() {
                             <button
                               key={k}
                               type="button"
-                              disabled={!canWrite}
+                              disabled={!canWrite || fullyCancelled}
                               onClick={() => void ops.toggleCheck(row, k)}
                               aria-pressed={row.checks[k]}
                               className={`focus-ring inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${
                                 row.checks[k]
                                   ? 'border-accent-green bg-green-50 text-accent-green'
                                   : 'border-slate-300 bg-white text-slate-500'
-                              } ${canWrite ? '' : 'opacity-60'}`}
+                              } ${canWrite && !fullyCancelled ? '' : 'opacity-60'}`}
                             >
                               <span aria-hidden="true">{row.checks[k] ? '✓' : '○'}</span>
                               {CHECK_LABELS[k]}
@@ -540,7 +571,7 @@ export function OperationsPage() {
                     <textarea
                       key={row.comentarios ?? ''}
                       defaultValue={row.comentarios ?? ''}
-                      disabled={!canWrite}
+                      disabled={!canWrite || fullyCancelled}
                       rows={2}
                       onBlur={(e) => {
                         if (e.target.value.trim() !== (row.comentarios ?? '')) {
@@ -551,6 +582,15 @@ export function OperationsPage() {
                       className="focus-ring mt-3 w-full resize-y rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm disabled:bg-transparent"
                       aria-label="Comentarios de la línea"
                     />
+                    {canWrite && row.line.tipo_operacion === 'ECOMMERCE' && (
+                      <button
+                        type="button"
+                        onClick={() => setCancellationTarget(row)}
+                        className="focus-ring mt-3 w-full rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                      >
+                        {cancelledDays > 0 ? `Gestionar cancelación (${cancelledDays})` : 'Cancelar línea o fechas'}
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -569,7 +609,24 @@ export function OperationsPage() {
           </>
         ))}
 
-      {selected && <LineDetailDrawer row={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <LineDetailDrawer
+          row={selected}
+          onClose={() => setSelected(null)}
+          onManageCancellation={(row) => {
+            setSelected(null);
+            setCancellationTarget(row);
+          }}
+        />
+      )}
+      {cancellationTarget && (
+        <CancellationModal
+          row={cancellationTarget}
+          busy={ops.savingLineId === cancellationTarget.line.campaign_line_id}
+          onClose={() => setCancellationTarget(null)}
+          onSubmit={(command) => ops.setLineCancellation(cancellationTarget, command)}
+        />
+      )}
     </AppLayout>
   );
 }

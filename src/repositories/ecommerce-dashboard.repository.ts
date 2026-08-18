@@ -85,6 +85,9 @@ function toRawDashboardLine(line: CampaignLine, op: CampaignOperation | undefine
     fechaFijacion: line.fecha_fijacion,
     fechaRetirada: line.fecha_retirada,
     cancelled: line.cancelled ?? false,
+    cancelledDates: line.cancelled_dates ?? [],
+    cancelledFrom: line.cancelled_from ?? null,
+    reactivatedDates: line.reactivated_dates ?? [],
     checks: rawChecksFromOperation(op),
     operationUpdatedAtMs: tsToMillis(op?.updated_at),
   };
@@ -99,9 +102,9 @@ export interface EcommerceDashboardData {
 
 /**
  * Recupera TODAS las líneas Ecommerce activas/vigentes y las une con su
- * operación. Pagina sin truncar (§10). Excluye canceladas en memoria
- * (`cancelled != true`, §2) tras la consulta, para tolerar documentos
- * históricos sin el campo.
+ * operación. Pagina sin truncar (§10). Las cancelaciones se conservan en la
+ * proyección porque su efecto es por fecha: una línea cancelada hoy todavía
+ * puede participar en semanas históricas anteriores.
  */
 export async function fetchEcommerceDashboardLines(): Promise<EcommerceDashboardData> {
   const db = requireDb();
@@ -125,9 +128,7 @@ export async function fetchEcommerceDashboardLines(): Promise<EcommerceDashboard
   };
 
   const docs = await fetchAllPages<QueryDocumentSnapshot, QueryDocumentSnapshot>(fetchPage);
-  const lines = docs
-    .map((d) => d.data() as CampaignLine)
-    .filter((l) => l.cancelled !== true);
+  const lines = docs.map((d) => d.data() as CampaignLine);
 
   // Join con operaciones por id (== campaign_line_id) en lotes de 10, en paralelo.
   const ids = lines.map((l) => l.campaign_line_id);

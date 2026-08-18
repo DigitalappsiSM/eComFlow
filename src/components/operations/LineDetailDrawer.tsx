@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Trash2, Send } from 'lucide-react';
+import { Ban, X, Trash2, Send } from 'lucide-react';
 import {
   addComment,
   archiveComment,
@@ -12,6 +12,12 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { LoadingState } from '@/components/feedback/States';
 import type { CampaignComment } from '@/types/operations';
 import type { ChangeHistoryEntry } from '@/types/audit';
+import {
+  cancelledOperationalDates,
+  isLineFullyCancelled,
+  operationalDatesForLine,
+} from '@/domain/line-cancellation';
+import { todayIso } from '@/lib/dates';
 
 function fmt(ts: { toDate?: () => Date } | null): string {
   return ts?.toDate ? ts.toDate().toLocaleString('es-MX') : '—';
@@ -21,18 +27,23 @@ function fmt(ts: { toDate?: () => Date } | null): string {
 export function LineDetailDrawer({
   row,
   onClose,
+  onManageCancellation,
 }: {
   row: OperationRow;
   onClose: () => void;
+  onManageCancellation?: (row: OperationRow) => void;
 }) {
   const { firebaseUser, appUser } = useAuth();
   const { can } = usePermissions();
   const canWrite = can('operations.write');
+  const canEditOperation = canWrite && !isLineFullyCancelled(row.line, todayIso());
 
   const [comments, setComments] = useState<CampaignComment[] | null>(null);
   const [history, setHistory] = useState<ChangeHistoryEntry[] | null>(null);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const scheduledDates = operationalDatesForLine(row.line);
+  const cancelledDates = cancelledOperationalDates(row.line);
 
   const ids = {
     campaign_line_id: row.line.campaign_line_id,
@@ -95,9 +106,30 @@ export function LineDetailDrawer({
           </button>
         </div>
 
+        {canWrite && row.line.tipo_operacion === 'ECOMMERCE' && onManageCancellation && (
+          <section className="border-b border-slate-200 p-4">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-700">Cancelación operativa</p>
+                <p className="text-xs text-slate-500">
+                  {cancelledDates.length} de {scheduledDates.length} día(s) cancelado(s)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onManageCancellation(row)}
+                className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                <Ban className="h-4 w-4" aria-hidden="true" />
+                Gestionar
+              </button>
+            </div>
+          </section>
+        )}
+
         <section className="border-b border-slate-200 p-4">
           <h3 className="mb-2 text-sm font-semibold text-slate-700">Comentarios</h3>
-          {canWrite && (
+          {canEditOperation && (
             <div className="mb-3 flex gap-2">
               <input
                 value={draft}
@@ -127,7 +159,7 @@ export function LineDetailDrawer({
                 <li key={c.comment_id} className="rounded-lg bg-slate-50 p-2 text-sm">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-slate-700">{c.comment}</p>
-                    {canWrite && (
+                    {canEditOperation && (
                       <button
                         onClick={() => void remove(c.comment_id)}
                         className="focus-ring rounded p-1 text-slate-400 hover:text-red-500"

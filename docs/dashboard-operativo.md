@@ -19,8 +19,12 @@ Sólo se consideran líneas con:
 tipo_operacion == "ECOMMERCE"
 active == true
 is_current == true
-cancelled != true
 ```
+
+La cancelación se evalúa **por fecha**, después de recuperar las líneas. Una
+creatividad participa en una semana si conserva al menos un día activo dentro
+de ella. `cancelled:true` sin metadatos sigue tratándose como cancelación total
+por compatibilidad con documentos históricos.
 
 La **unidad de medición es la creatividad**, no la campaña ni el periodo diario.
 Todos los checks aplicables pesan igual.
@@ -29,7 +33,8 @@ Todos los checks aplicables pesan igual.
 
 1. `useEcommerceDashboard` → `fetchEcommerceDashboardLines` consulta **sólo
    Ecommerce** y **pagina hasta recuperar todas las líneas** (sin el antiguo tope
-   de 1,500). Une cada línea con su `campaign_operations` en lotes de 10.
+   de 1,500). Une cada línea con su `campaign_operations` en lotes de 10 y
+   conserva su calendario de cancelación para el cálculo semanal.
 2. Las líneas se proyectan a `RawDashboardLine` (timestamps ya como epoch ms) y se
    **consolidan** en `DashboardCreative` (`consolidateCreatives`).
 3. `DashboardPage` filtra por la semana seleccionada y calcula KPIs, gráficas y

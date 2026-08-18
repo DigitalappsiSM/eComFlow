@@ -45,6 +45,9 @@ export interface RawDashboardLine {
   fechaFijacion: string;
   fechaRetirada: string;
   cancelled: boolean;
+  cancelledDates: string[];
+  cancelledFrom: string | null;
+  reactivatedDates: string[];
   // Operación (checks).
   checks: Partial<Record<CheckKey, RawCheck>>;
   operationUpdatedAtMs: number | null;
@@ -71,6 +74,8 @@ export interface DashboardCreative {
   retailerId: string | null;
   isLaComer: boolean;
   cancelled: boolean;
+  /** Fechas del calendario operativo que no deben participar en KPIs. */
+  cancelledDates: string[];
   /** Fechas de activación consolidadas (ISO, únicas, ordenadas). */
   activationDates: string[];
   /** Primera fecha de activación / inicio operativo. */
