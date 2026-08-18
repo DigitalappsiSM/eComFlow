@@ -87,10 +87,23 @@
   --d-fg-subtle: #808fa9;
   --d-border: #26314c;
   --d-border-strong: #33405e;
+  /* Lienzo de trabajo (el <main> detrás de las tarjetas). Más profundo que las
+     superficies para que las tarjetas "floten" por encima. */
+  --d-canvas: #0a111f;
 }
 
 [data-theme='dark'] body {
   color: var(--d-fg-strong);
+}
+
+/* Lienzo de trabajo (main / pantallas de carga con bg-canvas). En claro es un
+   gris casi blanco; en oscuro debe oscurecerse como el resto del contenido. El
+   realce interior blanco del borde superior se atenúa para no "brillar". */
+[data-theme='dark'] .bg-canvas {
+  background-color: var(--d-canvas);
+}
+[data-theme='dark'] main.bg-canvas {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 /* Superficies */
@@ -180,3 +193,59 @@
 [data-theme='dark'] .border-green-200 { border-color: rgba(34, 197, 94, 0.32); }
 [data-theme='dark'] .border-blue-200,
 [data-theme='dark'] .border-blue-100 { border-color: rgba(59, 130, 246, 0.32); }
+
+/* =====================================================================
+   Gráficos (Recharts) reactivos al tema.
+   Recharts pinta SVG con valores de color fijos en JS (stroke/fill de rejilla,
+   ejes y tooltips), por lo que los overrides por clase Tailwind no lo alcanzan.
+   El CSS de autor SÍ gana sobre los atributos de presentación del SVG, así que
+   redefinimos rejilla/ejes/tooltip vía variables por tema. Los colores de las
+   SERIES (PALETTE, semáforos) se dejan intactos a propósito: son la identidad
+   del dato y son legibles en ambos temas.
+   Se aplica en ambos temas (no solo oscuro) para, de paso, hacer visible la
+   rejilla en claro (antes era blanca al 9% = casi invisible sobre tarjetas).
+   ===================================================================== */
+:root {
+  /* Rejilla y ejes van SOBRE las tarjetas → se ajustan por tema. */
+  --chart-grid: rgba(15, 23, 42, 0.08);
+  --chart-axis: #64748b;
+  /* Tooltip OSCURO en ambos temas: Recharts colorea el texto de cada serie
+     inline con los colores de la paleta (brillantes, pensados para fondos
+     oscuros). Sobre blanco esos colores caen a ~1.8:1 de contraste (ilegibles);
+     sobre un fondo oscuro quedan con contraste alto en claro y oscuro. Además
+     encaja con el shell "tech ejecutivo" y respeta la intención original del
+     dashboard ecommerce (que ya usaba tooltip oscuro). */
+  --chart-tooltip-bg: #0e1526;
+  --chart-tooltip-fg: #e9eef7;
+  --chart-tooltip-border: #33405e;
+}
+[data-theme='dark'] {
+  --chart-grid: rgba(255, 255, 255, 0.09);
+  --chart-axis: #94a3b8;
+}
+
+/* Rejilla y líneas/ticks de ejes. */
+.recharts-cartesian-grid line {
+  stroke: var(--chart-grid);
+}
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: var(--chart-axis);
+  opacity: 0.4;
+}
+/* Texto de los ejes (el atributo fill del <text> lo gana esta regla CSS). */
+.recharts-cartesian-axis-tick-value {
+  fill: var(--chart-axis);
+}
+
+/* Tooltip: el contentStyle inline de cada gráfico se sobreescribe aquí para que
+   respete el tema activo (fondo/borde/encabezado). Los colores por serie del
+   cuerpo del tooltip se conservan. */
+.recharts-default-tooltip {
+  background-color: var(--chart-tooltip-bg) !important;
+  border: 1px solid var(--chart-tooltip-border) !important;
+  border-radius: 8px;
+}
+.recharts-tooltip-label {
+  color: var(--chart-tooltip-fg) !important;
+}

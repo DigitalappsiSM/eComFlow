@@ -14,10 +14,16 @@ export type Theme = 'light' | 'dark';
 
 const STORAGE_KEY = 'ecomflow-theme';
 
-/** Lee el tema guardado; `light` si no hay preferencia o si falla el acceso. */
+/**
+ * Lee el tema efectivo: la elección guardada por el usuario si existe; si no,
+ * la preferencia del sistema (`prefers-color-scheme`). `light` si falla el
+ * acceso. Debe coincidir con el script pre-paint de index.html.
+ */
 export function getStoredTheme(): Theme {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === 'dark' || stored === 'light') return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   } catch {
     return 'light';
   }
