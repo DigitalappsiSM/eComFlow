@@ -17,6 +17,11 @@ export interface AuthState {
    * contraseña actual antes de actualizarla (§27).
    */
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /**
+   * Envía un correo de restablecimiento de contraseña (autoservicio para
+   * usuarios que no pueden iniciar sesión, §27).
+   */
+  sendPasswordReset: (email: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthState | null>(null);

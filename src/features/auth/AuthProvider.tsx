@@ -3,6 +3,7 @@ import {
   EmailAuthProvider,
   onAuthStateChanged,
   reauthenticateWithCredential,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
   updatePassword,
@@ -63,6 +64,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const credential = EmailAuthProvider.credential(user.email, currentPassword);
         await reauthenticateWithCredential(user, credential);
         await updatePassword(user, newPassword);
+      },
+      async sendPasswordReset(email: string) {
+        if (!auth) throw new Error(firebaseError ?? 'Firebase no configurado.');
+        await sendPasswordResetEmail(auth, email);
       },
     }),
     [loading, firebaseUser, appUser],
