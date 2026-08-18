@@ -69,3 +69,114 @@
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue focus-visible:ring-offset-2;
   }
 }
+
+/* =====================================================================
+   Modo oscuro (intercalado claro/oscuro).
+   El tema por defecto (claro) NO se toca: es el diseño actual. En oscuro se
+   redefinen de forma CENTRALIZADA las superficies/texto/bordes/acentos que usan
+   las TARJETAS de contenido, para que toda la app quede coherente en oscuro. El
+   shell (sidebar/header, texto claro sobre vidrio) ya es oscuro en ambos temas.
+   Se activa con [data-theme="dark"] en <html>.
+   ===================================================================== */
+[data-theme='dark'] {
+  --d-surface: #0e1526;
+  --d-surface-2: #131c31;
+  --d-surface-3: #1b2540;
+  --d-fg-strong: #e9eef7;
+  --d-fg: #a6b4cb;
+  --d-fg-subtle: #808fa9;
+  --d-border: #26314c;
+  --d-border-strong: #33405e;
+}
+
+[data-theme='dark'] body {
+  color: var(--d-fg-strong);
+}
+
+/* Superficies */
+[data-theme='dark'] .card {
+  background-color: var(--d-surface);
+  border-color: var(--d-border);
+}
+[data-theme='dark'] .bg-white {
+  background-color: var(--d-surface);
+}
+[data-theme='dark'] .hover\:bg-white:hover {
+  background-color: var(--d-surface-2);
+}
+[data-theme='dark'] .bg-slate-50 {
+  background-color: var(--d-surface-2);
+}
+[data-theme='dark'] .bg-slate-100 {
+  background-color: var(--d-surface-3);
+}
+[data-theme='dark'] .hover\:bg-slate-50:hover {
+  background-color: var(--d-surface-2);
+}
+[data-theme='dark'] .hover\:bg-slate-100:hover {
+  background-color: var(--d-surface-3);
+}
+
+/* Texto */
+[data-theme='dark'] .text-slate-900,
+[data-theme='dark'] .text-slate-800,
+[data-theme='dark'] .text-slate-700 {
+  color: var(--d-fg-strong);
+}
+[data-theme='dark'] .text-slate-600,
+[data-theme='dark'] .text-slate-500 {
+  color: var(--d-fg);
+}
+[data-theme='dark'] .text-slate-400 {
+  color: var(--d-fg-subtle);
+}
+[data-theme='dark'] .hover\:text-slate-700:hover {
+  color: var(--d-fg-strong);
+}
+
+/* Bordes */
+[data-theme='dark'] .border-slate-300 {
+  border-color: var(--d-border-strong);
+}
+[data-theme='dark'] .border-slate-200,
+[data-theme='dark'] .border-slate-100 {
+  border-color: var(--d-border);
+}
+[data-theme='dark'] .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--d-border);
+}
+
+/* Inputs */
+[data-theme='dark'] .placeholder-slate-500::placeholder {
+  color: var(--d-fg-subtle);
+}
+
+/* Fondos tintados de badges/alertas (translúcidos sobre oscuro) */
+[data-theme='dark'] .bg-blue-50 { background-color: rgba(59, 130, 246, 0.15); }
+[data-theme='dark'] .bg-green-50 { background-color: rgba(34, 197, 94, 0.14); }
+[data-theme='dark'] .bg-amber-50 { background-color: rgba(245, 158, 11, 0.14); }
+[data-theme='dark'] .bg-red-50 { background-color: rgba(239, 68, 68, 0.14); }
+[data-theme='dark'] .bg-violet-50 { background-color: rgba(139, 92, 246, 0.15); }
+[data-theme='dark'] .bg-orange-50 { background-color: rgba(234, 88, 12, 0.15); }
+[data-theme='dark'] .bg-teal-50 { background-color: rgba(13, 148, 136, 0.15); }
+
+/* Texto de acentos/estatus (más brillante para contraste sobre oscuro) */
+[data-theme='dark'] .text-accent-blue { color: #60a5fa; }
+[data-theme='dark'] .text-accent-green { color: #4ade80; }
+[data-theme='dark'] .text-accent-violet { color: #a78bfa; }
+[data-theme='dark'] .text-accent-orange { color: #fb923c; }
+[data-theme='dark'] .text-accent-teal { color: #2dd4bf; }
+[data-theme='dark'] .text-red-500,
+[data-theme='dark'] .text-red-600,
+[data-theme='dark'] .text-red-700 { color: #f87171; }
+[data-theme='dark'] .text-amber-600,
+[data-theme='dark'] .text-amber-700,
+[data-theme='dark'] .text-amber-800 { color: #fbbf24; }
+
+/* Bordes de alertas tintadas */
+[data-theme='dark'] .border-amber-200 { border-color: rgba(245, 158, 11, 0.32); }
+[data-theme='dark'] .border-red-200 { border-color: rgba(239, 68, 68, 0.32); }
+[data-theme='dark'] .border-orange-200 { border-color: rgba(234, 88, 12, 0.32); }
+[data-theme='dark'] .border-green-200 { border-color: rgba(34, 197, 94, 0.32); }
+[data-theme='dark'] .border-blue-200,
+[data-theme='dark'] .border-blue-100 { border-color: rgba(59, 130, 246, 0.32); }
