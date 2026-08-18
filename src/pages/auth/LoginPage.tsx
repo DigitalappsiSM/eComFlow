@@ -52,14 +52,19 @@ export function LoginPage() {
         typeof err === 'object' && err !== null && 'code' in err
           ? String((err as { code: unknown }).code)
           : '';
-      if (code === 'auth/invalid-email') {
+      if (code === 'auth/user-not-found') {
+        // Cuenta inexistente: confirmación genérica para no filtrar qué
+        // correos están registrados (no enumeración).
+        setResetSent(true);
+      } else if (code === 'auth/invalid-email') {
         setError('El correo electrónico no es válido.');
       } else if (code === 'auth/too-many-requests') {
         setError('Demasiados intentos. Espere unos minutos e inténtelo de nuevo.');
       } else {
-        // Para user-not-found u otros, mostramos igualmente confirmación
-        // genérica para no filtrar qué correos están registrados.
-        setResetSent(true);
+        // Fallo operativo real (red, método deshabilitado, cuota, plantilla
+        // inválida): NO afirmamos que se envió. Mensaje genérico que permite
+        // reintentar sin revelar si el correo existe.
+        setError('No se pudo enviar el enlace de restablecimiento. Inténtelo de nuevo más tarde.');
       }
     } finally {
       setResetting(false);
