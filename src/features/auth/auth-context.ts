@@ -12,6 +12,11 @@ export interface AuthState {
   configError: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Cambia la contraseña del usuario autenticado. Reautentica con la
+   * contraseña actual antes de actualizarla (§27).
+   */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthState | null>(null);

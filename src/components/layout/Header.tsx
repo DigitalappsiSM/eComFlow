@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu } from 'lucide-react';
+import { Bell, ChevronDown, KeyRound, LogOut, Menu } from 'lucide-react';
 import { ConnectionIndicator } from './ConnectionIndicator';
 import { ThemeToggle } from './ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
@@ -86,6 +86,15 @@ export function Header({ title, description, onOpenMenu }: HeaderProps) {
               role="menu"
               className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
             >
+              <Link
+                to="/cambiar-contrasena"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+                className="focus-ring flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <KeyRound className="h-4 w-4" aria-hidden="true" />
+                Cambiar contraseña
+              </Link>
               <button
                 type="button"
                 role="menuitem"
