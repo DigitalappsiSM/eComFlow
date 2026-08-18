@@ -206,18 +206,22 @@
    rejilla en claro (antes era blanca al 9% = casi invisible sobre tarjetas).
    ===================================================================== */
 :root {
+  /* Rejilla y ejes van SOBRE las tarjetas → se ajustan por tema. */
   --chart-grid: rgba(15, 23, 42, 0.08);
   --chart-axis: #64748b;
-  --chart-tooltip-bg: #ffffff;
-  --chart-tooltip-fg: #0f172a;
-  --chart-tooltip-border: #e2e8f0;
+  /* Tooltip OSCURO en ambos temas: Recharts colorea el texto de cada serie
+     inline con los colores de la paleta (brillantes, pensados para fondos
+     oscuros). Sobre blanco esos colores caen a ~1.8:1 de contraste (ilegibles);
+     sobre un fondo oscuro quedan con contraste alto en claro y oscuro. Además
+     encaja con el shell "tech ejecutivo" y respeta la intención original del
+     dashboard ecommerce (que ya usaba tooltip oscuro). */
+  --chart-tooltip-bg: #0e1526;
+  --chart-tooltip-fg: #e9eef7;
+  --chart-tooltip-border: #33405e;
 }
 [data-theme='dark'] {
   --chart-grid: rgba(255, 255, 255, 0.09);
   --chart-axis: #94a3b8;
-  --chart-tooltip-bg: var(--d-surface-2);
-  --chart-tooltip-fg: var(--d-fg-strong);
-  --chart-tooltip-border: var(--d-border-strong);
 }
 
 /* Rejilla y líneas/ticks de ejes. */
