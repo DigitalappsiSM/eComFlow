@@ -14,6 +14,7 @@ import type {
   ImportScope,
 } from '@/types/import';
 import type { RowPlan } from './import-pipeline';
+import { reconcilableOperationTypes } from './reconciliation';
 
 /** Resultados de fila que SÍ representan una línea persistible entrante (§8.1). */
 const PERSISTIBLE_RESULTS = new Set<RowPlan['result']>([
@@ -45,7 +46,8 @@ export interface DeriveScopeResult {
 /**
  * Deriva el alcance de las filas del plan. Sólo las filas digitales válidas con
  * periodo parseable aportan al universo entrante; las rechazadas y excluidas por
- * tipo no participan, pero la presencia de rechazos bloquea `authoritative`.
+ * tipo no participan. Las filas rechazadas NO bloquean la conciliación (decisión
+ * de negocio): no se importan, pero no impiden conciliar los tipos elegibles.
  */
 export function deriveEkonScope(rows: readonly RowPlan[]): DeriveScopeResult {
   const periodByKey = new Map<string, ImportCoveredPeriod>();
@@ -53,13 +55,9 @@ export function deriveEkonScope(rows: readonly RowPlan[]): DeriveScopeResult {
   const operationTypes = new Set<string>();
   const clients = new Set<string>();
   const campaigns = new Set<string>();
-  let hasRejected = false;
 
   for (const row of rows) {
-    if (row.result === 'rejected') {
-      hasRejected = true;
-      continue;
-    }
+    if (row.result === 'rejected') continue;
     if (row.result === 'excluded_by_type') continue;
     if (!PERSISTIBLE_RESULTS.has(row.result)) continue;
 
@@ -99,10 +97,10 @@ export function deriveEkonScope(rows: readonly RowPlan[]): DeriveScopeResult {
       ? covered.reduce<IsoDate>((max, p) => (p.end > max ? p.end : max), covered[0]!.end)
       : null;
 
+  // Tipos que además son CONCILIABLES (ECOMMERCE, DIGITAL SIGNAGE, TOMATURNOS).
+  const reconcilableTypes = reconcilableOperationTypes(operationTypes);
+
   const blockedReasons: string[] = [];
-  if (hasRejected) {
-    blockedReasons.push('El archivo contiene filas rechazadas; corrígelas antes de conciliar.');
-  }
   if (covered.length === 0) {
     blockedReasons.push('No se detectaron periodos con fechas válidas en el archivo.');
   }
@@ -112,8 +110,10 @@ export function deriveEkonScope(rows: readonly RowPlan[]): DeriveScopeResult {
   if (chains.size === 0) {
     blockedReasons.push('El archivo no contiene cadenas identificables.');
   }
-  if (operationTypes.size === 0) {
-    blockedReasons.push('El archivo no contiene tipos de operación digitales.');
+  if (reconcilableTypes.size === 0) {
+    blockedReasons.push(
+      'El archivo no contiene tipos de operación conciliables (ECOMMERCE, DIGITAL SIGNAGE o TOMATURNOS).',
+    );
   }
 
   const scope: DeriveScopeResult['scope'] = {

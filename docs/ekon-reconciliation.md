@@ -23,9 +23,21 @@ automáticamente si vuelven a aparecer.
   detectado. Requiere un checkbox de confirmación. Las líneas activas dentro del
   alcance que no aparecen se marcan `not_in_source`.
 
-La conciliación autoritativa se **bloquea** (sin desactivar nada) si: hay filas
-rechazadas, no hay periodos con fechas válidas, falta cadena o tipo, o la
+La conciliación autoritativa se **bloquea** (sin desactivar nada) si: no hay
+periodos con fechas válidas, falta cadena, no hay tipos conciliables, o la
 consulta de comparación falla. El modo aditivo nunca depende de la elegibilidad.
+
+Las **filas rechazadas NO bloquean** la conciliación (decisión de negocio): no
+se importan, pero no impiden conciliar los tipos elegibles. Riesgo residual: si
+un rechazo era en realidad una línea conciliable activa, podría marcarse
+`not_in_source`; la baja es reversible y se restaura al reaparecer correcta.
+
+## Tipos conciliables
+
+Sólo se marcan como no incluidas las líneas cuyo `tipo_operacion` es
+**conciliable**: `ECOMMERCE`, `DIGITAL SIGNAGE`, `TOMATURNOS`
+(`RECONCILABLE_OPERATION_TYPES` en `src/domain/reconciliation.ts`, fijo en
+código). Cualquier otro tipo se importa pero nunca se desactiva por ausencia.
 
 ## Alcance por periodos discretos
 
@@ -70,9 +82,10 @@ siempre el `import_scope` efectivo confirmado.
 
 ## Índices
 
-Se agrega `campaign_lines (active, is_current, periodo_inicio)` para acotar la
-lectura de conciliación por la ventana de periodos. El recálculo de padres usa
-consultas de una sola igualdad (auto-indexadas), sin índices compuestos nuevos.
+**No requiere índices compuestos nuevos.** La lectura de conciliación consulta
+`active + is_current` (mismo patrón que el dashboard) y filtra la ventana de
+periodos, cadenas y tipos en memoria. El recálculo de padres usa consultas de
+una sola igualdad (auto-indexadas).
 
 ## Compatibilidad
 

@@ -89,12 +89,16 @@ describe('derivación de alcance EKON (§4.3, §16)', () => {
     expect(derived.scope.covered_periods?.[0]?.code).toBe('S33');
   });
 
-  it('4) una fila rechazada bloquea authoritative', async () => {
-    const { derived } = await scopeFromRows([
+  it('4) una fila rechazada NO bloquea la conciliación (decisión de negocio)', async () => {
+    const { plan, derived } = await scopeFromRows([
       digitalRow(),
       digitalRow({ [EKON_COLUMNS.creatividadId]: '' }), // rechazada (Creatividad Id vacía)
     ]);
-    expect(derived.blockedReasons.some((r) => /rechazadas/i.test(r))).toBe(true);
+    expect(plan.summary.rejected).toBe(1);
+    // La rechazada no se importa, pero no aporta ningún motivo de bloqueo.
+    expect(derived.blockedReasons.some((r) => /rechazad/i.test(r))).toBe(false);
+    // El alcance sigue detectándose desde la fila válida.
+    expect(derived.scope.covered_periods).toHaveLength(1);
   });
 
   it('5) sin periodos parseables bloquea authoritative', async () => {
