@@ -58,6 +58,33 @@ texto por línea donde el usuario escribe notas. Se guardan en la operación
 (`campaign_operations.comentarios`) con auditoría (`comment_edited`) y quedan
 visibles de forma persistente.
 
+## 2c. Cancelación y reactivación por fechas
+
+Sólo las líneas `ECOMMERCE` muestran **Cancelar/Gestionar** en la fila y en el
+panel de detalle. Requiere `operations.write` y permite:
+
+- cancelar toda la línea desde una fecha efectiva;
+- cancelar días concretos dentro del periodo operativo;
+- reactivar toda la línea o días cancelados individuales.
+
+Para La Comer se ofrecen exclusivamente las fechas reales de `activation_dates`;
+para el resto se muestran los días entre `periodo_inicio` y `periodo_fin` (con
+fallback a la ventana de activación o fijación). El catálogo de motivos es:
+Cancelación comercial, Error de EKON, Línea duplicada, Campaña sustituida,
+Cambio solicitado por el cliente y Otro; este último exige comentario.
+
+Los campos `cancelled_from`, `cancelled_dates` y `reactivated_dates` son
+independientes de la presencia en EKON y no se sobrescriben al reimportar. Una
+cancelación desde fecha también cubre días nuevos que aparezcan después. Cuando
+no quedan días operativos activos, la línea se oculta por defecto, bloquea checks
+y comentarios, y deja de participar en «Rellenar todo». El toggle **Mostrar
+canceladas** permite recuperarla y reactivarla. Toda acción genera un evento
+append-only en `change_history`.
+
+En el dashboard, una creatividad se conserva en cada semana donde tenga al menos
+un día activo y se excluye únicamente de semanas cuyos días estén todos
+cancelados. Los módulos Campañas, correo y Resultados no cambian.
+
 ## 3. Validación en producción (después del merge)
 
 1. Abrir **https://digitalappsism.github.io/eComFlow/operacion**.

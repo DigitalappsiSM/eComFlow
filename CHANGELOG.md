@@ -2,6 +2,17 @@
 
 Registro de cambios relevantes de eComFlow Next. Fechas en formato ISO.
 
+## 2026-08-18 — Cancelación operativa Ecommerce por fechas
+
+- Seguimiento operativo permite cancelar o reactivar una línea Ecommerce
+  completa desde una fecha efectiva, o seleccionar días individuales.
+- La cancelación conserva checks, comentarios e historial, sobrevive a nuevas
+  importaciones EKON y bloquea la edición cuando no quedan fechas activas.
+- El dashboard excluye una creatividad de una semana sólo cuando no conserva
+  ningún día activo en ella; las semanas anteriores a la fecha efectiva no se
+  recalculan como canceladas.
+- Motivo, comentario, usuario y cambios de fechas quedan auditados.
+
 ## 2026-07-14 — Módulo Resultados Ecommerce (Kevel)
 
 Módulo nuevo e **independiente** del operativo (dominio aislado, colecciones

@@ -42,6 +42,9 @@ function lineToRaw(line: CampaignLine, checks: CheckValues): RawDashboardLine {
     fechaFijacion: line.fecha_fijacion,
     fechaRetirada: line.fecha_retirada,
     cancelled: line.cancelled ?? false,
+    cancelledDates: line.cancelled_dates ?? [],
+    cancelledFrom: line.cancelled_from ?? null,
+    reactivatedDates: line.reactivated_dates ?? [],
     checks: Object.fromEntries(
       CHECK_KEYS.filter((k) => checks[k]).map((k) => [k, { value: true, updatedAtMs: null }]),
     ),

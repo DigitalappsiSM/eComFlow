@@ -23,6 +23,8 @@ export type ChangeType =
   | 'replacement_confirmed'
   | 'replacement_rejected'
   | 'status_changed'
+  | 'line_dates_cancelled'
+  | 'line_dates_reactivated'
   // Conciliación de fuente EKON (§10): la línea dejó de aparecer / reapareció.
   | 'source_missing'
   | 'source_restored';

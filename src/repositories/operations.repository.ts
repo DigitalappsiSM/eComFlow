@@ -14,6 +14,7 @@ import {
   limit as fbLimit,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   startAfter,
   where,
@@ -30,6 +31,12 @@ import {
   type CheckValues,
 } from '@/domain/progress';
 import { requiredChecksForLine } from '@/domain/operation-rules';
+import {
+  applyCancellationCommand,
+  operationalDatesForLine,
+  type CancellationCommand,
+  type CancellationPatch,
+} from '@/domain/line-cancellation';
 import type { CampaignLine } from '@/types/campaign';
 import type { CampaignComment, CampaignOperation } from '@/types/operations';
 import type { ChangeHistoryEntry } from '@/types/audit';
@@ -174,6 +181,8 @@ interface AuditActor {
   email: string;
 }
 
+export type { CancellationCommand, CancellationPatch } from '@/domain/line-cancellation';
+
 function historyData(
   db: ReturnType<typeof requireDb>,
   ids: EntityIds,
@@ -205,6 +214,97 @@ function historyData(
       created_by_email: actor.email,
     },
   };
+}
+
+/**
+ * Cancela o reactiva fechas de una línea Ecommerce en una transacción.
+ * La lectura dentro de la transacción evita que dos usuarios sobrescriban
+ * cambios concurrentes. La importación EKON no toca estos campos.
+ */
+export async function updateLineCancellation(
+  ids: EntityIds,
+  command: CancellationCommand,
+  actor: AuditActor,
+  today: string,
+): Promise<CancellationPatch> {
+  const db = requireDb();
+  const lineRef = doc(db, COLLECTIONS.campaignLines, ids.campaign_line_id);
+  const historyRef = doc(collection(db, COLLECTIONS.changeHistory));
+
+  return runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(lineRef);
+    if (!snap.exists()) throw new Error('La línea ya no existe. Actualiza la vista e inténtalo de nuevo.');
+
+    const line = snap.data() as CampaignLine;
+    if ((line.tipo_operacion ?? '').trim().toUpperCase() !== 'ECOMMERCE') {
+      throw new Error('La cancelación manual sólo está disponible para líneas Ecommerce.');
+    }
+    if (
+      (command.action === 'cancel_dates' || command.action === 'reactivate_dates') &&
+      command.dates.length === 0
+    ) {
+      throw new Error('Selecciona al menos una fecha.');
+    }
+    if (command.action === 'cancel_from') {
+      const schedule = operationalDatesForLine(line);
+      if (!schedule.includes(command.effectiveFrom)) {
+        throw new Error('La fecha efectiva debe pertenecer al periodo operativo de la línea.');
+      }
+    }
+    if (
+      (command.action === 'cancel_from' || command.action === 'cancel_dates') &&
+      command.reason === 'other' &&
+      command.comment.trim() === ''
+    ) {
+      throw new Error('Escribe un comentario cuando el motivo sea «Otro».');
+    }
+
+    const patch = applyCancellationCommand(line, command, today);
+    const isCancellation = command.action === 'cancel_from' || command.action === 'cancel_dates';
+    const timestampFields = isCancellation
+      ? { cancelled_at: serverTimestamp(), cancelled_by: actor.uid }
+      : {
+          reactivated_at: serverTimestamp(),
+          reactivated_by: actor.uid,
+          ...(command.action === 'reactivate_all'
+            ? { cancelled_at: null, cancelled_by: null }
+            : {}),
+        };
+
+    transaction.update(lineRef, {
+      ...patch,
+      ...timestampFields,
+      updated_at: serverTimestamp(),
+      updated_by: actor.uid,
+    });
+    transaction.set(historyRef, {
+      change_id: historyRef.id,
+      entity_type: 'campaign_line',
+      entity_id: ids.campaign_line_id,
+      campaign_group_id: ids.campaign_group_id,
+      campaign_space_id: ids.campaign_space_id,
+      campaign_line_id: ids.campaign_line_id,
+      import_id: null,
+      change_type: isCancellation ? 'line_dates_cancelled' : 'line_dates_reactivated',
+      field_name: 'cancelled_dates',
+      previous_value: {
+        cancelled: line.cancelled ?? false,
+        cancelled_dates: line.cancelled_dates ?? [],
+        cancelled_from: line.cancelled_from ?? null,
+        reactivated_dates: line.reactivated_dates ?? [],
+      },
+      new_value: {
+        ...patch,
+        command: command.action,
+      },
+      origin: 'manual_operation',
+      created_at: serverTimestamp(),
+      created_by: actor.uid,
+      created_by_email: actor.email,
+    });
+
+    return patch;
+  });
 }
 
 /** Cambia un check, recalcula el avance y audita, todo en un lote (§12, §24). */

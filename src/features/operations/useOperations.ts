@@ -4,13 +4,16 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   assignResponsable,
   fetchOperationsPage,
+  updateLineCancellation,
   updateCheck,
   updateOperationComment,
+  type CancellationCommand,
   type OperationRow,
 } from '@/repositories/operations.repository';
 import { computeProgress, type CheckKey } from '@/domain/progress';
 import { computeStatus, STATUS_LABELS } from '@/domain/campaign-status';
 import { requiredChecksForLine } from '@/domain/operation-rules';
+import { isLineFullyCancelled } from '@/domain/line-cancellation';
 import { campaignLineWindow, isInvalidRange, windowIntersects } from '@/domain/operational-window';
 import { getMonthWindow, todayIso } from '@/lib/dates';
 import { distinctOptions, type FilterValues } from '@/components/filters/filter-utils';
@@ -49,6 +52,7 @@ export function useOperations(pageSize = 500, initialFilters: DrilldownFilters =
   const [statusFilter, setStatusFilter] = useState<OperationalStatus | null>(initialFilters.status ?? null);
   const [savingLineId, setSavingLineId] = useState<string | null>(null);
   const [bulkStatus, setBulkStatus] = useState<'idle' | 'saving'>('idle');
+  const [showCancelled, setShowCancelled] = useState(false);
 
   const actor = useMemo(
     () =>
@@ -112,7 +116,7 @@ export function useOperations(pageSize = 500, initialFilters: DrilldownFilters =
 
   const toggleCheck = useCallback(
     async (row: OperationRow, key: CheckKey) => {
-      if (!actor) return;
+      if (!actor || isLineFullyCancelled(row.line, todayIso())) return;
       const next = !row.checks[key];
       const progress = await updateCheck(
         idsOf(row),
@@ -135,7 +139,7 @@ export function useOperations(pageSize = 500, initialFilters: DrilldownFilters =
 
   const setResponsable = useCallback(
     async (row: OperationRow, value: string) => {
-      if (!actor) return;
+      if (!actor || isLineFullyCancelled(row.line, todayIso())) return;
       const responsable = value.trim() === '' ? null : value.trim();
       await assignResponsable(idsOf(row), row.responsable, responsable, actor);
       setRows((prev) =>
@@ -149,7 +153,7 @@ export function useOperations(pageSize = 500, initialFilters: DrilldownFilters =
 
   const setComment = useCallback(
     async (row: OperationRow, value: string) => {
-      if (!actor) return;
+      if (!actor || isLineFullyCancelled(row.line, todayIso())) return;
       const comentarios = value.trim();
       if (comentarios === (row.comentarios ?? '')) return;
       await updateOperationComment(idsOf(row), row.comentarios ?? '', comentarios, actor);
@@ -181,6 +185,7 @@ export function useOperations(pageSize = 500, initialFilters: DrilldownFilters =
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
+      if (!showCancelled && isLineFullyCancelled(r.line, today)) return false;
       if (filters.cadena && (r.line.cadena ?? '') !== filters.cadena) return false;
       if (filters.tipo && (r.line.tipo_operacion ?? '') !== filters.tipo) return false;
       if (filters.continuidad && (r.line.tipo_campana_periodo ?? '') !== filters.continuidad) return false;
@@ -215,7 +220,7 @@ export function useOperations(pageSize = 500, initialFilters: DrilldownFilters =
       }
       return true;
     });
-  }, [rows, search, filters, statusLabelOf, windowFrom, windowTo, pendingCheck, statusFilter, today]);
+  }, [rows, search, filters, statusLabelOf, windowFrom, windowTo, pendingCheck, statusFilter, today, showCancelled]);
 
   // El periodo operativo de una línea ya venció. Usa periodo_fin si existe (el
   // periodo operativo vence antes que la campaña global); si no, fecha_retirada.
@@ -228,7 +233,7 @@ export function useOperations(pageSize = 500, initialFilters: DrilldownFilters =
   // Cada check se persiste con auditoría (mismo flujo que un check individual).
   const markLineChecks = useCallback(
     async (row: OperationRow) => {
-      if (!actor || savingLineId) return;
+      if (!actor || savingLineId || isLineFullyCancelled(row.line, today)) return;
       const requiredChecks = requiredChecksForLine(row.line);
       if (!requiredChecks.some((key) => !row.checks[key])) return;
 
@@ -252,13 +257,43 @@ export function useOperations(pageSize = 500, initialFilters: DrilldownFilters =
         setSavingLineId(null);
       }
     },
-    [actor, savingLineId],
+    [actor, savingLineId, today],
   );
 
   // Líneas filtradas (visibles) que aún tienen checks obligatorios pendientes.
   const visibleRowsWithPending = useMemo(
-    () => filtered.filter((r) => requiredChecksForLine(r.line).some((key) => !r.checks[key])),
-    [filtered],
+    () =>
+      filtered.filter(
+        (r) =>
+          !isLineFullyCancelled(r.line, today) &&
+          requiredChecksForLine(r.line).some((key) => !r.checks[key]),
+      ),
+    [filtered, today],
+  );
+
+  const cancelledCount = useMemo(
+    () => rows.filter((row) => isLineFullyCancelled(row.line, today)).length,
+    [rows, today],
+  );
+
+  const setLineCancellation = useCallback(
+    async (row: OperationRow, command: CancellationCommand) => {
+      if (!actor || savingLineId) return;
+      setSavingLineId(row.line.campaign_line_id);
+      try {
+        const patch = await updateLineCancellation(idsOf(row), command, actor, today);
+        setRows((prev) =>
+          prev.map((candidate) =>
+            candidate.line.campaign_line_id === row.line.campaign_line_id
+              ? { ...candidate, line: { ...candidate.line, ...patch } }
+              : candidate,
+          ),
+        );
+      } finally {
+        setSavingLineId(null);
+      }
+    },
+    [actor, savingLineId, today],
   );
 
   // Rellena de una vez todos los checks obligatorios pendientes de TODAS las
@@ -349,6 +384,10 @@ export function useOperations(pageSize = 500, initialFilters: DrilldownFilters =
     visiblePendingCount: visibleRowsWithPending.length,
     bulkStatus,
     markAllVisibleChecks,
+    showCancelled,
+    setShowCancelled,
+    cancelledCount,
+    setLineCancellation,
     toggleCheck,
     setResponsable,
     setComment,

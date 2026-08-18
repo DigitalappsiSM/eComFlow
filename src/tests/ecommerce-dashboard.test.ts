@@ -61,6 +61,9 @@ function rawLine(overrides: Partial<RawDashboardLine> = {}): RawDashboardLine {
     fechaFijacion: '2026-08-07',
     fechaRetirada: '2026-08-13',
     cancelled: false,
+    cancelledDates: [],
+    cancelledFrom: null,
+    reactivatedDates: [],
     checks: {},
     operationUpdatedAtMs: null,
     ...overrides,
@@ -317,6 +320,56 @@ describe('§6 continuidad multi-semana sin reiniciar checks', () => {
     expect(inW1[0]!.checks).toEqual(inW2[0]!.checks); // no se reinician
     expect(isContinuationInWeek(c, week1)).toBe(false);
     expect(isContinuationInWeek(c, week2)).toBe(true);
+  });
+});
+
+describe('cancelación por fechas en el dashboard', () => {
+  const week1 = { start: '2026-08-07', end: '2026-08-13' };
+  const week2 = { start: '2026-08-14', end: '2026-08-20' };
+
+  it('conserva la semana histórica y excluye desde la fecha efectiva', () => {
+    const c = creativeOf([
+      generalLine({
+        periodoInicio: '2026-08-07',
+        periodoFin: '2026-08-20',
+        fechaRetirada: '2026-08-20',
+        cancelled: true,
+        cancelledFrom: '2026-08-14',
+      }),
+    ]);
+
+    expect(creativesForWeek([c], week1)).toHaveLength(1);
+    expect(creativesForWeek([c], week2)).toHaveLength(0);
+  });
+
+  it('mantiene la creatividad si queda al menos un día activo en la semana', () => {
+    const c = creativeOf([
+      rawLine({
+        activationDates: ['2026-08-14', '2026-08-15', '2026-08-16'],
+        cancelledDates: ['2026-08-14', '2026-08-15'],
+      }),
+    ]);
+    expect(creativesForWeek([c], week2)).toHaveLength(1);
+  });
+
+  it('la excluye si todos sus días de la semana están cancelados', () => {
+    const dates = ['2026-08-14', '2026-08-15', '2026-08-16'];
+    const c = creativeOf([
+      rawLine({ activationDates: dates, cancelled: true, cancelledDates: dates }),
+    ]);
+    expect(creativesForWeek([c], week2)).toHaveLength(0);
+  });
+
+  it('una fecha reactivada vuelve a incluir la creatividad', () => {
+    const c = creativeOf([
+      rawLine({
+        activationDates: ['2026-08-14', '2026-08-15'],
+        cancelled: false,
+        cancelledFrom: '2026-08-14',
+        reactivatedDates: ['2026-08-15'],
+      }),
+    ]);
+    expect(creativesForWeek([c], week2)).toHaveLength(1);
   });
 });
 

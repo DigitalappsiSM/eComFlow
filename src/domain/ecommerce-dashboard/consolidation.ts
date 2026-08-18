@@ -32,6 +32,11 @@ import { periodDatesOf } from '@/pages/campaigns/ecommerceEmail';
 import { addDaysIso, mexicoCityDate } from './time';
 import { splitApplicableChecks } from './checks';
 import type { DashboardCreative, RawDashboardLine } from './types';
+import {
+  expandDateRange,
+  isDateCancelled,
+  type DateCancellationState,
+} from '@/domain/line-cancellation';
 
 const EM_DASH = '—';
 
@@ -92,6 +97,30 @@ function generalWindow(line: RawDashboardLine): { start: string; end: string } {
     start: line.activationStart ?? line.periodoInicio ?? line.fechaFijacion ?? '',
     end: line.activationEnd ?? line.periodoFin ?? line.fechaRetirada ?? '',
   };
+}
+
+function cancellationState(line: RawDashboardLine): DateCancellationState {
+  return {
+    cancelled: line.cancelled,
+    cancelledDates: line.cancelledDates,
+    cancelledFrom: line.cancelledFrom,
+    reactivatedDates: line.reactivatedDates,
+  };
+}
+
+/** Una fecha consolidada sólo se cancela si todas sus líneas fuente la cancelan. */
+function consolidatedCancelledDates(
+  lines: readonly RawDashboardLine[],
+  dates: readonly string[],
+  datesOf: (line: RawDashboardLine) => string[],
+): string[] {
+  return dates.filter((date) => {
+    const contributors = lines.filter((line) => datesOf(line).includes(date));
+    return (
+      contributors.length > 0 &&
+      contributors.every((line) => isDateCancelled(cancellationState(line), date))
+    );
+  });
 }
 
 /** Clave de consolidación de La Comer: campaña + artículo/placement + Creatividad ID. */
@@ -163,15 +192,21 @@ function buildCreative(id: string, lines: readonly RawDashboardLine[]): Dashboar
   let activationDates: string[];
   let activationStart: string;
   let activationEnd: string;
+  let cancelledDates: string[];
   if (isLaComer) {
     activationDates = sortUniqueDates(lines.flatMap(lineActivationDates));
-    activationStart = activationDates[0] ?? rep.fechaFijacion;
-    activationEnd = activationDates[activationDates.length - 1] ?? rep.fechaRetirada;
+    cancelledDates = consolidatedCancelledDates(lines, activationDates, lineActivationDates);
+    const activeDates = activationDates.filter((date) => !cancelledDates.includes(date));
+    activationStart = activeDates[0] ?? activationDates[0] ?? rep.fechaFijacion;
+    activationEnd = activeDates[activeDates.length - 1] ?? activationDates[activationDates.length - 1] ?? rep.fechaRetirada;
   } else {
     const win = generalWindow(rep);
     activationDates = [];
-    activationStart = win.start;
-    activationEnd = win.end;
+    const scheduledDates = expandDateRange(win.start, win.end);
+    cancelledDates = scheduledDates.filter((date) => isDateCancelled(cancellationState(rep), date));
+    const activeDates = scheduledDates.filter((date) => !cancelledDates.includes(date));
+    activationStart = activeDates[0] ?? win.start;
+    activationEnd = activeDates[activeDates.length - 1] ?? win.end;
   }
 
   const { checks, checkDates } = consolidateChecks(lines);
@@ -195,6 +230,7 @@ function buildCreative(id: string, lines: readonly RawDashboardLine[]): Dashboar
     retailerId: rep.retailerId,
     isLaComer,
     cancelled: lines.every((l) => l.cancelled),
+    cancelledDates,
     activationDates,
     activationStart,
     activationEnd,

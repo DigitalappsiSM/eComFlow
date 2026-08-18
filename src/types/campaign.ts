@@ -15,6 +15,14 @@ import type { IdentityStrategy, PeriodGranularity } from '@/domain/retailers/typ
  */
 export type SourceStatus = 'present' | 'not_in_source' | 'restored';
 
+export type CancellationReason =
+  | 'commercial_cancellation'
+  | 'ekon_error'
+  | 'duplicate_line'
+  | 'replaced_campaign'
+  | 'client_request'
+  | 'other';
+
 export interface AuditFields {
   created_at: Timestamp | null;
   created_by: string;
@@ -104,6 +112,19 @@ export interface CampaignLine extends AuditFields {
   anunciante: string;
   required_pieces: number;
   cancelled: boolean;
+
+  // --- Cancelación manual por fechas. Opcionales para documentos históricos.
+  // `cancelled_from` cubre también fechas que aparezcan en reimportaciones
+  // posteriores; `reactivated_dates` son excepciones explícitas a ese rango.
+  cancelled_dates?: IsoDate[];
+  cancelled_from?: IsoDate | null;
+  reactivated_dates?: IsoDate[];
+  cancellation_reason?: CancellationReason | null;
+  cancellation_comment?: string | null;
+  cancelled_at?: Timestamp | null;
+  cancelled_by?: string | null;
+  reactivated_at?: Timestamp | null;
+  reactivated_by?: string | null;
 
   // --- Conciliación de fuente EKON (§3). Opcionales: los documentos históricos
   // no los tienen y se leen como `present`/activos. `is_current` y `cancelled`
