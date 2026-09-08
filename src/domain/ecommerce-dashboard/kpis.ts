@@ -25,9 +25,12 @@ export interface DashboardWeekRange {
 
 /** ¿La creatividad participa en la semana? (contada como máximo una vez, §6). */
 export function creativeInWeek(creative: DashboardCreative, week: DashboardWeekRange): boolean {
-  // Documento histórico cancelado sin calendario: la cancelación era total y
-  // retroactiva. Los documentos nuevos siempre incluyen fechas efectivas.
-  if (creative.cancelled && creative.cancelledDates.length === 0) return false;
+  // Una creatividad TOTALMENTE cancelada (todas sus líneas con `cancelled=true`)
+  // desaparece del dashboard por completo: no participa en NINGUNA semana ni KPI,
+  // aunque tuviera días activos antes de la fecha de cancelación. La cancelación
+  // PARCIAL por fechas (`cancelled=false` con `cancelledDates`/`cancelledFrom`) se
+  // sigue filtrando día a día más abajo, conservando su historia previa.
+  if (creative.cancelled) return false;
   if (creative.isLaComer) {
     return creative.activationDates.some(
       (date) => isWithinWeek(date, week) && !creative.cancelledDates.includes(date),

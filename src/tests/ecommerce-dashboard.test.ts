@@ -327,18 +327,37 @@ describe('cancelación por fechas en el dashboard', () => {
   const week1 = { start: '2026-08-07', end: '2026-08-13' };
   const week2 = { start: '2026-08-14', end: '2026-08-20' };
 
-  it('conserva la semana histórica y excluye desde la fecha efectiva', () => {
+  it('cancelación parcial: conserva la semana histórica y excluye desde la fecha efectiva', () => {
+    // Quedan días activos antes de la fecha efectiva → la línea NO está totalmente
+    // cancelada (`cancelled=false`) y se filtra día a día.
+    const c = creativeOf([
+      generalLine({
+        periodoInicio: '2026-08-07',
+        periodoFin: '2026-08-20',
+        fechaRetirada: '2026-08-20',
+        cancelled: false,
+        cancelledFrom: '2026-08-14',
+      }),
+    ]);
+
+    expect(creativesForWeek([c], week1)).toHaveLength(1);
+    expect(creativesForWeek([c], week2)).toHaveLength(0);
+  });
+
+  it('cancelación total: desaparece de todas las semanas, incluida la histórica', () => {
+    // Cancelada por completo (`cancelled=true`): no debe aparecer en NINGUNA semana
+    // ni KPI, aunque tuviera días activos antes de la fecha de cancelación.
     const c = creativeOf([
       generalLine({
         periodoInicio: '2026-08-07',
         periodoFin: '2026-08-20',
         fechaRetirada: '2026-08-20',
         cancelled: true,
-        cancelledFrom: '2026-08-14',
+        cancelledFrom: '2026-08-08',
       }),
     ]);
 
-    expect(creativesForWeek([c], week1)).toHaveLength(1);
+    expect(creativesForWeek([c], week1)).toHaveLength(0);
     expect(creativesForWeek([c], week2)).toHaveLength(0);
   });
 
