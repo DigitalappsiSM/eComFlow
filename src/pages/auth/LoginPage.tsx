@@ -151,7 +151,7 @@ export function LoginPage() {
         </form>
 
         <p className="mt-4 text-center text-[11px] text-slate-500">
-          Los usuarios se crean desde la Consola de Firebase (§27).
+          Plataforma de control de operaciones eCommerce
         </p>
       </div>
     </div>
