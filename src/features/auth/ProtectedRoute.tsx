@@ -3,11 +3,30 @@ import { Navigate } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
-import { LoadingState } from '@/components/feedback/States';
 import type { Permission } from '@/types/user';
 
 function FullScreen({ children }: { children: ReactNode }) {
   return <div className="flex h-full items-center justify-center bg-canvas">{children}</div>;
+}
+
+function AuthLoadingScreen() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex h-full items-center justify-center bg-navy-900 px-6 text-center"
+    >
+      <div className="flex flex-col items-center">
+        <div className="relative mb-5 flex h-16 w-16 items-center justify-center" aria-hidden="true">
+          <span className="absolute inset-0 rounded-full border border-accent-blue/30" />
+          <span className="absolute inset-1 animate-spin rounded-full border-2 border-transparent border-r-accent-blue border-t-accent-cyan" />
+          <span className="h-3 w-3 animate-pulse rounded-full bg-accent-blue shadow-[0_0_18px_rgba(37,99,235,0.8)]" />
+        </div>
+        <p className="text-sm font-semibold text-white">Ingresando al sistema…</p>
+        <p className="mt-1 text-xs text-slate-400">Validando sesión y permisos</p>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -25,11 +44,7 @@ export function ProtectedRoute({
   const { can } = usePermissions();
 
   if (loading) {
-    return (
-      <FullScreen>
-        <LoadingState label="Verificando sesión…" />
-      </FullScreen>
-    );
+    return <AuthLoadingScreen />;
   }
 
   if (!firebaseUser) {
