@@ -10,4 +10,6 @@ test('usuario sin sesión es redirigido a /login', async ({ page }) => {
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('heading', { name: 'eComFlow Next' })).toBeVisible();
   await expect(page.getByLabel('Correo electrónico')).toBeVisible();
+  await expect(page.getByText('Plataforma de control de operaciones eCommerce')).toBeVisible();
+  await expect(page.getByText(/Consola de Firebase/)).toHaveCount(0);
 });

@@ -24,21 +24,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+
+    let authRequest = 0;
     const unsub = onAuthStateChanged(auth, async (user) => {
+      const request = ++authRequest;
+
+      // Firebase entrega primero la sesión y después consultamos el perfil en
+      // Firestore. Mantener el estado de carga durante ambas operaciones evita
+      // interpretar temporalmente un perfil pendiente como acceso denegado.
+      setLoading(true);
       setFirebaseUser(user);
+      setAppUser(null);
+
+      let nextAppUser: AppUser | null = null;
       if (user) {
         try {
-          const doc = await fetchUser(user.uid);
-          setAppUser(doc);
+          nextAppUser = await fetchUser(user.uid);
         } catch {
-          setAppUser(null);
+          nextAppUser = null;
         }
-      } else {
-        setAppUser(null);
       }
+
+      // Ignorar una consulta anterior si el estado de autenticación cambió
+      // mientras Firestore respondía (por ejemplo, al cerrar sesión).
+      if (request !== authRequest) return;
+
+      setAppUser(nextAppUser);
       setLoading(false);
     });
-    return unsub;
+
+    return () => {
+      authRequest += 1;
+      unsub();
+    };
   }, []);
 
   const value = useMemo<AuthState>(
